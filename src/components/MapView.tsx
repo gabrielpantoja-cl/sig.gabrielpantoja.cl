@@ -34,6 +34,48 @@ const esc = (s: string | null): string =>
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
   );
 
+/**
+ * Popup HTML for a single transaction. Leads with the predio/comuna and price,
+ * then the CBR registry citation (Fojas N° / año), the conservador it belongs to
+ * and the remaining public attributes (ROL, superficie, destino).
+ */
+function buildPopup(p: MapPoint): string {
+  const cite = [
+    p.fojas ? `Fojas ${esc(p.fojas)}` : null,
+    p.numero != null ? `N° ${p.numero}` : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const inscripcion = cite ? `${cite} · ${p.anio}` : `Año ${p.anio}`;
+
+  const rows: [string, string][] = [['Inscripción', inscripcion]];
+  if (p.conservador) rows.push(['Conservador', `CBR ${esc(p.conservador)}`]);
+  if (p.rol) rows.push(['ROL', esc(p.rol)]);
+  if (p.superficie) rows.push(['Superficie', `${p.superficie.toLocaleString('es-CL')} m²`]);
+  if (p.destino) rows.push(['Destino', esc(p.destino)]);
+
+  const body = rows
+    .map(
+      ([k, v]) =>
+        `<tr>` +
+        `<td style="opacity:.55;padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top">${k}</td>` +
+        `<td style="vertical-align:top">${v}</td>` +
+        `</tr>`,
+    )
+    .join('');
+
+  return (
+    `<div style="font-size:0.8rem;line-height:1.45;min-width:210px">` +
+    `<div style="font-weight:600;font-size:0.92rem">${esc(p.predio || p.comuna)}</div>` +
+    (p.predio
+      ? `<div style="opacity:.6;margin-bottom:.35rem">${esc(p.comuna)}</div>`
+      : `<div style="margin-bottom:.35rem"></div>`) +
+    `<div style="font-weight:600;font-size:1rem;color:hsl(153 28% 30%);margin-bottom:.4rem">${formatCLP(p.monto)}</div>` +
+    `<table style="border-collapse:collapse">${body}</table>` +
+    `</div>`
+  );
+}
+
 export default function MapView({ points }: { points: MapPoint[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -84,17 +126,7 @@ export default function MapView({ points }: { points: MapPoint[] }) {
         fillOpacity: 0.7,
         weight: 1,
       });
-      marker.bindPopup(
-        `<div style="font-size:0.85rem">` +
-          `<strong>${esc(p.comuna)}</strong><br/>` +
-          `Año: ${p.anio}<br/>` +
-          `${formatCLP(p.monto)}` +
-          (p.rol ? `<br/>ROL: ${esc(p.rol)}` : '') +
-          (p.destino ? `<br/>${esc(p.destino)}` : '') +
-          (p.predio ? `<br/>${esc(p.predio)}` : '') +
-          (p.superficie ? `<br/>${p.superficie.toLocaleString('es-CL')} m²` : '') +
-          `</div>`,
-      );
+      marker.bindPopup(buildPopup(p));
       group.addLayer(marker);
     }
 

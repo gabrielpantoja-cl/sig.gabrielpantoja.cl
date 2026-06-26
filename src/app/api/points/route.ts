@@ -28,13 +28,23 @@ export async function GET(req: Request) {
     const { where, params } = buildFilters(searchParams);
     const sql = getSql();
 
+    // Filter referenciales inside a CTE (where the unqualified filter columns are
+    // unambiguous), then LEFT JOIN conservadores for the human-readable CBR name.
+    // Both tables have a `comuna` column, so a direct join would be ambiguous.
     const rows = (await sql.query(
-      `SELECT lat, lng, monto, anio, comuna, predio,
-              "superficieTerreno" AS superficie, rol, destino
-       FROM referenciales
-       WHERE ${where}
-       ORDER BY anio DESC
-       LIMIT ${MAX_POINTS}`,
+      `WITH r AS (
+         SELECT lat, lng, monto, anio, comuna, predio,
+                "superficieTerreno" AS superficie, rol, destino,
+                fojas, numero, "conservadorId"
+         FROM referenciales
+         WHERE ${where}
+         ORDER BY anio DESC
+         LIMIT ${MAX_POINTS}
+       )
+       SELECT r.lat, r.lng, r.monto, r.anio, r.comuna, r.predio, r.superficie,
+              r.rol, r.destino, r.fojas, r.numero, c.nombre AS conservador
+       FROM r
+       LEFT JOIN conservadores c ON c.id = r."conservadorId"`,
       params,
     )) as Record<string, unknown>[];
 
@@ -48,6 +58,9 @@ export async function GET(req: Request) {
       superficie: r.superficie != null ? Number(r.superficie) : null,
       rol: r.rol,
       destino: r.destino,
+      fojas: r.fojas,
+      numero: r.numero != null ? Number(r.numero) : null,
+      conservador: r.conservador,
     }));
 
     return Response.json(points, {

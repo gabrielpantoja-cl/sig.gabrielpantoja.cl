@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local scratch dropped in the repo root: screenshots + DNS zone exports
+# (scoped to root with a leading slash so public/ images stay tracked)
+/*.png
+/*.txt
+
