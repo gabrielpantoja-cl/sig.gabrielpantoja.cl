@@ -50,6 +50,10 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
+  // Mobile-only: the filter drawer (bottom sheet) is collapsed by default so the
+  // map owns the screen. On desktop the filters are always visible inline.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   // Load facets once.
   useEffect(() => {
     fetch('/api/facets')
@@ -72,6 +76,17 @@ export default function Home() {
     if (rol.trim()) p.set('rol', rol.trim());
     return p.toString();
   }, [comuna, anioFrom, montoMin, montoMax, supMin, supMax, predio, rol]);
+
+  const activeFilters = [
+    comuna !== 'todas',
+    anioFrom != null,
+    montoMin,
+    montoMax,
+    supMin,
+    supMax,
+    predio.trim(),
+    rol.trim(),
+  ].filter(Boolean).length;
 
   const debouncedQs = useDebounced(queryString, 400);
 
@@ -112,29 +127,88 @@ export default function Home() {
 
   return (
     <main className="flex flex-1 flex-col">
-      {/* Header */}
-      <header className="border-b border-black/10 px-4 py-6 md:px-8 dark:border-white/10">
-        <p className="text-xs uppercase tracking-[0.18em] opacity-60">
+      {/* Header — compact on mobile so the map stays above the fold */}
+      <header className="border-b border-black/10 px-4 py-3 md:px-8 md:py-6 dark:border-white/10">
+        <p className="text-[0.65rem] uppercase tracking-[0.18em] opacity-60 md:text-xs">
           SIG de suelo · Datos abiertos
         </p>
-        <h1 className="mt-1 text-2xl font-medium md:text-3xl">
+        <h1 className="mt-1 text-lg font-medium md:text-3xl">
           Transacciones de suelo rural — Conservador de Bienes Raíces
         </h1>
-        <p className="mt-2 max-w-3xl text-sm opacity-70">
+        <p className="mt-2 line-clamp-2 max-w-3xl text-sm opacity-70 md:line-clamp-none">
           Compraventas inscritas en el CBR del centro-sur de Chile. Datos públicos:
           precio, año, comuna, superficie, ROL y coordenadas — sin nombres ni RUT.
           Consulta libre para peritos e investigación en ecoinformática.
         </p>
       </header>
 
-      {/* Controls */}
-      <section className="flex flex-wrap items-end gap-x-6 gap-y-4 border-b border-black/10 px-4 py-4 md:px-8 dark:border-white/10">
-        <label className="flex flex-col gap-1 text-sm">
+      {/* Mobile toolbar — opens the filter drawer + shows the result count */}
+      <div className="flex items-center gap-3 border-b border-black/10 px-4 py-2 md:hidden dark:border-white/10">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium dark:border-white/20"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <line x1="4" y1="6" x2="20" y2="6" />
+            <line x1="7" y1="12" x2="17" y2="12" />
+            <line x1="10" y1="18" x2="14" y2="18" />
+          </svg>
+          Filtros
+          {activeFilters > 0 && (
+            <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[hsl(153_28%_35%)] px-1 text-xs font-semibold text-white">
+              {activeFilters}
+            </span>
+          )}
+        </button>
+        <span className="ml-auto text-sm tabular-nums opacity-70">
+          {loading ? '…' : `${fmtInt(stats?.count ?? 0)} resultados`}
+        </span>
+      </div>
+
+      {/* Backdrop behind the mobile drawer */}
+      {filtersOpen && (
+        <div
+          className="fixed inset-0 z-[1100] bg-black/40 md:hidden"
+          onClick={() => setFiltersOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Controls — inline on desktop, slide-up bottom sheet on mobile */}
+      <section
+        className={`flex flex-wrap items-end gap-x-6 gap-y-4 border-b border-black/10 px-4 py-4 md:px-8 dark:border-white/10 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-[1101] max-md:max-h-[82vh] max-md:overflow-y-auto max-md:rounded-t-2xl max-md:border max-md:bg-[var(--background)] max-md:pb-6 max-md:shadow-2xl max-md:transition-transform max-md:duration-300 ${
+          filtersOpen ? 'max-md:translate-y-0' : 'max-md:translate-y-full'
+        }`}
+      >
+        {/* Drawer header (mobile only) */}
+        <div className="flex w-full items-center justify-between md:hidden">
+          <span className="text-base font-medium">Filtros</span>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(false)}
+            aria-label="Cerrar filtros"
+            className="rounded-md px-2 py-1 text-lg leading-none opacity-60 hover:opacity-100"
+          >
+            ✕
+          </button>
+        </div>
+
+        <label className="flex flex-col gap-1 text-sm max-md:w-full">
           <span className="font-medium">Comuna</span>
           <select
             value={comuna}
             onChange={(e) => setComuna(e.target.value)}
-            className="h-9 min-w-[12rem] rounded-md border border-black/15 bg-transparent px-2 dark:border-white/20"
+            className="h-9 min-w-[12rem] rounded-md border border-black/15 bg-transparent px-2 max-md:w-full dark:border-white/20"
           >
             <option value="todas">Todas</option>
             {facets?.comunas.map((c) => (
@@ -145,7 +219,7 @@ export default function Home() {
           </select>
         </label>
 
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1 text-sm max-md:w-full">
           <span className="font-medium">
             Desde el año: <span className="opacity-70">{effectiveAnioFrom}</span>
           </span>
@@ -155,21 +229,21 @@ export default function Home() {
             max={facets?.maxAnio ?? 2025}
             value={effectiveAnioFrom}
             onChange={(e) => setAnioFrom(Number(e.target.value))}
-            className="w-48"
+            className="w-48 max-md:w-full"
             disabled={!facets}
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1 text-sm max-md:w-full">
           <span className="font-medium">Monto (CLP)</span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 max-md:w-full">
             <input
               type="number"
               inputMode="numeric"
               placeholder="mín"
               value={montoMin}
               onChange={(e) => setMontoMin(e.target.value)}
-              className="h-9 w-28 rounded-md border border-black/15 bg-transparent px-2 dark:border-white/20"
+              className="h-9 w-28 rounded-md border border-black/15 bg-transparent px-2 max-md:flex-1 dark:border-white/20"
             />
             <span className="opacity-50">–</span>
             <input
@@ -178,21 +252,21 @@ export default function Home() {
               placeholder="máx"
               value={montoMax}
               onChange={(e) => setMontoMax(e.target.value)}
-              className="h-9 w-28 rounded-md border border-black/15 bg-transparent px-2 dark:border-white/20"
+              className="h-9 w-28 rounded-md border border-black/15 bg-transparent px-2 max-md:flex-1 dark:border-white/20"
             />
           </div>
         </label>
 
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1 text-sm max-md:w-full">
           <span className="font-medium">Superficie (m²)</span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 max-md:w-full">
             <input
               type="number"
               inputMode="numeric"
               placeholder="mín"
               value={supMin}
               onChange={(e) => setSupMin(e.target.value)}
-              className="h-9 w-24 rounded-md border border-black/15 bg-transparent px-2 dark:border-white/20"
+              className="h-9 w-24 rounded-md border border-black/15 bg-transparent px-2 max-md:flex-1 dark:border-white/20"
             />
             <span className="opacity-50">–</span>
             <input
@@ -201,51 +275,60 @@ export default function Home() {
               placeholder="máx"
               value={supMax}
               onChange={(e) => setSupMax(e.target.value)}
-              className="h-9 w-24 rounded-md border border-black/15 bg-transparent px-2 dark:border-white/20"
+              className="h-9 w-24 rounded-md border border-black/15 bg-transparent px-2 max-md:flex-1 dark:border-white/20"
             />
           </div>
         </label>
 
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1 text-sm max-md:w-full">
           <span className="font-medium">ROL</span>
           <input
             type="text"
             placeholder="ej. 123-45"
             value={rol}
             onChange={(e) => setRol(e.target.value)}
-            className="h-9 w-32 rounded-md border border-black/15 bg-transparent px-2 dark:border-white/20"
+            className="h-9 w-32 rounded-md border border-black/15 bg-transparent px-2 max-md:w-full dark:border-white/20"
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1 text-sm max-md:w-full">
           <span className="font-medium">Predio</span>
           <input
             type="text"
             placeholder="nombre del predio"
             value={predio}
             onChange={(e) => setPredio(e.target.value)}
-            className="h-9 w-44 rounded-md border border-black/15 bg-transparent px-2 dark:border-white/20"
+            className="h-9 w-44 rounded-md border border-black/15 bg-transparent px-2 max-md:w-full dark:border-white/20"
           />
         </label>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-2 md:ml-auto max-md:mt-1 max-md:w-full">
           <a
             href={exportHref('csv')}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+            className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 max-md:flex-1 max-md:text-center dark:border-white/20 dark:hover:bg-white/10"
           >
             CSV
           </a>
           <a
             href={exportHref('geojson')}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+            className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 max-md:flex-1 max-md:text-center dark:border-white/20 dark:hover:bg-white/10"
           >
             GeoJSON
           </a>
         </div>
+
+        {/* Primary action to dismiss the drawer (mobile only) */}
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(false)}
+          className="w-full rounded-md bg-[hsl(153_28%_30%)] py-2.5 text-sm font-medium text-white md:hidden"
+        >
+          Ver {loading ? '' : fmtInt(stats?.count ?? 0)} resultados en el mapa
+        </button>
       </section>
 
-      {/* Stats */}
-      <section className="flex flex-wrap gap-x-8 gap-y-2 border-b border-black/10 px-4 py-3 text-sm md:px-8 dark:border-white/10">
+      {/* Stats — wrap on desktop, single scrollable strip on mobile */}
+      <section className="flex gap-x-6 gap-y-2 overflow-x-auto border-b border-black/10 px-4 py-3 text-sm md:flex-wrap md:gap-x-8 md:px-8 dark:border-white/10">
         <Stat label="Transacciones" value={loading ? '…' : fmtInt(stats?.count ?? 0)} />
         <Stat label="Promedio" value={loading ? '…' : fmtCLP(stats?.avg)} />
         <Stat label="Mediana" value={loading ? '…' : fmtCLP(stats?.mediana)} />
@@ -254,8 +337,8 @@ export default function Home() {
         <Stat label="$ / m²" value={loading ? '…' : fmtCLP(stats?.precio_m2)} />
       </section>
 
-      {/* Map */}
-      <section className="relative flex-1">
+      {/* Map — guaranteed height on mobile so it never collapses */}
+      <section className="relative min-h-[55vh] flex-1 md:min-h-0">
         {error && (
           <div className="absolute inset-0 z-[500] flex items-center justify-center text-sm text-red-600">
             No se pudieron cargar los datos del mapa.
@@ -268,8 +351,7 @@ export default function Home() {
 
       <footer className="border-t border-black/10 px-4 py-3 text-xs opacity-60 md:px-8 dark:border-white/10">
         Fuente: recopilación propia de inscripciones del Conservador de Bienes
-        Raíces. Datos públicos y anonimizados. Base de datos única: Neon
-        <code className="mx-1">transacciones-suelo</code>.
+        Raíces. Datos públicos y anonimizados.
       </footer>
     </main>
   );
@@ -277,7 +359,7 @@ export default function Home() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex shrink-0 flex-col">
       <span className="text-xs uppercase tracking-wide opacity-50">{label}</span>
       <span className="font-medium tabular-nums">{value}</span>
     </div>

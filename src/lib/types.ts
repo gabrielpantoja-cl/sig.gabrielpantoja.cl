@@ -16,6 +16,9 @@ export interface MapPoint {
   superficie: number | null; // superficieTerreno (m²) en Neon
   rol: string | null;
   destino: string | null; // uso SII (Habitacional, Agrícola, etc.)
+  fojas: string | null; // foja de la inscripción en el CBR
+  numero: number | null; // número de la inscripción en el CBR
+  conservador: string | null; // nombre del CBR (conservadores.nombre)
 }
 
 export interface Stats {
