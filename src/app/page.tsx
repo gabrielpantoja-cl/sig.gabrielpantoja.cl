@@ -3,14 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { Facets, MapPoint, Stats } from '@/lib/types';
+import { RetroLoader } from '@/components/RetroLoader';
 
 const MapView = dynamic(() => import('@/components/MapView'), {
   ssr: false,
-  loading: () => (
-    <div className="flex h-full w-full items-center justify-center text-sm opacity-60">
-      Cargando mapa…
-    </div>
-  ),
+  loading: () => <RetroLoader loading={true} />,
 });
 
 const fmtCLP = (v: number | null | undefined): string =>
@@ -53,6 +50,8 @@ export default function Home() {
   // Mobile-only: the filter drawer (bottom sheet) is collapsed by default so the
   // map owns the screen. On desktop the filters are always visible inline.
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const [showEcological, setShowEcological] = useState(false);
 
   // Load facets once.
   useEffect(() => {
@@ -208,7 +207,7 @@ export default function Home() {
           <select
             value={comuna}
             onChange={(e) => setComuna(e.target.value)}
-            className="h-9 min-w-[12rem] rounded-md border border-black/15 bg-transparent px-2 max-md:w-full dark:border-white/20"
+            className="h-9 min-w-[12rem] rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:w-full dark:border-white/20"
           >
             <option value="todas">Todas</option>
             {facets?.comunas.map((c) => (
@@ -243,7 +242,7 @@ export default function Home() {
               placeholder="mín"
               value={montoMin}
               onChange={(e) => setMontoMin(e.target.value)}
-              className="h-9 w-28 rounded-md border border-black/15 bg-transparent px-2 max-md:flex-1 dark:border-white/20"
+              className="h-9 w-28 rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:flex-1 dark:border-white/20"
             />
             <span className="opacity-50">–</span>
             <input
@@ -252,7 +251,7 @@ export default function Home() {
               placeholder="máx"
               value={montoMax}
               onChange={(e) => setMontoMax(e.target.value)}
-              className="h-9 w-28 rounded-md border border-black/15 bg-transparent px-2 max-md:flex-1 dark:border-white/20"
+              className="h-9 w-28 rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:flex-1 dark:border-white/20"
             />
           </div>
         </label>
@@ -266,7 +265,7 @@ export default function Home() {
               placeholder="mín"
               value={supMin}
               onChange={(e) => setSupMin(e.target.value)}
-              className="h-9 w-24 rounded-md border border-black/15 bg-transparent px-2 max-md:flex-1 dark:border-white/20"
+              className="h-9 w-24 rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:flex-1 dark:border-white/20"
             />
             <span className="opacity-50">–</span>
             <input
@@ -275,7 +274,7 @@ export default function Home() {
               placeholder="máx"
               value={supMax}
               onChange={(e) => setSupMax(e.target.value)}
-              className="h-9 w-24 rounded-md border border-black/15 bg-transparent px-2 max-md:flex-1 dark:border-white/20"
+              className="h-9 w-24 rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:flex-1 dark:border-white/20"
             />
           </div>
         </label>
@@ -287,7 +286,7 @@ export default function Home() {
             placeholder="ej. 123-45"
             value={rol}
             onChange={(e) => setRol(e.target.value)}
-            className="h-9 w-32 rounded-md border border-black/15 bg-transparent px-2 max-md:w-full dark:border-white/20"
+            className="h-9 w-32 rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:w-full dark:border-white/20"
           />
         </label>
 
@@ -298,11 +297,23 @@ export default function Home() {
             placeholder="nombre del predio"
             value={predio}
             onChange={(e) => setPredio(e.target.value)}
-            className="h-9 w-44 rounded-md border border-black/15 bg-transparent px-2 max-md:w-full dark:border-white/20"
+            className="h-9 w-44 rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:w-full dark:border-white/20"
           />
         </label>
 
         <div className="flex items-center gap-2 md:ml-auto max-md:mt-1 max-md:w-full">
+          <button
+            type="button"
+            onClick={() => setShowEcological((v) => !v)}
+            title="Mostrar/ocultar áreas silvestres protegidas del Estado (SNASPE · CONAF)"
+            className={`rounded-md border px-3 py-1.5 text-sm transition-colors max-md:flex-1 max-md:text-center ${
+              showEcological
+                ? 'border-[hsl(153_60%_35%)] bg-[hsl(153_60%_35%)] text-white'
+                : 'border-black/15 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10'
+            }`}
+          >
+            SNASPE
+          </button>
           <a
             href={exportHref('csv')}
             className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 max-md:flex-1 max-md:text-center dark:border-white/20 dark:hover:bg-white/10"
@@ -344,8 +355,9 @@ export default function Home() {
             No se pudieron cargar los datos del mapa.
           </div>
         )}
+        {loading && points.length === 0 && <RetroLoader loading={loading} />}
         <div className="absolute inset-0">
-          <MapView points={points} />
+          <MapView points={points} showEcological={showEcological} />
         </div>
       </section>
 
