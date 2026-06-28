@@ -132,9 +132,7 @@ export default function Home() {
         <p className="text-[0.65rem] uppercase tracking-[0.18em] opacity-60 md:text-xs">
           SIG de suelo · Datos abiertos
         </p>
-        <h1 className="mt-1 text-lg font-medium md:text-3xl">
-          Transacciones de suelo rural — Conservador de Bienes Raíces
-        </h1>
+
         <p className="mt-2 line-clamp-2 max-w-3xl text-sm opacity-70 md:line-clamp-none">
           Compraventas inscritas en el CBR del centro-sur de Chile. Datos públicos:
           precio, año, comuna, superficie, ROL y coordenadas — sin nombres ni RUT.
