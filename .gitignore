@@ -50,3 +50,6 @@ next-env.d.ts
 # only the simplified output in public/data/ is committed)
 /scripts/.cache/
 
+# local agent overrides (per-machine, not shared)
+CLAUDE.local.md
+
