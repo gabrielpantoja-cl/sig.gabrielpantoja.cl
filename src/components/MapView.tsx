@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import type { MapPoint } from '@/lib/types';
+import type { GeoJsonObject } from 'geojson';
 
 /**
  * Imperative Leaflet map with marker clustering.
@@ -76,10 +77,24 @@ function buildPopup(p: MapPoint): string {
   );
 }
 
-export default function MapView({ points }: { points: MapPoint[] }) {
+const PROTECT_CLASS_LABEL: Record<string, string> = {
+  '1': 'Reserva Estricta',
+  '2': 'Parque Nacional',
+  '3': 'Monumento Natural',
+  '4': 'Área de Manejo de Hábitat',
+};
+
+export default function MapView({
+  points,
+  showEcological = false,
+}: {
+  points: MapPoint[];
+  showEcological?: boolean;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
+  const ecologicalRef = useRef<L.GeoJSON | null>(null);
 
   // Initialize the map once.
   useEffect(() => {
@@ -133,6 +148,54 @@ export default function MapView({ points }: { points: MapPoint[] }) {
     map.addLayer(group);
     clusterRef.current = group;
   }, [points]);
+
+  // Ecological layer: SNASPE protected areas (OSM/CONAF via GeoJSON)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (ecologicalRef.current) {
+      map.removeLayer(ecologicalRef.current);
+      ecologicalRef.current = null;
+    }
+
+    if (!showEcological) return;
+
+    fetch('/data/snaspe.geojson')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((geojson: GeoJsonObject) => {
+        if (!mapRef.current) return;
+        const layer = L.geoJSON(geojson, {
+          style: {
+            color: 'hsl(153 60% 35%)',
+            fillColor: 'hsl(153 60% 50%)',
+            fillOpacity: 0.18,
+            weight: 1.5,
+            opacity: 0.7,
+          },
+          onEachFeature(feature, featureLayer) {
+            const p = feature.properties ?? {};
+            const label = PROTECT_CLASS_LABEL[p.protect_class ?? ''] ?? 'Área Protegida';
+            featureLayer.bindPopup(
+              `<div style="font-size:0.8rem;line-height:1.5">` +
+                `<div style="font-weight:600;font-size:0.9rem">${esc(p.name ?? 'Área Protegida')}</div>` +
+                `<div style="opacity:.6;margin-bottom:.3rem">${label}</div>` +
+                `<div style="font-size:0.7rem;opacity:.5">Fuente: OSM · © CONAF SNASPE</div>` +
+                `</div>`,
+            );
+          },
+        }).addTo(mapRef.current);
+        ecologicalRef.current = layer;
+      })
+      .catch(() => {});
+
+    return () => {
+      if (ecologicalRef.current && mapRef.current) {
+        mapRef.current.removeLayer(ecologicalRef.current);
+        ecologicalRef.current = null;
+      }
+    };
+  }, [showEcological]);
 
   return <div ref={containerRef} className="h-full w-full" />;
 }
