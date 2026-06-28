@@ -1,0 +1,20 @@
+{
+  "source": "Ministerio del Medio Ambiente (MMA) — Registro Nacional de Áreas Protegidas (RNAP)",
+  "source_url": "https://lineasdebasepublicas.mma.gob.cl/datos_abiertos/dataset/b08586a7-04b9-4fc8-abe2-9febcd570f2c/resource/0939fd5f-47ca-4e76-9a5e-0ddcf2e457c6/download/areas-protegidas_geojson.zip",
+  "portal": "Líneas de Base Públicas",
+  "license": "CC0 1.0 (dominio público)",
+  "downloaded_at": "2026-06-28",
+  "feature_count": 583,
+  "crs": "EPSG:4326",
+  "fields": [
+    "cod_rnap",
+    "nombre_ap",
+    "region",
+    "designacion_ap",
+    "ha",
+    "url_fuente"
+  ],
+  "processing": "mapshaper -filter-fields cod_rnap,nombre_ap,region,designacion_ap,ha,url_fuente -simplify visvalingam weighted 1.5% keep-shapes precision=0.00001",
+  "mapshaper_version": "0.7.33",
+  "note": "Dato abierto oficial del Estado de Chile (CC0). Cada área enlaza a su ficha en SIMBIO vía url_fuente. Geometría simplificada solo para visualización web; para análisis usar la fuente original."
+}
