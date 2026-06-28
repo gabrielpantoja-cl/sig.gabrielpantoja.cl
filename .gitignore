@@ -46,3 +46,7 @@ next-env.d.ts
 /*.png
 /*.txt
 
+# ETL cache — raw official datasets downloaded by scripts/ (not versioned;
+# only the simplified output in public/data/ is committed)
+/scripts/.cache/
+
