@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { Facets, MapPoint, Stats } from '@/lib/types';
 import { RetroLoader } from '@/components/RetroLoader';
+import { LayersControl } from '@/components/LayersControl';
 
 const MapView = dynamic(() => import('@/components/MapView'), {
   ssr: false,
@@ -51,7 +52,7 @@ export default function Home() {
   // map owns the screen. On desktop the filters are always visible inline.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const [showEcological, setShowEcological] = useState(false);
+  const [showProtected, setShowProtected] = useState(false);
 
   // Load facets once.
   useEffect(() => {
@@ -302,18 +303,6 @@ export default function Home() {
         </label>
 
         <div className="flex items-center gap-2 md:ml-auto max-md:mt-1 max-md:w-full">
-          <button
-            type="button"
-            onClick={() => setShowEcological((v) => !v)}
-            title="Mostrar/ocultar áreas silvestres protegidas del Estado (SNASPE · CONAF)"
-            className={`rounded-md border px-3 py-1.5 text-sm transition-colors max-md:flex-1 max-md:text-center ${
-              showEcological
-                ? 'border-[hsl(153_60%_35%)] bg-[hsl(153_60%_35%)] text-white'
-                : 'border-black/15 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10'
-            }`}
-          >
-            SNASPE
-          </button>
           <a
             href={exportHref('csv')}
             className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 max-md:flex-1 max-md:text-center dark:border-white/20 dark:hover:bg-white/10"
@@ -357,8 +346,9 @@ export default function Home() {
         )}
         {loading && points.length === 0 && <RetroLoader loading={loading} />}
         <div className="absolute inset-0">
-          <MapView points={points} showEcological={showEcological} />
+          <MapView points={points} showProtected={showProtected} />
         </div>
+        <LayersControl showProtected={showProtected} onToggleProtected={setShowProtected} />
       </section>
 
       <footer className="border-t border-black/10 px-4 py-3 text-xs opacity-60 md:px-8 dark:border-white/10">

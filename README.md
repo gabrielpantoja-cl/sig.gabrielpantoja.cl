@@ -50,6 +50,29 @@ Columnas expuestas: `lat, lng, monto, anio, comuna, predio, superficie, rol`.
   es dato personal (Ley 19.628). Habilita la búsqueda por ROL para peritos.
 - **NUNCA se exponen**: `comprador, vendedor, rut, user_id, observaciones`.
 
+## Fuentes de datos y procedencia
+
+| Capa | Fuente | Licencia | Procedencia |
+|---|---|---|---|
+| Transacciones CBR | Recopilación propia de inscripciones del Conservador de Bienes Raíces, anonimizada (Ley 19.628) | Uso de consulta | Base Neon `verceldb`, rol read-only |
+| Áreas protegidas (RNAP) | [Ministerio del Medio Ambiente — Registro Nacional de Áreas Protegidas](https://lineasdebasepublicas.mma.gob.cl/datos_abiertos/dataset/areas-protegidas), portal *Líneas de Base Públicas* | **CC0 1.0** (dominio público) | Ver `public/data/areas-protegidas.meta.json` |
+
+La capa de áreas protegidas (583 áreas, 12 categorías legales) se construye con un
+**pipeline ETL reproducible** que descarga el dato oficial CC0, lo simplifica
+preservando topología (mapshaper / Visvalingam) y emite un manifiesto de
+procedencia. Cada área enlaza a su ficha oficial en SIMBIO (`url_fuente`). La
+geometría simplificada es **solo para visualización web**; para análisis usar la
+fuente original.
+
+```bash
+npm run data:build   # regenera public/data/areas-protegidas.{geojson,meta.json}
+```
+
+> Nota científica: las áreas protegidas tienen 12 designaciones legales distintas
+> (Parque Nacional, Reserva Nacional, Monumento Natural, Santuario de la
+> Naturaleza, etc.), cada una bajo jurisdicción y normativa propia. No deben
+> tratarse como una sola categoría.
+
 ## Desarrollo
 
 ```bash
@@ -72,3 +95,9 @@ npm run build
 - Capas ambientales: NDVI/Sentinel-2, biodiversidad (GBIF), hidrología, áreas
   protegidas → consultas PostGIS `ST_DWithin` / `ST_Intersects`.
 - Masking PII server-side + API v1 versionada (rescatar de `loxos/inmogrid-cl`).
+
+## Licencia
+
+- **Código**: [MIT](./LICENSE) © 2026 Gabriel Pantoja.
+- **Datos de áreas protegidas**: CC0 1.0 (Ministerio del Medio Ambiente de Chile).
+- **Mapa base**: © OpenStreetMap contributors.
