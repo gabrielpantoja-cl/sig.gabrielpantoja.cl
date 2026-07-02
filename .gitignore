@@ -55,4 +55,5 @@ next-env.d.ts
 
 # local agent overrides (per-machine, not shared)
 CLAUDE.local.md
+AGENTS.local.md
 
