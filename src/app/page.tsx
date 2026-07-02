@@ -5,6 +5,9 @@ import dynamic from 'next/dynamic';
 import type { Facets, MapPoint, Stats } from '@/lib/types';
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
+import { MapPanel, type PanelId } from '@/components/MapPanel';
+import { SearchFields, FilterFields, StatsFields } from '@/components/FieldGroups';
+import { InfoPanel } from '@/components/InfoPanel';
 
 const MapView = dynamic(() => import('@/components/MapView'), {
   ssr: false,
@@ -31,6 +34,29 @@ function useDebounced<T>(value: T, ms: number): T {
   return debounced;
 }
 
+const SearchIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <circle cx="11" cy="11" r="7" />
+    <line x1="21" y1="21" x2="16.5" y2="16.5" />
+  </svg>
+);
+
+const FilterIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <line x1="4" y1="6" x2="20" y2="6" />
+    <line x1="7" y1="12" x2="17" y2="12" />
+    <line x1="10" y1="18" x2="14" y2="18" />
+  </svg>
+);
+
+const StatsIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <line x1="5" y1="20" x2="5" y2="12" />
+    <line x1="12" y1="20" x2="12" y2="4" />
+    <line x1="19" y1="20" x2="19" y2="9" />
+  </svg>
+);
+
 export default function Home() {
   const [facets, setFacets] = useState<Facets | null>(null);
 
@@ -48,11 +74,16 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  // Mobile-only: the filter drawer (bottom sheet) is collapsed by default so the
-  // map owns the screen. On desktop the filters are always visible inline.
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Desktop: paneles flotantes sobre el mapa, solo uno abierto a la vez.
+  const [activePanel, setActivePanel] = useState<PanelId | null>(null);
+  const togglePanel = (id: PanelId) => setActivePanel((p) => (p === id ? null : id));
+
+  // Mobile: drawer consolidado (búsqueda + filtros + estadísticas), cerrado
+  // por defecto para que el mapa sea dueño de la pantalla.
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [showProtected, setShowProtected] = useState(false);
+  const [showUrbanLimit, setShowUrbanLimit] = useState(false);
 
   // Load facets once.
   useEffect(() => {
@@ -84,9 +115,9 @@ export default function Home() {
     montoMax,
     supMin,
     supMax,
-    predio.trim(),
-    rol.trim(),
   ].filter(Boolean).length;
+
+  const activeSearch = [predio.trim(), rol.trim()].filter(Boolean).length;
 
   const debouncedQs = useDebounced(queryString, 400);
 
@@ -125,218 +156,94 @@ export default function Home() {
   const exportHref = (format: 'csv' | 'geojson') =>
     `/api/export?${debouncedQs ? `${debouncedQs}&` : ''}format=${format}`;
 
+  const searchFields = (
+    <SearchFields predio={predio} setPredio={setPredio} rol={rol} setRol={setRol} />
+  );
+
+  const filterFields = (
+    <FilterFields
+      comuna={comuna}
+      setComuna={setComuna}
+      facets={facets}
+      setAnioFrom={setAnioFrom}
+      effectiveAnioFrom={effectiveAnioFrom}
+      montoMin={montoMin}
+      setMontoMin={setMontoMin}
+      montoMax={montoMax}
+      setMontoMax={setMontoMax}
+      supMin={supMin}
+      setSupMin={setSupMin}
+      supMax={supMax}
+      setSupMax={setSupMax}
+      exportHref={exportHref}
+    />
+  );
+
+  const statsFields = (
+    <StatsFields loading={loading} stats={stats} fmtCLP={fmtCLP} fmtInt={fmtInt} />
+  );
+
   return (
     <main className="flex flex-1 flex-col">
-      {/* Header — compact on mobile so the map stays above the fold */}
-      <header className="border-b border-black/10 px-4 py-3 md:px-8 md:py-6 dark:border-white/10">
-        <p className="text-[0.65rem] uppercase tracking-[0.18em] opacity-60 md:text-xs">
+      {/* Header — una sola fila delgada para que el mapa domine la pantalla */}
+      <header className="flex items-center justify-between border-b border-black/10 px-4 py-2.5 md:px-6 md:py-3 dark:border-white/10">
+        <h1 className="text-[0.65rem] uppercase tracking-[0.18em] opacity-60 md:text-xs">
           SIG de suelo · Datos abiertos
-        </p>
-
-        <p className="mt-2 line-clamp-2 max-w-3xl text-sm opacity-70 md:line-clamp-none">
-          Compraventas inscritas en el CBR del centro-sur de Chile. Datos públicos:
-          precio, año, comuna, superficie, ROL y coordenadas — sin nombres ni RUT.
-          Consulta libre para peritos e investigación en ecoinformática.
-        </p>
+        </h1>
+        <InfoPanel />
       </header>
 
-      {/* Mobile toolbar — opens the filter drawer + shows the result count */}
-      <div className="flex items-center gap-3 border-b border-black/10 px-4 py-2 md:hidden dark:border-white/10">
-        <button
-          type="button"
-          onClick={() => setFiltersOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium dark:border-white/20"
-        >
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <line x1="4" y1="6" x2="20" y2="6" />
-            <line x1="7" y1="12" x2="17" y2="12" />
-            <line x1="10" y1="18" x2="14" y2="18" />
-          </svg>
-          Filtros
-          {activeFilters > 0 && (
-            <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[hsl(153_28%_35%)] px-1 text-xs font-semibold text-white">
-              {activeFilters}
-            </span>
-          )}
-        </button>
-        <span className="ml-auto text-sm tabular-nums opacity-70">
-          {loading ? '…' : `${fmtInt(stats?.count ?? 0)} resultados`}
-        </span>
-      </div>
-
       {/* Backdrop behind the mobile drawer */}
-      {filtersOpen && (
+      {drawerOpen && (
         <div
           className="fixed inset-0 z-[1100] bg-black/40 md:hidden"
-          onClick={() => setFiltersOpen(false)}
+          onClick={() => setDrawerOpen(false)}
           aria-hidden="true"
         />
       )}
 
-      {/* Controls — inline on desktop, slide-up bottom sheet on mobile */}
+      {/* Drawer mobile consolidado: búsqueda + filtros + estadísticas */}
       <section
-        className={`flex flex-wrap items-end gap-x-6 gap-y-4 border-b border-black/10 px-4 py-4 md:px-8 dark:border-white/10 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-[1101] max-md:max-h-[82vh] max-md:overflow-y-auto max-md:rounded-t-2xl max-md:border max-md:bg-[var(--background)] max-md:pb-6 max-md:shadow-2xl max-md:transition-transform max-md:duration-300 ${
-          filtersOpen ? 'max-md:translate-y-0' : 'max-md:translate-y-full'
+        className={`fixed inset-x-0 bottom-0 z-[1101] max-h-[82vh] overflow-y-auto rounded-t-2xl border border-black/10 bg-[var(--background)] px-4 py-4 pb-6 shadow-2xl transition-transform duration-300 md:hidden dark:border-white/10 ${
+          drawerOpen ? 'translate-y-0' : 'translate-y-full'
         }`}
       >
-        {/* Drawer header (mobile only) */}
-        <div className="flex w-full items-center justify-between md:hidden">
-          <span className="text-base font-medium">Filtros</span>
+        <div className="flex items-center justify-between">
+          <span className="text-base font-medium">Buscar y filtrar</span>
           <button
             type="button"
-            onClick={() => setFiltersOpen(false)}
-            aria-label="Cerrar filtros"
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Cerrar"
             className="rounded-md px-2 py-1 text-lg leading-none opacity-60 hover:opacity-100"
           >
             ✕
           </button>
         </div>
 
-        <label className="flex flex-col gap-1 text-sm max-md:w-full">
-          <span className="font-medium">Comuna</span>
-          <select
-            value={comuna}
-            onChange={(e) => setComuna(e.target.value)}
-            className="h-9 min-w-[12rem] rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:w-full dark:border-white/20"
-          >
-            <option value="todas">Todas</option>
-            {facets?.comunas.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
+        <h2 className="mt-4 text-xs font-semibold uppercase tracking-wide opacity-50">Buscar</h2>
+        <div className="mt-2">{searchFields}</div>
 
-        <label className="flex flex-col gap-1 text-sm max-md:w-full">
-          <span className="font-medium">
-            Desde el año: <span className="opacity-70">{effectiveAnioFrom}</span>
-          </span>
-          <input
-            type="range"
-            min={facets?.minAnio ?? 2015}
-            max={facets?.maxAnio ?? 2025}
-            value={effectiveAnioFrom}
-            onChange={(e) => setAnioFrom(Number(e.target.value))}
-            className="w-48 max-md:w-full"
-            disabled={!facets}
-          />
-        </label>
+        <h2 className="mt-5 border-t border-black/10 pt-4 text-xs font-semibold uppercase tracking-wide opacity-50 dark:border-white/10">
+          Filtros
+        </h2>
+        <div className="mt-2">{filterFields}</div>
 
-        <label className="flex flex-col gap-1 text-sm max-md:w-full">
-          <span className="font-medium">Monto (CLP)</span>
-          <div className="flex items-center gap-1 max-md:w-full">
-            <input
-              type="number"
-              inputMode="numeric"
-              placeholder="mín"
-              value={montoMin}
-              onChange={(e) => setMontoMin(e.target.value)}
-              className="h-9 w-28 rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:flex-1 dark:border-white/20"
-            />
-            <span className="opacity-50">–</span>
-            <input
-              type="number"
-              inputMode="numeric"
-              placeholder="máx"
-              value={montoMax}
-              onChange={(e) => setMontoMax(e.target.value)}
-              className="h-9 w-28 rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:flex-1 dark:border-white/20"
-            />
-          </div>
-        </label>
+        <h2 className="mt-5 border-t border-black/10 pt-4 text-xs font-semibold uppercase tracking-wide opacity-50 dark:border-white/10">
+          Estadísticas
+        </h2>
+        <div className="mt-2">{statsFields}</div>
 
-        <label className="flex flex-col gap-1 text-sm max-md:w-full">
-          <span className="font-medium">Superficie (m²)</span>
-          <div className="flex items-center gap-1 max-md:w-full">
-            <input
-              type="number"
-              inputMode="numeric"
-              placeholder="mín"
-              value={supMin}
-              onChange={(e) => setSupMin(e.target.value)}
-              className="h-9 w-24 rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:flex-1 dark:border-white/20"
-            />
-            <span className="opacity-50">–</span>
-            <input
-              type="number"
-              inputMode="numeric"
-              placeholder="máx"
-              value={supMax}
-              onChange={(e) => setSupMax(e.target.value)}
-              className="h-9 w-24 rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:flex-1 dark:border-white/20"
-            />
-          </div>
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm max-md:w-full">
-          <span className="font-medium">ROL</span>
-          <input
-            type="text"
-            placeholder="ej. 123-45"
-            value={rol}
-            onChange={(e) => setRol(e.target.value)}
-            className="h-9 w-32 rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:w-full dark:border-white/20"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm max-md:w-full">
-          <span className="font-medium">Predio</span>
-          <input
-            type="text"
-            placeholder="nombre del predio"
-            value={predio}
-            onChange={(e) => setPredio(e.target.value)}
-            className="h-9 w-44 rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] max-md:w-full dark:border-white/20"
-          />
-        </label>
-
-        <div className="flex items-center gap-2 md:ml-auto max-md:mt-1 max-md:w-full">
-          <a
-            href={exportHref('csv')}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 max-md:flex-1 max-md:text-center dark:border-white/20 dark:hover:bg-white/10"
-          >
-            CSV
-          </a>
-          <a
-            href={exportHref('geojson')}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 max-md:flex-1 max-md:text-center dark:border-white/20 dark:hover:bg-white/10"
-          >
-            GeoJSON
-          </a>
-        </div>
-
-        {/* Primary action to dismiss the drawer (mobile only) */}
         <button
           type="button"
-          onClick={() => setFiltersOpen(false)}
-          className="w-full rounded-md bg-[hsl(153_28%_30%)] py-2.5 text-sm font-medium text-white md:hidden"
+          onClick={() => setDrawerOpen(false)}
+          className="mt-5 w-full rounded-md bg-[hsl(153_28%_30%)] py-2.5 text-sm font-medium text-white"
         >
           Ver {loading ? '' : fmtInt(stats?.count ?? 0)} resultados en el mapa
         </button>
       </section>
 
-      {/* Stats — wrap on desktop, single scrollable strip on mobile */}
-      <section className="flex gap-x-6 gap-y-2 overflow-x-auto border-b border-black/10 px-4 py-3 text-sm md:flex-wrap md:gap-x-8 md:px-8 dark:border-white/10">
-        <Stat label="Transacciones" value={loading ? '…' : fmtInt(stats?.count ?? 0)} />
-        <Stat label="Promedio" value={loading ? '…' : fmtCLP(stats?.avg)} />
-        <Stat label="Mediana" value={loading ? '…' : fmtCLP(stats?.mediana)} />
-        <Stat label="Mín" value={loading ? '…' : fmtCLP(stats?.min)} />
-        <Stat label="Máx" value={loading ? '…' : fmtCLP(stats?.max)} />
-        <Stat label="$ / m²" value={loading ? '…' : fmtCLP(stats?.precio_m2)} />
-      </section>
-
-      {/* Map — guaranteed height on mobile so it never collapses */}
-      <section className="relative min-h-[55vh] flex-1 md:min-h-0">
+      {/* Mapa a pantalla completa con paneles flotantes */}
+      <section className="relative min-h-[70vh] flex-1 md:min-h-0">
         {error && (
           <div className="absolute inset-0 z-[500] flex items-center justify-center text-sm text-red-600">
             No se pudieron cargar los datos del mapa.
@@ -344,24 +251,84 @@ export default function Home() {
         )}
         {loading && points.length === 0 && <RetroLoader loading={loading} />}
         <div className="absolute inset-0">
-          <MapView points={points} showProtected={showProtected} />
+          <MapView
+            points={points}
+            showProtected={showProtected}
+            showUrbanLimit={showUrbanLimit}
+          />
         </div>
-        <LayersControl showProtected={showProtected} onToggleProtected={setShowProtected} />
+
+        {/* Clúster de paneles arriba a la izquierda, junto al control de zoom (desktop) */}
+        <div className="absolute left-14 top-3 z-[600] hidden items-start gap-2 md:flex">
+          <MapPanel
+            id="search"
+            activeId={activePanel}
+            onActivate={togglePanel}
+            icon={SearchIcon}
+            label="Buscar"
+            badge={activeSearch}
+            widthClassName="w-72"
+          >
+            {searchFields}
+          </MapPanel>
+
+          <MapPanel
+            id="filters"
+            activeId={activePanel}
+            onActivate={togglePanel}
+            icon={FilterIcon}
+            label="Filtros"
+            badge={activeFilters}
+            widthClassName="w-80"
+          >
+            {filterFields}
+          </MapPanel>
+
+          <MapPanel
+            id="stats"
+            activeId={activePanel}
+            onActivate={togglePanel}
+            icon={StatsIcon}
+            label="Estadísticas"
+            widthClassName="w-72"
+          >
+            <p className="mb-2 text-xs opacity-60">
+              {loading ? 'Cargando…' : `${fmtInt(stats?.count ?? 0)} transacciones en la selección`}
+            </p>
+            {statsFields}
+          </MapPanel>
+        </div>
+
+        {/* Panel de capas arriba a la derecha (desktop y mobile) */}
+        <div className="absolute right-3 top-3 z-[600] w-60 max-w-[calc(100%-1.5rem)]">
+          <LayersControl
+            activeId={activePanel}
+            onActivate={togglePanel}
+            showProtected={showProtected}
+            onToggleProtected={setShowProtected}
+            showUrbanLimit={showUrbanLimit}
+            onToggleUrbanLimit={setShowUrbanLimit}
+          />
+        </div>
+
+        {/* FAB mobile: abre el drawer consolidado */}
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className="fixed bottom-4 left-1/2 z-[600] inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-black/15 bg-[var(--background)]/95 px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur md:hidden dark:border-white/20"
+        >
+          {FilterIcon}
+          Buscar y filtrar
+          {activeFilters + activeSearch > 0 && (
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[hsl(153_28%_35%)] px-1 text-xs font-semibold text-white">
+              {activeFilters + activeSearch}
+            </span>
+          )}
+          <span className="tabular-nums opacity-60">
+            · {loading ? '…' : fmtInt(stats?.count ?? 0)}
+          </span>
+        </button>
       </section>
-
-      <footer className="border-t border-black/10 px-4 py-3 text-xs opacity-60 md:px-8 dark:border-white/10">
-        Fuente: recopilación propia de inscripciones del Conservador de Bienes
-        Raíces. Datos públicos y anonimizados.
-      </footer>
     </main>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex shrink-0 flex-col">
-      <span className="text-xs uppercase tracking-wide opacity-50">{label}</span>
-      <span className="font-medium tabular-nums">{value}</span>
-    </div>
   );
 }
