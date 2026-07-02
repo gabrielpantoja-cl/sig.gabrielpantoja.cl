@@ -1,0 +1,22 @@
+{
+  "source": "Ministerio de Vivienda y Urbanismo (MINVU) — Límites Urbanos PRC (IPT)",
+  "source_url": "https://geoide.minvu.cl/server/rest/services/IPT/Limites_Urbanos/FeatureServer/0/query?where=1%3D1&outFields=REG,COM,NOM,INSTRUM,ADMIN,P_DO,N_DO,T_DO&outSR=4326&f=geojson",
+  "portal": "IDE MINVU / geoide.minvu.cl",
+  "license": "Dato público institucional (Estado de Chile)",
+  "downloaded_at": "2026-07-01",
+  "feature_count": 601,
+  "crs": "EPSG:4326",
+  "fields": [
+    "REG",
+    "COM",
+    "NOM",
+    "INSTRUM",
+    "ADMIN",
+    "P_DO",
+    "N_DO",
+    "T_DO"
+  ],
+  "processing": "mapshaper -filter-fields REG,COM,NOM,INSTRUM,ADMIN,P_DO,N_DO,T_DO -simplify visvalingam weighted 5% keep-shapes precision=0.00001",
+  "mapshaper_version": "0.7.33",
+  "note": "Dato público oficial del MINVU (límites urbanos de Planes Reguladores Comunales). Geometría simplificada solo para visualización web; el límite normativo vigente es el del instrumento publicado en el Diario Oficial — consultar el municipio respectivo."
+}

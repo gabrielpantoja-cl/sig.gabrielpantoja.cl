@@ -46,6 +46,9 @@ next-env.d.ts
 /*.png
 /*.txt
 
+# Playwright MCP artifacts (console logs + page snapshots from browser sessions)
+/.playwright-mcp/
+
 # ETL cache — raw official datasets downloaded by scripts/ (not versioned;
 # only the simplified output in public/data/ is committed)
 /scripts/.cache/
