@@ -73,7 +73,7 @@ Protected areas layer has 12 legal categories with distinct colors (see `src/lib
 - **Path alias**: `@/` → `src/`
 - **TypeScript**: strict mode, `bundler` module resolution
 - **ESLint**: flat config (`eslint.config.mjs`)
-- **No semicolons used** in source files (check existing before adding)
+- **Semicolons used** in source files (check existing before adding)
 - **Dark mode**: `dark:` variants via Tailwind class-based dark mode
 
 ## Documentation
@@ -90,7 +90,7 @@ Refer to these before making architectural changes to the map or layout.
 3. **Data layer first** — add DB query logic in `src/app/api/`, never on the client
 4. **MapView is client-only** — always use dynamic import with `ssr: false` for Leaflet components
 5. **Lint before commit** — run `npm run lint` and fix all errors
-6. **No semicolons** — match the existing code style
+6. **Use semicolons** — match the existing code style
 
 ## HARD RULES
 
@@ -100,4 +100,4 @@ These must never be violated:
 - **NEVER use `NEXT_PUBLIC_` for database credentials** — `NEON_DATABASE_URL` goes in `.env.local` only, never prefixed
 - **NEVER add client-side DB access** — all data must go through route handlers in `src/app/api/`
 - **NEVER commit `.env.local`** — it contains the live Neon database URL
-- **NEVER add semicolons** — the codebase uses none (exception: `.mjs` scripts are okay if they follow their own pattern)
+- **NEVER remove semicolons** — the codebase uses them consistently in source files
