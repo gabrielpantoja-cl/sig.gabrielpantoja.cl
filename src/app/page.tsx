@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { Facets, MapPoint, Stats } from '@/lib/types';
+import { kmlColorFor, parseKmlFile, type KmlLayer } from '@/lib/kml';
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
@@ -84,6 +85,34 @@ export default function Home() {
 
   const [showProtected, setShowProtected] = useState(false);
   const [showUrbanLimit, setShowUrbanLimit] = useState(false);
+
+  // Capas KML subidas por el usuario: parseo 100% en el navegador (lib/kml),
+  // el archivo nunca sale del dispositivo. El contador de colores es un ref
+  // para que borrar una capa no re-pinte las que quedan.
+  const [kmlLayers, setKmlLayers] = useState<KmlLayer[]>([]);
+  const [kmlError, setKmlError] = useState<string | null>(null);
+  const kmlColorCount = useRef(0);
+
+  const addKmlFiles = async (files: FileList) => {
+    setKmlError(null);
+    const errors: string[] = [];
+    for (const file of Array.from(files)) {
+      try {
+        const layer = await parseKmlFile(file, kmlColorFor(kmlColorCount.current++));
+        setKmlLayers((prev) => [...prev, layer]);
+      } catch (e) {
+        errors.push(e instanceof Error ? e.message : `No se pudo leer «${file.name}».`);
+      }
+    }
+    if (errors.length) setKmlError(errors.join(' '));
+  };
+
+  const toggleKml = (id: string) =>
+    setKmlLayers((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)),
+    );
+
+  const removeKml = (id: string) => setKmlLayers((prev) => prev.filter((l) => l.id !== id));
 
   // Load facets once.
   useEffect(() => {
@@ -255,6 +284,7 @@ export default function Home() {
             points={points}
             showProtected={showProtected}
             showUrbanLimit={showUrbanLimit}
+            kmlLayers={kmlLayers}
           />
         </div>
 
@@ -308,6 +338,11 @@ export default function Home() {
             onToggleProtected={setShowProtected}
             showUrbanLimit={showUrbanLimit}
             onToggleUrbanLimit={setShowUrbanLimit}
+            kmlLayers={kmlLayers}
+            kmlError={kmlError}
+            onAddKmlFiles={addKmlFiles}
+            onToggleKml={toggleKml}
+            onRemoveKml={removeKml}
           />
         </div>
 

@@ -15,6 +15,7 @@ import {
   URBAN_LIMIT_STYLE,
   type UrbanLimitProps,
 } from '@/lib/urban-limit';
+import { kmlPropText, type KmlFeatureProps, type KmlLayer } from '@/lib/kml';
 
 /**
  * Imperative Leaflet map with marker clustering.
@@ -172,28 +173,56 @@ function buildUrbanLimitPopup(props: UrbanLimitProps): string {
   );
 }
 
+/**
+ * Popup de un feature dentro de una capa KML del usuario. Muestra el nombre
+ * del Placemark y su descripción como texto plano: cualquier HTML embebido en
+ * el KML (habitual en exportes de Google Earth) se descarta antes de escapar,
+ * para no inyectar markup ajeno en la página.
+ */
+function buildKmlPopup(props: KmlFeatureProps, layer: KmlLayer): string {
+  const stripTags = (s: string): string => s.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  const name = kmlPropText(props.name).trim();
+  const description = stripTags(kmlPropText(props.description));
+
+  return (
+    `<div style="font-size:0.8rem;line-height:1.45;min-width:180px;max-width:260px">` +
+    `<div style="font-weight:600;font-size:0.92rem">${esc(name || layer.name)}</div>` +
+    `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
+    `font-size:0.68rem;font-weight:600;color:#fff;background:${layer.color}">Capa KML · ${esc(layer.name)}</div>` +
+    (description ? `<div style="opacity:.75">${esc(description)}</div>` : '') +
+    `<div style="margin-top:.35rem;font-size:0.62rem;opacity:.5">Archivo local del usuario · no publicado</div>` +
+    `</div>`
+  );
+}
+
 export default function MapView({
   points,
   showProtected = false,
   showUrbanLimit = false,
+  kmlLayers = [],
 }: {
   points: MapPoint[];
   showProtected?: boolean;
   showUrbanLimit?: boolean;
+  kmlLayers?: KmlLayer[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const protectedRef = useRef<L.GeoJSON | null>(null);
   const urbanLimitRef = useRef<L.GeoJSON | null>(null);
+  const kmlRef = useRef<Map<string, L.GeoJSON>>(new Map());
+  const seenKmlIds = useRef<Set<string>>(new Set());
 
-  // Con tres capas asíncronas compartiendo el overlayPane (preferCanvas), el
+  // Con varias capas asíncronas compartiendo el overlayPane (preferCanvas), el
   // orden de apilado debe re-imponerse tras cada mutación de capa, sin
   // importar cuál fetch resuelva último: áreas protegidas al fondo, límite
-  // urbano encima, y los puntos CBR siempre al frente (clicables).
+  // urbano encima, luego las capas KML del usuario, y los puntos CBR siempre
+  // al frente (clicables).
   const reorderOverlays = useCallback(() => {
     protectedRef.current?.bringToBack();
     urbanLimitRef.current?.bringToFront();
+    for (const layer of kmlRef.current.values()) layer.bringToFront();
     clusterRef.current?.bringToFront();
   }, []);
 
@@ -212,12 +241,16 @@ export default function MapView({
     }).addTo(map);
     L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
     mapRef.current = map;
+    const kmlById = kmlRef.current;
+    const seenIds = seenKmlIds.current;
     return () => {
       map.remove();
       mapRef.current = null;
       clusterRef.current = null;
       protectedRef.current = null;
       urbanLimitRef.current = null;
+      kmlById.clear();
+      seenIds.clear();
     };
   }, []);
 
@@ -337,6 +370,61 @@ export default function MapView({
       }
     };
   }, [showUrbanLimit, reorderOverlays]);
+
+  // Capas KML del usuario — ya parseadas a GeoJSON en el navegador (lib/kml).
+  // Se sincronizan por id: se quitan las eliminadas u ocultas, se agregan las
+  // visibles que falten, y al aparecer una capa nueva el mapa vuela a su
+  // extensión para confirmar visualmente la carga.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const wanted = new Map(kmlLayers.filter((k) => k.visible).map((k) => [k.id, k]));
+
+    for (const [id, layer] of kmlRef.current) {
+      if (!wanted.has(id)) {
+        map.removeLayer(layer);
+        kmlRef.current.delete(id);
+      }
+    }
+
+    let added: L.GeoJSON | null = null;
+    for (const [id, kml] of wanted) {
+      if (kmlRef.current.has(id)) continue;
+      const layer = L.geoJSON(kml.geojson, {
+        style: {
+          color: kml.color,
+          fillColor: kml.color,
+          fillOpacity: 0.15,
+          weight: 2,
+          opacity: 0.9,
+        },
+        pointToLayer(_feature, latlng) {
+          return L.circleMarker(latlng, {
+            radius: 6,
+            color: kml.color,
+            fillColor: kml.color,
+            fillOpacity: 0.75,
+            weight: 1.5,
+          });
+        },
+        onEachFeature(feature, featureLayer) {
+          featureLayer.bindPopup(buildKmlPopup(feature.properties, kml), { maxWidth: 280 });
+        },
+      }).addTo(map);
+      kmlRef.current.set(id, layer);
+      if (!seenKmlIds.current.has(id)) {
+        seenKmlIds.current.add(id);
+        added = layer;
+      }
+    }
+
+    if (added) {
+      const bounds = added.getBounds();
+      if (bounds.isValid()) map.flyToBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+    }
+    reorderOverlays();
+  }, [kmlLayers, reorderOverlays]);
 
   return <div ref={containerRef} className="h-full w-full" />;
 }

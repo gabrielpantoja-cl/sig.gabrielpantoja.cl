@@ -45,6 +45,7 @@ Browser → /api/{points,stats,export,facets} → Neon (web_readonly, SELECT)
 | `src/lib/types.ts` | MapPoint, Stats, Facets types |
 | `src/lib/security.ts` | PII strip |
 | `src/lib/urban-limit.ts` | Urban limit GeoJSON types & layer config |
+| `src/lib/kml.ts` | User-uploaded KML layers: browser-side parse (@tmcw/togeojson) + validation |
 | `src/lib/protected-areas.ts` | Protected area category colors & config |
 | `src/components/RetroLoader.tsx` | Loading spinner component |
 | `src/components/MapPanel.tsx` | Map container layout wrapper |
