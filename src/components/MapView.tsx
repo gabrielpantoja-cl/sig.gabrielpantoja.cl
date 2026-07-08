@@ -16,6 +16,7 @@ import {
   type UrbanLimitProps,
 } from '@/lib/urban-limit';
 import { kmlPropText, type KmlFeatureProps, type KmlLayer } from '@/lib/kml';
+import { cbrPinSvg } from '@/lib/cbr-points';
 
 /**
  * Imperative Leaflet map with marker clustering.
@@ -27,6 +28,17 @@ import { kmlPropText, type KmlFeatureProps, type KmlLayer } from '@/lib/kml';
  */
 
 const MAP_CENTER: [number, number] = [-39.6, -72.6]; // centro-sur de Chile
+
+// Un solo icono compartido por todos los puntos CBR: pin (gota) carmesí con
+// halo blanco, de alto contraste con el mapa base. La punta (parte inferior)
+// marca la coordenada, por eso iconAnchor apunta al [12, 32] del SVG 24×32.
+const cbrPinIcon = L.divIcon({
+  className: 'cbr-pin',
+  html: cbrPinSvg(),
+  iconSize: [24, 32],
+  iconAnchor: [12, 32],
+  popupAnchor: [0, -30],
+});
 
 const formatCLP = (value: number | null): string =>
   value == null
@@ -60,7 +72,7 @@ function buildPopup(p: MapPoint): string {
   const rows: [string, string][] = [['Inscripción', inscripcion]];
   if (p.conservador) rows.push(['Conservador', `CBR ${esc(p.conservador)}`]);
   if (p.rol) rows.push(['ROL', esc(p.rol)]);
-  if (p.superficie) rows.push(['Superficie', `${p.superficie.toLocaleString('es-CL')} m²`]);
+  if (p.superficie) rows.push(['Superficie de terreno', `${p.superficie.toLocaleString('es-CL')} m²`]);
   if (p.destino) rows.push(['Destino', esc(p.destino)]);
 
   const body = rows
@@ -259,25 +271,19 @@ export default function MapView({
     const map = mapRef.current;
     if (!map) return;
 
-    if (clusterRef.current) {
-      map.removeLayer(clusterRef.current);
-      clusterRef.current = null;
-    }
-
     const group = L.markerClusterGroup({
       chunkedLoading: true,
       maxClusterRadius: 50,
       showCoverageOnHover: false,
+      // animate:false evita el requestAnimFrame de transición de clusters, cuyo
+      // callback diferido corría tras el desmontaje (StrictMode) sobre un mapa
+      // ya destruido → «Cannot read properties of null (getMinZoom)». Además es
+      // más liviano con ~74k puntos.
+      animate: false,
     });
 
     for (const p of points) {
-      const marker = L.circleMarker([p.lat, p.lng], {
-        radius: 5,
-        color: 'hsl(153 28% 23%)',
-        fillColor: 'hsl(153 28% 35%)',
-        fillOpacity: 0.7,
-        weight: 1,
-      });
+      const marker = L.marker([p.lat, p.lng], { icon: cbrPinIcon });
       marker.bindPopup(buildPopup(p));
       group.addLayer(marker);
     }
@@ -285,6 +291,18 @@ export default function MapView({
     map.addLayer(group);
     clusterRef.current = group;
     reorderOverlays();
+
+    // Cleanup: quita el grupo mientras el mapa sigue vivo y suelta la ref. Sin
+    // esto, el doble montaje de StrictMode deja clusterRef apuntando a un grupo
+    // cuyo mapa ya fue destruido, y el removeLayer del siguiente ciclo llama a
+    // getMinZoom() sobre un _map null (los marcadores divIcon recalculan la
+    // grilla de zoom al removerse, a diferencia de los circleMarker de canvas).
+    return () => {
+      if (clusterRef.current) {
+        map.removeLayer(clusterRef.current);
+        clusterRef.current = null;
+      }
+    };
   }, [points, reorderOverlays]);
 
   // Protected areas layer — official MMA / Registro Nacional de Áreas
