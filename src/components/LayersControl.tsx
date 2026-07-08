@@ -3,6 +3,7 @@
 import { useRef } from 'react';
 import { CATEGORY_COLORS } from '@/lib/protected-areas';
 import { URBAN_LIMIT_COLOR } from '@/lib/urban-limit';
+import { CBR_POINT_COLOR } from '@/lib/cbr-points';
 import { KML_MAX_FILE_MB, type KmlLayer } from '@/lib/kml';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
 
@@ -60,7 +61,7 @@ export function LayersControl({
       <label className="flex cursor-default items-center gap-2 opacity-70">
         <input type="checkbox" checked readOnly className="accent-[hsl(153_28%_35%)]" />
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: 'hsl(153 28% 35%)' }} />
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CBR_POINT_COLOR }} />
           Transacciones CBR
         </span>
       </label>
