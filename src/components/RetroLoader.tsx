@@ -6,47 +6,59 @@ const BAR_BLOCKS = 24;
 const FILL_CHAR = '▓';
 const EMPTY_CHAR = '░';
 
-export function RetroLoader({ loading }: { loading: boolean }) {
-  const [percent, setPercent] = useState(0);
+/**
+ * Pantalla de carga retro controlada por progreso REAL (0–100), no por un
+ * temporizador. El padre reporta el avance (descarga del dataset + render de
+ * marcadores) y este componente solo suaviza el movimiento de la barra con un
+ * acercamiento exponencial. Mientras `done` sea false la barra nunca pasa de
+ * 99%, así el 100% coincide exactamente con el mapa ya pintado en pantalla:
+ * sin quedarse pegada a mitad de camino ni dejar segundos en blanco al final.
+ */
+export function RetroLoader({ progress, done }: { progress: number; done: boolean }) {
+  const [shown, setShown] = useState(0);
   const [fading, setFading] = useState(false);
   const [gone, setGone] = useState(false);
-  const rafRef = useRef<number | null>(null);
-  const startRef = useRef<number | null>(null);
-  const prevLoading = useRef(loading);
+  const shownRef = useRef(0);
+  const targetRef = useRef(0);
 
   useEffect(() => {
-    if (loading) {
-      // Reset if loading re-triggers
-      setFading(false);
-      setGone(false);
-      startRef.current = null;
+    targetRef.current = done ? 100 : Math.min(progress, 99);
+  }, [progress, done]);
 
-      function tick(ts: number) {
-        if (!startRef.current) startRef.current = ts;
-        const elapsed = ts - startRef.current;
-        // Cubic ease-out: fills to 85% in 2.5s
-        const t = Math.min(elapsed / 2500, 1);
-        const eased = 1 - Math.pow(1 - t, 3);
-        setPercent(Math.floor(eased * 85));
-        rafRef.current = requestAnimationFrame(tick);
+  // Suavizado: la barra persigue el objetivo real, rápido cuando está lejos y
+  // fino cuando está cerca, sin retroceder jamás.
+  useEffect(() => {
+    let raf = requestAnimationFrame(function tick() {
+      const cur = shownRef.current;
+      const target = targetRef.current;
+      if (cur < target) {
+        const next = Math.min(target, cur + Math.max(0.4, (target - cur) * 0.14));
+        shownRef.current = next;
+        setShown(next);
       }
+      raf = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
-      rafRef.current = requestAnimationFrame(tick);
-      return () => {
-        if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      };
-    } else if (prevLoading.current) {
-      // Loading just finished
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      setPercent(100);
-      setTimeout(() => setFading(true), 150);
-      setTimeout(() => setGone(true), 600);
-    }
-    prevLoading.current = loading;
-  }, [loading]);
+  // Cierre: cuando el padre marca done, espera a que la barra alcance el 100%
+  // visual y recién entonces hace el fade-out (el mapa ya está detrás).
+  useEffect(() => {
+    if (!done) return;
+    const id = setInterval(() => {
+      if (shownRef.current < 99.5) return;
+      clearInterval(id);
+      shownRef.current = 100;
+      setShown(100);
+      setTimeout(() => setFading(true), 180);
+      setTimeout(() => setGone(true), 650);
+    }, 50);
+    return () => clearInterval(id);
+  }, [done]);
 
   if (gone) return null;
 
+  const percent = Math.floor(shown);
   const filled = Math.round((percent / 100) * BAR_BLOCKS);
   const empty = BAR_BLOCKS - filled;
   const bar = FILL_CHAR.repeat(filled) + EMPTY_CHAR.repeat(empty);
