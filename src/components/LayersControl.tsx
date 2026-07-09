@@ -49,6 +49,7 @@ export function LayersControl({
       activeId={activeId}
       onActivate={onActivate}
       widthClassName="w-60"
+      align="right"
       label="Capas"
       icon={
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

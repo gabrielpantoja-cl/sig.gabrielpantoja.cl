@@ -1,19 +1,58 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import type { Facets, MapPoint, Stats } from '@/lib/types';
+import type { Facets, GeocodeResult, MapPoint, Stats } from '@/lib/types';
 import { kmlColorFor, parseKmlFile, type KmlLayer } from '@/lib/kml';
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
 import { SearchFields, FilterFields, StatsFields } from '@/components/FieldGroups';
+import { GeocoderSearch } from '@/components/GeocoderSearch';
 import { InfoPanel } from '@/components/InfoPanel';
 
+// El RetroLoader de page.tsx cubre también la carga del módulo, así que el
+// dynamic no necesita fallback propio (evita dos loaders superpuestos).
 const MapView = dynamic(() => import('@/components/MapView'), {
   ssr: false,
-  loading: () => <RetroLoader loading={true} />,
+  loading: () => null,
 });
+
+/**
+ * Descarga /api/points reportando el avance real de bytes. El servidor expone
+ * X-Total-Bytes (tamaño descomprimido) porque tras el gzip de la CDN el
+ * Content-Length deja de corresponder a los bytes que entrega el reader. Si el
+ * header faltara, cae a una curva asintótica sobre el tamaño típico (~18 MB).
+ */
+async function fetchPointsWithProgress(
+  url: string,
+  signal: AbortSignal,
+  onProgress: (frac: number) => void,
+): Promise<MapPoint[]> {
+  const res = await fetch(url, { signal });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.body) return res.json();
+
+  const total = Number(res.headers.get('x-total-bytes')) || 0;
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    onProgress(total > 0 ? Math.min(received / total, 1) : received / (received + 6_000_000));
+  }
+
+  const buf = new Uint8Array(received);
+  let offset = 0;
+  for (const c of chunks) {
+    buf.set(c, offset);
+    offset += c.length;
+  }
+  return JSON.parse(new TextDecoder().decode(buf)) as MapPoint[];
+}
 
 const fmtCLP = (v: number | null | undefined): string =>
   v == null
@@ -72,8 +111,34 @@ export default function Home() {
 
   const [points, setPoints] = useState<MapPoint[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  // loading/error se DERIVAN comparando el query pedido con el resuelto/fallido
+  // (nada de setState sincrónico dentro del efecto de fetch): si lo cargado no
+  // corresponde al filtro actual, estamos cargando.
+  const [loadedQs, setLoadedQs] = useState<string | null>(null);
+  const [errorQs, setErrorQs] = useState<string | null>(null);
+
+  // Resultado del geocoder: MapView vuela ahí y deja un marcador pulsante.
+  const [focus, setFocus] = useState<GeocodeResult | null>(null);
+
+  // Arranque con progreso real, en dos fases: descarga del dataset (5–60%) y
+  // render de los marcadores en el mapa (64–99%). `bootDone` recién se activa
+  // cuando MapView confirma que los clusters están pintados, de modo que el
+  // 100% de la barra coincide con el mapa visible (sin pantallazo en blanco).
+  const [bootProgress, setBootProgress] = useState(3);
+  const [bootDone, setBootDone] = useState(false);
+  const booting = useRef(true);
+
+  const handleRenderProgress = useCallback((processed: number, total: number) => {
+    if (!booting.current || total === 0) return;
+    setBootProgress(64 + Math.round((processed / total) * 35));
+  }, []);
+
+  const handleRenderComplete = useCallback(() => {
+    if (!booting.current) return;
+    booting.current = false;
+    setBootProgress(100);
+    setBootDone(true);
+  }, []);
 
   // Desktop: paneles flotantes sobre el mapa, solo uno abierto a la vez.
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
@@ -149,34 +214,37 @@ export default function Home() {
   const activeSearch = [predio.trim(), rol.trim()].filter(Boolean).length;
 
   const debouncedQs = useDebounced(queryString, 400);
+  const error = errorQs != null && errorQs === debouncedQs;
+  const loading = !error && loadedQs !== debouncedQs;
 
   // Fetch points + stats whenever the (debounced) filters change.
   const reqId = useRef(0);
   useEffect(() => {
     const id = ++reqId.current;
     const ctrl = new AbortController();
-    setLoading(true);
-    setError(false);
 
     const suffix = debouncedQs ? `?${debouncedQs}` : '';
     Promise.all([
-      fetch(`/api/points${suffix}`, { signal: ctrl.signal }).then((r) =>
-        r.ok ? r.json() : Promise.reject(),
-      ),
+      fetchPointsWithProgress(`/api/points${suffix}`, ctrl.signal, (frac) => {
+        if (booting.current) setBootProgress(5 + Math.round(frac * 55));
+      }),
       fetch(`/api/stats${suffix}`, { signal: ctrl.signal }).then((r) =>
         r.ok ? r.json() : Promise.reject(),
       ),
     ])
       .then(([pts, st]: [MapPoint[], Stats]) => {
         if (id !== reqId.current) return;
+        if (booting.current) setBootProgress(64); // dataset decodificado; falta el render
         setPoints(Array.isArray(pts) ? pts : []);
         setStats(st);
-        setLoading(false);
+        setLoadedQs(debouncedQs);
       })
       .catch(() => {
         if (ctrl.signal.aborted || id !== reqId.current) return;
-        setError(true);
-        setLoading(false);
+        setErrorQs(debouncedQs);
+        // Cierra el loader para que el mensaje de error quede visible.
+        booting.current = false;
+        setBootDone(true);
       });
 
     return () => ctrl.abort();
@@ -278,18 +346,29 @@ export default function Home() {
             No se pudieron cargar los datos del mapa.
           </div>
         )}
-        {loading && points.length === 0 && <RetroLoader loading={loading} />}
         <div className="absolute inset-0">
           <MapView
             points={points}
             showProtected={showProtected}
             showUrbanLimit={showUrbanLimit}
             kmlLayers={kmlLayers}
+            focus={focus}
+            onRenderProgress={handleRenderProgress}
+            onRenderComplete={handleRenderComplete}
           />
+        </div>
+        {/* Se desmonta solo (gone) tras llegar al 100% y hacer fade-out. */}
+        <RetroLoader progress={bootProgress} done={bootDone} />
+
+        {/* Geocoder mobile: barra flotante sobre el mapa, a la derecha del zoom */}
+        <div className="absolute left-14 right-3 top-3 z-[600] md:hidden">
+          <GeocoderSearch onSelect={setFocus} />
         </div>
 
         {/* Clúster de paneles arriba a la izquierda, junto al control de zoom (desktop) */}
         <div className="absolute left-14 top-3 z-[600] hidden items-start gap-2 md:flex">
+          <GeocoderSearch onSelect={setFocus} className="w-72" />
+
           <MapPanel
             id="search"
             activeId={activePanel}
@@ -329,8 +408,9 @@ export default function Home() {
           </MapPanel>
         </div>
 
-        {/* Panel de capas arriba a la derecha (desktop y mobile) */}
-        <div className="absolute right-3 top-3 z-[600] w-60 max-w-[calc(100%-1.5rem)]">
+        {/* Panel de capas a la derecha: en mobile baja una fila para no chocar
+            con la barra del geocoder */}
+        <div className="absolute right-3 top-[3.75rem] z-[600] w-60 max-w-[calc(100%-1.5rem)] md:top-3">
           <LayersControl
             activeId={activePanel}
             onActivate={togglePanel}

@@ -30,6 +30,19 @@ export interface Stats {
   precio_m2: number | null;
 }
 
+/**
+ * Resultado del geocodificador (/api/geocode, proxy de Nominatim/OSM). Solo
+ * navegación espacial: nombre para mostrar, coordenada y bounding box opcional
+ * para encuadrar el mapa. No toca la base CBR.
+ */
+export interface GeocodeResult {
+  label: string;
+  lat: number;
+  lng: number;
+  type: string | null;
+  bbox: [number, number, number, number] | null; // [sur, norte, oeste, este]
+}
+
 export interface Facets {
   comunas: string[];
   minAnio: number;

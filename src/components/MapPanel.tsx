@@ -5,11 +5,13 @@ import type { ReactNode } from 'react';
 export type PanelId = 'search' | 'filters' | 'layers' | 'stats';
 
 /**
- * Panel flotante genérico sobre el mapa: botón con ícono + tarjeta colapsable,
- * el mismo lenguaje visual que estrenó LayersControl (borde, fondo translúcido
- * con blur, sombra). Es un componente controlado: no guarda estado propio; el
- * padre (page.tsx) decide cuál panel está activo, garantizando que solo uno
- * esté abierto a la vez, como los widgets de un visor SIG profesional.
+ * Panel flotante genérico sobre el mapa: botón (chip) de tamaño fijo + tarjeta
+ * desplegable ANCLADA con position:absolute bajo el botón. Al abrir, la tarjeta
+ * flota sobre el mapa sin alterar el tamaño del chip, de modo que los botones
+ * vecinos nunca se desplazan — el comportamiento estándar de un visor SIG
+ * profesional. Es un componente controlado: no guarda estado propio; el padre
+ * (page.tsx) decide cuál panel está activo, garantizando que solo uno esté
+ * abierto a la vez.
  */
 export function MapPanel({
   id,
@@ -19,6 +21,7 @@ export function MapPanel({
   label,
   badge,
   widthClassName = 'w-72',
+  align = 'left',
   children,
 }: {
   id: PanelId;
@@ -28,21 +31,22 @@ export function MapPanel({
   label: string;
   badge?: number;
   widthClassName?: string;
+  align?: 'left' | 'right';
   children: ReactNode;
 }) {
   const open = activeId === id;
 
   return (
-    <div
-      className={`overflow-hidden rounded-lg border border-black/15 bg-[var(--background)]/95 text-[var(--foreground)] shadow-lg backdrop-blur dark:border-white/20 ${
-        open ? widthClassName : ''
-      }`}
-    >
+    <div className="relative">
       <button
         type="button"
         onClick={() => onActivate(id)}
-        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-sm font-medium"
         aria-expanded={open}
+        className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm font-medium text-[var(--foreground)] shadow-lg backdrop-blur transition-colors ${
+          open
+            ? 'border-[hsl(153_28%_35%)]/70 bg-[var(--background)]'
+            : 'border-black/15 bg-[var(--background)]/95 hover:bg-[var(--background)] dark:border-white/20'
+        }`}
       >
         <span className="inline-flex items-center gap-2 whitespace-nowrap">
           {icon}
@@ -59,7 +63,11 @@ export function MapPanel({
       </button>
 
       {open && (
-        <div className="border-t border-black/10 px-3 py-2.5 text-sm dark:border-white/10">
+        <div
+          className={`absolute top-[calc(100%+0.5rem)] z-[700] max-h-[min(70vh,34rem)] overflow-y-auto rounded-lg border border-black/15 bg-[var(--background)]/95 px-3 py-2.5 text-sm text-[var(--foreground)] shadow-xl backdrop-blur animate-[panel-in_140ms_ease-out] dark:border-white/20 ${widthClassName} ${
+            align === 'right' ? 'right-0' : 'left-0'
+          }`}
+        >
           {children}
         </div>
       )}
