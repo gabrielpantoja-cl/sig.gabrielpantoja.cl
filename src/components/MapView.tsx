@@ -6,7 +6,7 @@ import 'leaflet.markercluster';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
-import type { MapPoint } from '@/lib/types';
+import type { GeocodeResult, MapPoint } from '@/lib/types';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import { categoryColor, type ProtectedAreaProps } from '@/lib/protected-areas';
 import {
@@ -212,11 +212,20 @@ export default function MapView({
   showProtected = false,
   showUrbanLimit = false,
   kmlLayers = [],
+  focus = null,
+  onRenderProgress,
+  onRenderComplete,
 }: {
   points: MapPoint[];
   showProtected?: boolean;
   showUrbanLimit?: boolean;
   kmlLayers?: KmlLayer[];
+  /** Resultado del geocoder: el mapa vuela ahí y deja un marcador pulsante. */
+  focus?: GeocodeResult | null;
+  /** Avance del render de marcadores (procesados, total) — alimenta el loader. */
+  onRenderProgress?: (processed: number, total: number) => void;
+  /** Los marcadores ya están pintados en pantalla — el loader puede cerrar. */
+  onRenderComplete?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -225,6 +234,15 @@ export default function MapView({
   const urbanLimitRef = useRef<L.GeoJSON | null>(null);
   const kmlRef = useRef<Map<string, L.GeoJSON>>(new Map());
   const seenKmlIds = useRef<Set<string>>(new Set());
+
+  // Callbacks de progreso en refs: el efecto del clúster no debe re-ejecutarse
+  // (y reconstruir 85k marcadores) porque el padre re-creó una función.
+  const onRenderProgressRef = useRef(onRenderProgress);
+  const onRenderCompleteRef = useRef(onRenderComplete);
+  useEffect(() => {
+    onRenderProgressRef.current = onRenderProgress;
+    onRenderCompleteRef.current = onRenderComplete;
+  }, [onRenderProgress, onRenderComplete]);
 
   // Con varias capas asíncronas compartiendo el overlayPane (preferCanvas), el
   // orden de apilado debe re-imponerse tras cada mutación de capa, sin
@@ -271,8 +289,18 @@ export default function MapView({
     const map = mapRef.current;
     if (!map) return;
 
+    // markercluster no expone cómo cancelar el procesamiento por chunks de
+    // addLayers (su setTimeout interno se re-agenda solo). Si el efecto se
+    // limpia a mitad de carga (StrictMode, cambio de filtros), ese timer sigue
+    // corriendo con this._map ya null y revienta en _addLayer (getMinZoom).
+    // `cancelled` silencia el progreso y el no-op de _addLayer (en el cleanup)
+    // vuelve inofensivas las iteraciones restantes.
+    let cancelled = false;
+
     const group = L.markerClusterGroup({
       chunkedLoading: true,
+      chunkInterval: 120,
+      chunkDelay: 20,
       maxClusterRadius: 50,
       showCoverageOnHover: false,
       // animate:false evita el requestAnimFrame de transición de clusters, cuyo
@@ -280,15 +308,34 @@ export default function MapView({
       // ya destruido → «Cannot read properties of null (getMinZoom)». Además es
       // más liviano con ~74k puntos.
       animate: false,
+      chunkProgress(processed: number, total: number) {
+        if (cancelled) return;
+        onRenderProgressRef.current?.(processed, total);
+        if (processed >= total) {
+          // Doble rAF: garantiza que los clusters ya se pintaron en pantalla
+          // antes de avisar (el loader cierra exactamente con el mapa listo).
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => onRenderCompleteRef.current?.()),
+          );
+        }
+      },
     });
 
-    for (const p of points) {
+    const markers = points.map((p) => {
       const marker = L.marker([p.lat, p.lng], { icon: cbrPinIcon });
       marker.bindPopup(buildPopup(p));
-      group.addLayer(marker);
-    }
+      return marker;
+    });
 
+    // El grupo debe estar en el mapa ANTES de addLayers: solo así markercluster
+    // procesa por chunks (sin congelar el hilo principal ~3,5 s con 85k puntos)
+    // y emite chunkProgress.
     map.addLayer(group);
+    if (markers.length > 0) {
+      group.addLayers(markers);
+    } else {
+      onRenderCompleteRef.current?.();
+    }
     clusterRef.current = group;
     reorderOverlays();
 
@@ -298,6 +345,10 @@ export default function MapView({
     // getMinZoom() sobre un _map null (los marcadores divIcon recalculan la
     // grilla de zoom al removerse, a diferencia de los circleMarker de canvas).
     return () => {
+      cancelled = true;
+      // Neutraliza los chunks pendientes del grupo saliente: sin mapa,
+      // _addLayer dereferencia this._map.getMinZoom() y lanza TypeError.
+      (group as unknown as { _addLayer: () => void })._addLayer = () => {};
       if (clusterRef.current) {
         map.removeLayer(clusterRef.current);
         clusterRef.current = null;
@@ -443,6 +494,41 @@ export default function MapView({
     }
     reorderOverlays();
   }, [kmlLayers, reorderOverlays]);
+
+  // Resultado del geocoder: vuela a la zona (bbox si existe, si no zoom 15) y
+  // deja un marcador pulsante con el nombre del lugar. El marcador anterior se
+  // quita al elegir otro resultado (cleanup del efecto).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !focus) return;
+
+    const icon = L.divIcon({
+      className: 'geo-focus',
+      html: '<span class="geo-focus-ring"></span><span class="geo-focus-dot"></span>',
+      iconSize: [16, 16],
+      iconAnchor: [8, 8],
+    });
+    const marker = L.marker([focus.lat, focus.lng], { icon, zIndexOffset: 1000 });
+    marker.bindPopup(
+      `<div style="font-size:0.8rem;line-height:1.4;max-width:240px">${esc(focus.label)}</div>`,
+    );
+    marker.addTo(map);
+
+    if (focus.bbox) {
+      const [south, north, west, east] = focus.bbox;
+      map.flyToBounds(L.latLngBounds([south, west], [north, east]), {
+        maxZoom: 16,
+        padding: [40, 40],
+        duration: 1.4,
+      });
+    } else {
+      map.flyTo([focus.lat, focus.lng], 15, { duration: 1.4 });
+    }
+
+    return () => {
+      map.removeLayer(marker);
+    };
+  }, [focus]);
 
   return <div ref={containerRef} className="h-full w-full" />;
 }

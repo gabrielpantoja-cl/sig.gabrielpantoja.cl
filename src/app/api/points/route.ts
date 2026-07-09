@@ -63,9 +63,16 @@ export async function GET(req: Request) {
       conservador: r.conservador,
     }));
 
-    return Response.json(points, {
+    // Serialización manual para exponer el tamaño real (descomprimido) del
+    // payload: la CDN comprime la respuesta y Content-Length pasa a ser el
+    // tamaño gzip, inútil para la barra de progreso del cliente.
+    const body = JSON.stringify(points);
+    return new Response(body, {
       headers: {
         ...headers,
+        'Content-Type': 'application/json',
+        'X-Total-Bytes': String(Buffer.byteLength(body)),
+        'Access-Control-Expose-Headers': 'X-Total-Bytes',
         'Cache-Control': 's-maxage=3600, stale-while-revalidate=86400',
       },
     });

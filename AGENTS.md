@@ -25,6 +25,7 @@ No test framework is configured.
 
 ```
 Browser → /api/{points,stats,export,facets} → Neon (web_readonly, SELECT)
+Browser → /api/geocode → Nominatim/OSM (address search, Chile only, cached proxy)
 ```
 
 - **No client-side DB access**. All data arrives through route handlers in `src/app/api/`.
@@ -47,8 +48,9 @@ Browser → /api/{points,stats,export,facets} → Neon (web_readonly, SELECT)
 | `src/lib/urban-limit.ts` | Urban limit GeoJSON types & layer config |
 | `src/lib/kml.ts` | User-uploaded KML layers: browser-side parse (@tmcw/togeojson) + validation |
 | `src/lib/protected-areas.ts` | Protected area category colors & config |
-| `src/components/RetroLoader.tsx` | Loading spinner component |
-| `src/components/MapPanel.tsx` | Map container layout wrapper |
+| `src/components/RetroLoader.tsx` | Retro loading screen driven by REAL progress (download + marker render) |
+| `src/components/GeocoderSearch.tsx` | Address/place search with autocomplete (via /api/geocode) |
+| `src/components/MapPanel.tsx` | Floating map panel: fixed chip button + anchored dropdown card |
 | `src/components/InfoPanel.tsx` | Transaction detail sidebar |
 | `src/components/FieldGroups.tsx` | Grouped field display for point info |
 | `scripts/build-protected-areas.mjs` | ETL: download → simplify (mapshaper) → emit GeoJSON + meta |
