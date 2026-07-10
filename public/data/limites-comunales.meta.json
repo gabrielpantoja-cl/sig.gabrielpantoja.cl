@@ -1,0 +1,22 @@
+{
+  "source": "SUBDERE — División Político-Administrativa de Chile 2023 (Comunas)",
+  "source_url": "https://geoportal.cl/geoportal/catalog/download/912598ad-ac92-35f6-8045-098f214bd9c2",
+  "catalog_url": "https://geoportal.cl/geoportal/catalog/36391/Divisi%C3%B3n%20Pol%C3%ADtica%20Administrativa%202023",
+  "portal": "geoportal.cl (IDE Chile, Catálogo Nacional de Información Geoespacial)",
+  "license": "Dato público institucional (Estado de Chile). Circulación autorizada por Resolución N°50/2019 de DIFROL.",
+  "downloaded_at": "2026-07-09",
+  "feature_count": 345,
+  "crs": "EPSG:4326 (reproyectado con mapshaper desde el CRS de la fuente)",
+  "fields": [
+    "CUT_REG",
+    "CUT_PROV",
+    "CUT_COM",
+    "REGION",
+    "PROVINCIA",
+    "COMUNA",
+    "SUPERFICIE"
+  ],
+  "processing": "mapshaper -proj wgs84 -filter-fields CUT_REG,CUT_PROV,CUT_COM,REGION,PROVINCIA,COMUNA,SUPERFICIE -simplify visvalingam weighted 1.5% keep-shapes precision=0.00001",
+  "mapshaper_version": "0.7.33",
+  "note": "Dato público oficial (SUBDERE, Grupo de Trabajo DPA: SUBDERE/IGM/DIFROL/INE, escala 1:50.000). Geometría simplificada solo para visualización web: los límites mostrados son referenciales y no reemplazan a los límites oficiales del Estado de Chile (DIFROL). Para análisis usar la fuente original."
+}

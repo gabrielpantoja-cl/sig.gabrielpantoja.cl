@@ -9,7 +9,8 @@
     "lint": "eslint",
     "data:build:protected": "node scripts/build-protected-areas.mjs",
     "data:build:urban": "node scripts/build-urban-limit.mjs",
-    "data:build": "npm run data:build:protected && npm run data:build:urban"
+    "data:build:comunas": "node scripts/build-comunas.mjs",
+    "data:build": "npm run data:build:protected && npm run data:build:urban && npm run data:build:comunas"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
