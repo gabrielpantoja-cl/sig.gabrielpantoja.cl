@@ -1,6 +1,8 @@
 # Rediseño SIG: mapa dominante con paneles flotantes + capa de límite urbano
 
-> Plan de mejora para aplicación posterior. No implementado todavía.
+> **Implementado** (commit `4724fa6`). Se conserva como registro de diseño;
+> los paneles evolucionaron después a dropdowns anclados y el panel de capas
+> a filas con triángulo de despliegue — ver `docs/arquitectura-capas.md`.
 
 ## Contexto
 
