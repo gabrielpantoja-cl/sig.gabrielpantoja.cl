@@ -16,6 +16,12 @@ import {
   type UrbanLimitProps,
 } from '@/lib/urban-limit';
 import { kmlPropText, type KmlFeatureProps, type KmlLayer } from '@/lib/kml';
+import {
+  COMUNAS_ATTRIBUTION,
+  COMUNAS_COLOR,
+  COMUNAS_STYLE,
+  type ComunaProps,
+} from '@/lib/comunas';
 import { cbrPinSvg } from '@/lib/cbr-points';
 
 /**
@@ -186,6 +192,43 @@ function buildUrbanLimitPopup(props: UrbanLimitProps): string {
 }
 
 /**
+ * Popup de una comuna (DPA 2023). Lidera con el nombre de la comuna, luego la
+ * jerarquía administrativa (provincia, región), el código único territorial
+ * (CUT) y la superficie oficial, cerrando con la cita a SUBDERE/geoportal.cl.
+ */
+function buildComunaPopup(props: ComunaProps): string {
+  const rows: [string, string][] = [];
+  if (props.PROVINCIA) rows.push(['Provincia', esc(props.PROVINCIA)]);
+  if (props.REGION) rows.push(['Región', esc(props.REGION)]);
+  if (props.CUT_COM) rows.push(['Código CUT', esc(props.CUT_COM)]);
+  if (props.SUPERFICIE != null)
+    rows.push([
+      'Superficie',
+      `${Number(props.SUPERFICIE).toLocaleString('es-CL', { maximumFractionDigits: 1 })} km²`,
+    ]);
+
+  const body = rows
+    .map(
+      ([k, v]) =>
+        `<tr>` +
+        `<td style="opacity:.55;padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top">${k}</td>` +
+        `<td style="vertical-align:top">${v}</td>` +
+        `</tr>`,
+    )
+    .join('');
+
+  return (
+    `<div style="font-size:0.8rem;line-height:1.45;min-width:210px">` +
+    `<div style="font-weight:600;font-size:0.92rem">${esc(props.COMUNA || 'Comuna')}</div>` +
+    `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
+    `font-size:0.68rem;font-weight:600;color:#fff;background:${COMUNAS_COLOR}">Límite comunal · DPA 2023</div>` +
+    `<table style="border-collapse:collapse">${body}</table>` +
+    `<div style="margin-top:.35rem;font-size:0.62rem;opacity:.5">${COMUNAS_ATTRIBUTION} · límites referenciales</div>` +
+    `</div>`
+  );
+}
+
+/**
  * Popup de un feature dentro de una capa KML del usuario. Muestra el nombre
  * del Placemark y su descripción como texto plano: cualquier HTML embebido en
  * el KML (habitual en exportes de Google Earth) se descarta antes de escapar,
@@ -211,6 +254,7 @@ export default function MapView({
   points,
   showProtected = false,
   showUrbanLimit = false,
+  showComunas = false,
   kmlLayers = [],
   focus = null,
   onRenderProgress,
@@ -219,6 +263,7 @@ export default function MapView({
   points: MapPoint[];
   showProtected?: boolean;
   showUrbanLimit?: boolean;
+  showComunas?: boolean;
   kmlLayers?: KmlLayer[];
   /** Resultado del geocoder: el mapa vuela ahí y deja un marcador pulsante. */
   focus?: GeocodeResult | null;
@@ -232,6 +277,7 @@ export default function MapView({
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const protectedRef = useRef<L.GeoJSON | null>(null);
   const urbanLimitRef = useRef<L.GeoJSON | null>(null);
+  const comunasRef = useRef<L.GeoJSON | null>(null);
   const kmlRef = useRef<Map<string, L.GeoJSON>>(new Map());
   const seenKmlIds = useRef<Set<string>>(new Set());
 
@@ -250,7 +296,9 @@ export default function MapView({
   // urbano encima, luego las capas KML del usuario, y los puntos CBR siempre
   // al frente (clicables).
   const reorderOverlays = useCallback(() => {
+    // Comunas al fondo de todo (contexto), luego áreas protegidas.
     protectedRef.current?.bringToBack();
+    comunasRef.current?.bringToBack();
     urbanLimitRef.current?.bringToFront();
     for (const layer of kmlRef.current.values()) layer.bringToFront();
     clusterRef.current?.bringToFront();
@@ -279,6 +327,7 @@ export default function MapView({
       clusterRef.current = null;
       protectedRef.current = null;
       urbanLimitRef.current = null;
+      comunasRef.current = null;
       kmlById.clear();
       seenIds.clear();
     };
@@ -439,6 +488,44 @@ export default function MapView({
       }
     };
   }, [showUrbanLimit, reorderOverlays]);
+
+  // Límites comunales — División Político-Administrativa 2023 (SUBDERE,
+  // geoportal.cl), generado por scripts/build-comunas.mjs. Capa de contexto:
+  // línea discontinua gris pizarra al fondo del apilado, clicable para
+  // consultar comuna/provincia/región/CUT.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (comunasRef.current) {
+      map.removeLayer(comunasRef.current);
+      comunasRef.current = null;
+    }
+
+    if (!showComunas) return;
+
+    fetch('/data/limites-comunales.geojson')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((geojson: FeatureCollection<Geometry, ComunaProps>) => {
+        if (!mapRef.current) return;
+        const layer = L.geoJSON(geojson, {
+          style: COMUNAS_STYLE,
+          onEachFeature(feature, featureLayer) {
+            featureLayer.bindPopup(buildComunaPopup(feature.properties), { maxWidth: 280 });
+          },
+        }).addTo(mapRef.current);
+        comunasRef.current = layer;
+        reorderOverlays();
+      })
+      .catch(() => {});
+
+    return () => {
+      if (comunasRef.current && mapRef.current) {
+        mapRef.current.removeLayer(comunasRef.current);
+        comunasRef.current = null;
+      }
+    };
+  }, [showComunas, reorderOverlays]);
 
   // Capas KML del usuario — ya parseadas a GeoJSON en el navegador (lib/kml).
   // Se sincronizan por id: se quitan las eliminadas u ocultas, se agregan las
