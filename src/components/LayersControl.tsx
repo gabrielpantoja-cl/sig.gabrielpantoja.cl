@@ -1,20 +1,97 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { CATEGORY_COLORS } from '@/lib/protected-areas';
 import { URBAN_LIMIT_COLOR } from '@/lib/urban-limit';
+import { COMUNAS_ATTRIBUTION, COMUNAS_COLOR, COMUNAS_SOURCE_URL } from '@/lib/comunas';
 import { CBR_POINT_COLOR } from '@/lib/cbr-points';
 import { KML_MAX_FILE_MB, type KmlLayer } from '@/lib/kml';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
 
 /**
+ * Fila de capa estilo Google Earth Pro: triángulo de despliegue (▸/▾) +
+ * checkbox + swatch + nombre. El triángulo abre los DETALLES de la capa
+ * (leyenda, fuente, atribución) de forma independiente del checkbox, así
+ * activar una capa no obliga a desplegar su leyenda y la lista se mantiene
+ * compacta a medida que crece el catálogo de capas.
+ */
+function LayerRow({
+  checked,
+  onChange,
+  readOnly = false,
+  swatch,
+  label,
+  children,
+}: {
+  checked: boolean;
+  onChange?: (v: boolean) => void;
+  readOnly?: boolean;
+  swatch: ReactNode;
+  label: string;
+  children?: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div>
+      <div className="flex items-center gap-1">
+        {children ? (
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            aria-label={`${open ? 'Ocultar' : 'Mostrar'} detalles de ${label}`}
+            className="flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-50 hover:opacity-100"
+          >
+            <svg
+              width="9"
+              height="9"
+              viewBox="0 0 10 10"
+              fill="currentColor"
+              aria-hidden="true"
+              className={`transition-transform ${open ? 'rotate-90' : ''}`}
+            >
+              <path d="M2.5 1l5 4-5 4z" />
+            </svg>
+          </button>
+        ) : (
+          <span className="h-4 w-4 shrink-0" aria-hidden="true" />
+        )}
+
+        <label
+          className={`flex flex-1 items-center gap-2 ${readOnly ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
+        >
+          <input
+            type="checkbox"
+            checked={checked}
+            readOnly={readOnly}
+            onChange={readOnly ? undefined : (e) => onChange?.(e.target.checked)}
+            className="accent-[hsl(153_28%_35%)]"
+          />
+          <span className="inline-flex items-center gap-1.5">
+            {swatch}
+            {label}
+          </span>
+        </label>
+      </div>
+
+      {open && children && (
+        <div className="ml-5 mt-1.5 border-l border-black/10 pb-1 pl-2.5 dark:border-white/10">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Panel de capas del mapa. Separa la activación/desactivación de capas de los
- * botones de descarga (CSV/GeoJSON), que viven en el panel de filtros. Cuando
- * una capa temática está activa, muestra su leyenda y atribución. Incluye la
- * sección «Mis capas», donde el usuario sube archivos .kml que se procesan
- * localmente (ver lib/kml.ts) y se listan con visibilidad y borrado por capa.
- * El estado abierto/cerrado lo controla page.tsx vía MapPanel (un solo panel
- * a la vez).
+ * botones de descarga (CSV/GeoJSON), que viven en el panel de filtros. Cada
+ * capa temática lleva su leyenda y atribución detrás de un triángulo de
+ * despliegue (LayerRow), colapsadas por defecto. Incluye la sección «Mis
+ * capas», donde el usuario sube archivos .kml que se procesan localmente
+ * (ver lib/kml.ts) y se listan con visibilidad y borrado por capa. El estado
+ * abierto/cerrado del panel lo controla page.tsx vía MapPanel (uno a la vez).
  */
 export function LayersControl({
   activeId,
@@ -23,6 +100,8 @@ export function LayersControl({
   onToggleProtected,
   showUrbanLimit,
   onToggleUrbanLimit,
+  showComunas,
+  onToggleComunas,
   kmlLayers,
   kmlError,
   onAddKmlFiles,
@@ -35,6 +114,8 @@ export function LayersControl({
   onToggleProtected: (v: boolean) => void;
   showUrbanLimit: boolean;
   onToggleUrbanLimit: (v: boolean) => void;
+  showComunas: boolean;
+  onToggleComunas: (v: boolean) => void;
   kmlLayers: KmlLayer[];
   kmlError: string | null;
   onAddKmlFiles: (files: FileList) => void;
@@ -48,7 +129,7 @@ export function LayersControl({
       id="layers"
       activeId={activeId}
       onActivate={onActivate}
-      widthClassName="w-60"
+      widthClassName="w-64"
       align="right"
       label="Capas"
       icon={
@@ -59,26 +140,24 @@ export function LayersControl({
         </svg>
       }
     >
-      <label className="flex cursor-default items-center gap-2 opacity-70">
-        <input type="checkbox" checked readOnly className="accent-[hsl(153_28%_35%)]" />
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CBR_POINT_COLOR }} />
-          Transacciones CBR
-        </span>
-      </label>
-
-      <label className="mt-2 flex cursor-pointer items-center gap-2">
-        <input
-          type="checkbox"
-          checked={showProtected}
-          onChange={(e) => onToggleProtected(e.target.checked)}
-          className="accent-[hsl(153_28%_35%)]"
+      <div className="space-y-2">
+        <LayerRow
+          checked
+          readOnly
+          label="Transacciones CBR"
+          swatch={
+            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CBR_POINT_COLOR }} />
+          }
         />
-        Áreas protegidas (RNAP)
-      </label>
 
-      {showProtected && (
-        <div className="mt-2.5 border-t border-black/10 pt-2 dark:border-white/10">
+        <LayerRow
+          checked={showProtected}
+          onChange={onToggleProtected}
+          label="Áreas protegidas (RNAP)"
+          swatch={
+            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: CATEGORY_COLORS['Parque Nacional'] }} />
+          }
+        >
           <ul className="max-h-44 space-y-1 overflow-y-auto pr-1 text-xs">
             {Object.entries(CATEGORY_COLORS).map(([cat, color]) => (
               <li key={cat} className="flex items-center gap-1.5 leading-tight">
@@ -90,30 +169,49 @@ export function LayersControl({
           <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
             Fuente: Ministerio del Medio Ambiente · Registro Nacional de Áreas Protegidas · CC0
           </p>
-        </div>
-      )}
+        </LayerRow>
 
-      <label className="mt-2 flex cursor-pointer items-center gap-2">
-        <input
-          type="checkbox"
+        <LayerRow
           checked={showUrbanLimit}
-          onChange={(e) => onToggleUrbanLimit(e.target.checked)}
-          className="accent-[hsl(153_28%_35%)]"
-        />
-        <span className="inline-flex items-center gap-1.5">
-          <span
-            className="inline-block h-2.5 w-2.5 rounded-sm"
-            style={{ background: `${URBAN_LIMIT_COLOR}22`, border: `1.5px solid ${URBAN_LIMIT_COLOR}` }}
-          />
-          Límite urbano (PRC)
-        </span>
-      </label>
+          onChange={onToggleUrbanLimit}
+          label="Límite urbano (PRC)"
+          swatch={
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-sm"
+              style={{ background: `${URBAN_LIMIT_COLOR}22`, border: `1.5px solid ${URBAN_LIMIT_COLOR}` }}
+            />
+          }
+        >
+          <p className="text-[0.6rem] leading-snug opacity-50">
+            Límites urbanos de Planes Reguladores Comunales. Fuente: MINVU · IPT · geoide.minvu.cl
+          </p>
+        </LayerRow>
 
-      {showUrbanLimit && (
-        <p className="mt-2 border-t border-black/10 pt-2 text-[0.6rem] leading-snug opacity-50 dark:border-white/10">
-          Límites urbanos de Planes Reguladores Comunales. Fuente: MINVU · IPT · geoide.minvu.cl
-        </p>
-      )}
+        <LayerRow
+          checked={showComunas}
+          onChange={onToggleComunas}
+          label="Límites comunales (DPA)"
+          swatch={
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-sm"
+              style={{ border: `1.5px dashed ${COMUNAS_COLOR}` }}
+            />
+          }
+        >
+          <p className="text-[0.6rem] leading-snug opacity-50">
+            {COMUNAS_ATTRIBUTION}. Límites referenciales para visualización; los límites
+            oficiales corresponden a DIFROL/SUBDERE.{' '}
+            <a
+              href={COMUNAS_SOURCE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:opacity-100"
+            >
+              Ver fuente oficial →
+            </a>
+          </p>
+        </LayerRow>
+      </div>
 
       {/* Capas KML del usuario */}
       <div className="mt-3 border-t border-black/10 pt-2.5 dark:border-white/10">

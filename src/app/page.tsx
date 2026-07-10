@@ -150,6 +150,7 @@ export default function Home() {
 
   const [showProtected, setShowProtected] = useState(false);
   const [showUrbanLimit, setShowUrbanLimit] = useState(false);
+  const [showComunas, setShowComunas] = useState(false);
 
   // Capas KML subidas por el usuario: parseo 100% en el navegador (lib/kml),
   // el archivo nunca sale del dispositivo. El contador de colores es un ref
@@ -351,6 +352,7 @@ export default function Home() {
             points={points}
             showProtected={showProtected}
             showUrbanLimit={showUrbanLimit}
+            showComunas={showComunas}
             kmlLayers={kmlLayers}
             focus={focus}
             onRenderProgress={handleRenderProgress}
@@ -418,6 +420,8 @@ export default function Home() {
             onToggleProtected={setShowProtected}
             showUrbanLimit={showUrbanLimit}
             onToggleUrbanLimit={setShowUrbanLimit}
+            showComunas={showComunas}
+            onToggleComunas={setShowComunas}
             kmlLayers={kmlLayers}
             kmlError={kmlError}
             onAddKmlFiles={addKmlFiles}
