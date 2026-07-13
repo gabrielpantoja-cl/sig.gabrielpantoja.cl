@@ -1,0 +1,21 @@
+{
+  "source": "Dirección de Vialidad, Ministerio de Obras Públicas — Red Vial Nacional (2026-06-30)",
+  "source_url": "https://mapasvialidad.mop.gob.cl/archivos/sites/10/2026/07/Red_Vial_2026_06_30_shp.zip",
+  "catalog_url": "https://mapasvialidad.mop.gob.cl/descargas/",
+  "portal": "mapasvialidad.mop.gob.cl (UGIT-DV, descargas oficiales) · visor: www.mapas.mop.cl",
+  "license": "Dato público institucional (Estado de Chile, Dirección de Vialidad MOP), de carácter referencial. Atribución: \"Dirección de Vialidad, Ministerio de Obras Públicas\".",
+  "downloaded_at": "2026-07-13",
+  "vintage": "2026-06-30",
+  "feature_count": 14085,
+  "crs": "EPSG:4326 (la fuente viene en SIRGAS/coordenadas geográficas; reproyectado con mapshaper)",
+  "fields": [
+    "NOMBRE_CAMINO",
+    "ROL",
+    "CLASIFICACION",
+    "CARPETA",
+    "CONCESIONADO"
+  ],
+  "processing": "mapshaper -proj wgs84 -filter-fields NOMBRE_CAM,ROL,CLASIFICAC,CARPETA,CONCESIONA -rename-fields NOMBRE_CAMINO=NOMBRE_CAM,CLASIFICACION=CLASIFICAC,CONCESIONADO=CONCESIONA -simplify visvalingam weighted 0.7% keep-shapes precision=0.00001. Los nombres de campo del DBF (truncados a 10 caracteres) se renombran al esquema canónico del servicio REST oficial de la fuente.",
+  "mapshaper_version": "0.7.33",
+  "note": "Dato público oficial (Dirección de Vialidad, Ministerio de Obras Públicas — Red Vial Nacional, descarga oficial de mapasvialidad.mop.gob.cl, el mismo dato del visor www.mapas.mop.cl). Geometría simplificada solo para visualización web: el trazado mostrado es referencial. La toponimia (NOMBRE_CAMINO) y el ROL son los oficiales de Vialidad. Para análisis o uso normativo, consultar la fuente original."
+}
