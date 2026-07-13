@@ -18,11 +18,37 @@ atribución visible y cita en el popup.
 | Límite urbano (PRC) | MINVU · IPT · geoide.minvu.cl (ArcGIS REST) | — | 601 polígonos | 0,9 MB | `scripts/build-urban-limit.mjs` |
 | Límites comunales (DPA) | SUBDERE · DPA 2023 · geoportal.cl (Grupo DPA: SUBDERE/IGM/DIFROL/INE, 1:50.000) | 2023 | 345 comunas | 2,7 MB | `scripts/build-comunas.mjs` |
 | Red caminera (MOP) | Dirección de Vialidad · mapasvialidad.mop.gob.cl (UGIT-DV, shapefile oficial) | 2026-06-30 | 14.085 tramos (5 grupos de clasificación) | 5,9 MB | `scripts/build-red-vial.mjs` |
+| Suelos agrológicos (CIREN) | CIREN · Estudios Agrológicos · esri.ciren.cl (MapServer, 12 regiones) | 2010–2024 según región | Clases I–VIII + N.C. | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
 
 Cada GeoJSON va acompañado de un `*.meta.json` (manifiesto de procedencia:
 fuente, URL, licencia, fecha de descarga, campos, cadena de procesamiento,
 versión de mapshaper). El manifiesto se versiona en git junto al GeoJSON; los
 crudos (zips, shapefiles) quedan en `scripts/.cache/` (gitignoreado).
+
+### Capas dinámicas remotas (tercera familia)
+
+La capa de suelos CIREN inaugura una tercera familia: cuando el dataset
+oficial es demasiado pesado para GeoJSON estático (el de CIREN supera los
+500 MB; una sola región pesa ~40 MB), se consume el servicio del organismo en
+vivo. Patrón implementado en `MapView.tsx` (efecto de suelos) +
+`src/lib/suelos.ts`:
+
+- **Un `L.ImageOverlay` refrescado en `moveend`** contra el endpoint `export`
+  del MapServer (UN PNG por viewport). **No usar el WMS teselado**: Leaflet
+  dispara ~40 GetMap simultáneos por vista y los servidores estatales colapsan
+  (CIREN pasó de 1,2 s por imagen a 400/timeout de 60 s bajo esa ráfaga).
+- La imagen nueva se **pre-carga** antes de reemplazar la anterior (sin
+  parpadeo) y un contador de secuencia descarta respuestas fuera de orden.
+- `layers=show:<ids>` es obligatorio si las capas del servicio tienen
+  `defaultVisibility: false` (CIREN lo tiene: sin eso el export devuelve un
+  PNG transparente).
+- La consulta puntual va por el endpoint `identify` al hacer clic. Ojo: el
+  identify devuelve los atributos bajo el **alias** del campo (texto largo,
+  encoding inestable), no bajo su nombre — extraer el valor por validación
+  (`/^(I|II|...|N\.C\.)$/`), no por clave.
+- Trade-off aceptado: requiere el servidor del organismo en línea, no funciona
+  offline y la simbología es la del servicio (se replica en la leyenda local
+  con los colores extraídos de `/MapServer/legend?f=json`).
 
 Además existen las **capas KML del usuario** (subidas en el panel Capas,
 parseadas 100 % en el navegador — `src/lib/kml.ts` — nunca suben a un

@@ -20,6 +20,7 @@ import {
   COMUNAS_ATTRIBUTION,
   COMUNAS_COLOR,
   COMUNAS_STYLE,
+  comunaFillColor,
   type ComunaProps,
 } from '@/lib/comunas';
 import { cbrPinSvg } from '@/lib/cbr-points';
@@ -29,6 +30,14 @@ import {
   roadClassGroup,
   type RedVialProps,
 } from '@/lib/red-vial';
+import {
+  SUELOS_ATTRIBUTION,
+  SUELOS_EXPORT_LAYERS,
+  SUELOS_EXPORT_URL,
+  SUELOS_IDENTIFY_URL,
+  SUELOS_OPACITY,
+  suelosClassColor,
+} from '@/lib/suelos';
 
 /**
  * Imperative Leaflet map with marker clustering.
@@ -299,6 +308,7 @@ export default function MapView({
   showUrbanLimit = false,
   showComunas = false,
   showRedVial = false,
+  showSuelos = false,
   kmlLayers = [],
   focus = null,
   onRenderProgress,
@@ -309,6 +319,7 @@ export default function MapView({
   showUrbanLimit?: boolean;
   showComunas?: boolean;
   showRedVial?: boolean;
+  showSuelos?: boolean;
   kmlLayers?: KmlLayer[];
   /** Resultado del geocoder: el mapa vuela ahí y deja un marcador pulsante. */
   focus?: GeocodeResult | null;
@@ -324,6 +335,7 @@ export default function MapView({
   const urbanLimitRef = useRef<L.GeoJSON | null>(null);
   const comunasRef = useRef<L.GeoJSON | null>(null);
   const redVialRef = useRef<L.GeoJSON | null>(null);
+  const suelosRef = useRef<L.ImageOverlay | null>(null);
   const kmlRef = useRef<Map<string, L.GeoJSON>>(new Map());
   const seenKmlIds = useRef<Set<string>>(new Set());
 
@@ -377,6 +389,7 @@ export default function MapView({
       urbanLimitRef.current = null;
       comunasRef.current = null;
       redVialRef.current = null;
+      suelosRef.current = null;
       kmlById.clear();
       seenIds.clear();
     };
@@ -558,7 +571,14 @@ export default function MapView({
       .then((geojson: FeatureCollection<Geometry, ComunaProps>) => {
         if (!mapRef.current) return;
         const layer = L.geoJSON(geojson, {
-          style: COMUNAS_STYLE,
+          // Relleno pastel translúcido distinto por comuna (mapa político),
+          // manteniendo el borde pizarra discontinuo de límite administrativo.
+          style(feature?: Feature<Geometry, ComunaProps>) {
+            return {
+              ...COMUNAS_STYLE,
+              fillColor: comunaFillColor(feature?.properties?.CUT_COM),
+            };
+          },
           onEachFeature(feature, featureLayer) {
             featureLayer.bindPopup(buildComunaPopup(feature.properties), { maxWidth: 280 });
           },
@@ -630,6 +650,130 @@ export default function MapView({
       }
     };
   }, [showRedVial, reorderOverlays]);
+
+  // Suelos agrológicos (CIREN) — capa dinámica remota: el dataset completo
+  // supera los 500 MB, así que el servidor de CIREN renderiza la imagen con
+  // su simbología oficial y aquí solo se descarga UN PNG por viewport
+  // (export del MapServer sobre un L.ImageOverlay refrescado en moveend; el
+  // WMS teselado tumbaba el servidor con ~40 GetMap simultáneos). La imagen
+  // se pre-carga y recién entonces reemplaza a la anterior (sin parpadeo), y
+  // un contador de secuencia descarta respuestas fuera de orden. Al hacer
+  // clic se consulta la clase vía identify; si el clic abrió el popup de otra
+  // capa (comuna, camino, pin), se aborta para no pisarlo.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (suelosRef.current) {
+      map.removeLayer(suelosRef.current);
+      suelosRef.current = null;
+    }
+
+    if (!showSuelos) return;
+
+    const overlay = L.imageOverlay('', map.getBounds(), {
+      opacity: SUELOS_OPACITY,
+      attribution: 'CIREN · Estudios Agrológicos',
+      interactive: false,
+    }).addTo(map);
+    suelosRef.current = overlay;
+
+    let seq = 0;
+    const refresh = () => {
+      const bounds = map.getBounds();
+      const size = map.getSize();
+      const id = ++seq;
+      const params = new URLSearchParams({
+        bbox: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`,
+        bboxSR: '4326',
+        imageSR: '3857', // misma proyección que el mapa: el PNG calza sin deformarse
+        size: `${size.x},${size.y}`,
+        layers: SUELOS_EXPORT_LAYERS,
+        format: 'png32',
+        transparent: 'true',
+        f: 'image',
+      });
+      const url = `${SUELOS_EXPORT_URL}?${params}`;
+      const img = new Image();
+      img.onload = () => {
+        if (id !== seq || !suelosRef.current) return;
+        suelosRef.current.setUrl(url);
+        suelosRef.current.setBounds(bounds);
+      };
+      img.src = url;
+    };
+
+    map.on('moveend', refresh);
+    refresh();
+
+    let otherPopupOpened = false;
+    const onPopupOpen = () => {
+      otherPopupOpened = true;
+    };
+
+    const onClick = (e: L.LeafletMouseEvent) => {
+      otherPopupOpened = false;
+      const { lat, lng } = e.latlng;
+      const bounds = map.getBounds();
+      const size = map.getSize();
+      const params = new URLSearchParams({
+        geometry: `${lng},${lat}`,
+        geometryType: 'esriGeometryPoint',
+        sr: '4326',
+        layers: 'all',
+        tolerance: '2',
+        mapExtent: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`,
+        imageDisplay: `${size.x},${size.y},96`,
+        returnGeometry: 'false',
+        f: 'json',
+      });
+
+      fetch(`${SUELOS_IDENTIFY_URL}?${params}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((data: { results?: { layerName?: string; attributes?: Record<string, string> }[] }) => {
+          // El popup de un vector (comuna, camino, pin) llega primero: no pisarlo.
+          if (otherPopupOpened || !mapRef.current || !suelosRef.current) return;
+          const result = data.results?.[0];
+          // El identify devuelve los atributos bajo el ALIAS del campo (texto
+          // largo, con encoding inestable), no bajo su nombre (`textcaus`):
+          // se busca entre los valores el que sea una clase válida.
+          const clase = Object.values(result?.attributes ?? {})
+            .map((v) => String(v).trim())
+            .find((v) => /^(I|II|III|IV|V|VI|VII|VIII|N\.C\.)$/.test(v));
+          const region = result?.layerName ?? '';
+          const body = clase
+            ? `<div style="font-weight:600;font-size:0.92rem">Capacidad de uso: Clase ${esc(clase)}</div>` +
+              `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
+              `font-size:0.68rem;font-weight:600;color:#1e293b;background:${suelosClassColor(clase)};` +
+              `border:1px solid rgba(0,0,0,.15)">Suelos agrológicos CIREN</div>` +
+              (region ? `<div style="opacity:.7">${esc(region)}</div>` : '')
+            : `<div style="font-weight:600;font-size:0.92rem">Sin clase de suelo en este punto</div>` +
+              `<div style="opacity:.7;margin-top:.2rem">Fuera del área estudiada por CIREN (12 regiones, Atacama a Aysén)</div>`;
+          L.popup({ maxWidth: 280 })
+            .setLatLng(e.latlng)
+            .setContent(
+              `<div style="font-size:0.8rem;line-height:1.45;min-width:200px">${body}` +
+                `<div style="margin-top:.35rem;font-size:0.62rem;opacity:.5">${SUELOS_ATTRIBUTION}</div></div>`,
+            )
+            .openOn(mapRef.current);
+        })
+        .catch(() => {});
+    };
+
+    map.on('popupopen', onPopupOpen);
+    map.on('click', onClick);
+
+    return () => {
+      seq++; // invalida cualquier export en vuelo
+      map.off('moveend', refresh);
+      map.off('popupopen', onPopupOpen);
+      map.off('click', onClick);
+      if (suelosRef.current && mapRef.current) {
+        mapRef.current.removeLayer(suelosRef.current);
+        suelosRef.current = null;
+      }
+    };
+  }, [showSuelos]);
 
   // Capas KML del usuario — ya parseadas a GeoJSON en el navegador (lib/kml).
   // Se sincronizan por id: se quitan las eliminadas u ocultas, se agregan las

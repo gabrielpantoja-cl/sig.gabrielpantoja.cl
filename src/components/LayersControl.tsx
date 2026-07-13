@@ -10,6 +10,7 @@ import {
   RED_VIAL_SOURCE_URL,
   ROAD_CLASS_GROUPS,
 } from '@/lib/red-vial';
+import { SUELOS_ATTRIBUTION, SUELOS_CLASSES, SUELOS_SOURCE_URL } from '@/lib/suelos';
 import { CBR_POINT_COLOR } from '@/lib/cbr-points';
 import { KML_MAX_FILE_MB, type KmlLayer } from '@/lib/kml';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
@@ -110,6 +111,8 @@ export function LayersControl({
   onToggleComunas,
   showRedVial,
   onToggleRedVial,
+  showSuelos,
+  onToggleSuelos,
   kmlLayers,
   kmlError,
   onAddKmlFiles,
@@ -126,6 +129,8 @@ export function LayersControl({
   onToggleComunas: (v: boolean) => void;
   showRedVial: boolean;
   onToggleRedVial: (v: boolean) => void;
+  showSuelos: boolean;
+  onToggleSuelos: (v: boolean) => void;
   kmlLayers: KmlLayer[];
   kmlError: string | null;
   onAddKmlFiles: (files: FileList) => void;
@@ -249,6 +254,46 @@ export function LayersControl({
             Google/OSM); trazado referencial para visualización.{' '}
             <a
               href={RED_VIAL_SOURCE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:opacity-100"
+            >
+              Ver fuente oficial →
+            </a>
+          </p>
+        </LayerRow>
+
+        <LayerRow
+          checked={showSuelos}
+          onChange={onToggleSuelos}
+          label="Suelos agrológicos (CIREN)"
+          swatch={
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-sm"
+              style={{ background: SUELOS_CLASSES[1].color }}
+            />
+          }
+        >
+          <ul className="space-y-1 text-xs">
+            {SUELOS_CLASSES.map((c) => (
+              <li key={c.label} className="flex items-center gap-1.5 leading-tight">
+                <span
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-black/20 dark:border-white/25"
+                  style={{ background: c.color }}
+                />
+                <span className="opacity-80">
+                  {c.label}
+                  <span className="opacity-60"> · {c.description}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
+            {SUELOS_ATTRIBUTION}. Capa servida en vivo por el WMS de CIREN (12 regiones
+            estudiadas, Atacama a Aysén). Haz clic en el mapa para consultar la clase de un
+            punto.{' '}
+            <a
+              href={SUELOS_SOURCE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="underline hover:opacity-100"
