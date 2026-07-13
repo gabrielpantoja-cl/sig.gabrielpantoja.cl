@@ -3,28 +3,36 @@
  * ETL reproducible — Capa Red Caminera de Chile (Dirección de Vialidad, MOP).
  *
  * Descarga la Red Vial Nacional publicada por la Dirección de Vialidad del
- * Ministerio de Obras Públicas en su servicio ArcGIS REST oficial
- * (rest-sit.mop.gob.cl, el backend del visor www.mapas.mop.cl). La capa 3 del
- * MapServer VIALIDAD/Red_Vial_Chile trae los ~14.100 tramos a escala
- * 1:10.000–1:25.000 con la toponimia oficial (NOMBRE_CAMINO), el ROL de
- * Vialidad, la clasificación funcional, el tipo de carpeta y si el tramo está
- * concesionado.
+ * Ministerio de Obras Públicas en su portal de descargas oficial
+ * (mapasvialidad.mop.gob.cl, UGIT-DV — el mismo dato del visor
+ * www.mapas.mop.cl). El zip trae el shapefile completo (~14.100 tramos,
+ * SIRGAS/coordenadas geográficas) con la toponimia oficial (NOMBRE_CAMINO),
+ * el ROL de Vialidad, la clasificación funcional, el tipo de carpeta y si el
+ * tramo está concesionado.
  *
- * El servidor es ArcGIS Server 10.21: no soporta `f=geojson` ni paginación
- * (`resultOffset`), así que el script pide la lista completa de OBJECTID,
- * consulta por rangos (maxRecordCount=1000) en esriJSON reproyectado a WGS84
- * (outSR=4326), convierte los polylines esriJSON → GeoJSON localmente y
- * simplifica con mapshaper para producir un GeoJSON liviano apto para el
- * navegador, junto con un manifiesto de procedencia.
+ * Nota: existe también el servicio ArcGIS REST
+ * (rest-sit.mop.gob.cl/arcgis/rest/services/VIALIDAD/Red_Vial_Chile), pero es
+ * ArcGIS 10.21 sin `f=geojson` ni paginación, limita a 1.000 registros por
+ * consulta y se degrada bajo descarga sostenida (500 «Error performing query
+ * operation» durante largo rato). La descarga directa del shapefile es la vía
+ * robusta y trae vintage explícito en el nombre del archivo.
+ *
+ * El DBF del shapefile trunca los nombres de campo a 10 caracteres
+ * (NOMBRE_CAM, CLASIFICAC, CONCESIONA); el ETL los renombra a los nombres
+ * canónicos del esquema REST de la fuente (NOMBRE_CAMINO, CLASIFICACION,
+ * CONCESIONADO) para que la app consuma el esquema oficial completo.
  *
  * Uso:  npm run data:build:red-vial
  *
- * Los lotes crudos quedan cacheados en scripts/.cache/red-vial/ (ignorado por
- * git): re-ejecutar retoma donde quedó. Solo se versiona la salida simplificada.
+ * El zip crudo y el shapefile extraído quedan en scripts/.cache/red-vial/
+ * (ignorado por git). Solo se versiona la salida simplificada.
  */
 
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile, writeFile, stat } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import { mkdir, readFile, writeFile, stat, readdir } from 'node:fs/promises';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
@@ -32,43 +40,42 @@ import { createRequire } from 'node:module';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const CACHE = join(__dirname, '.cache', 'red-vial');
+const EXTRACT_DIR = join(CACHE, 'shp');
 const OUT_DIR = join(ROOT, 'public', 'data');
 
 // --- Fuente oficial -------------------------------------------------------
-const LAYER_URL =
-  'https://rest-sit.mop.gob.cl/arcgis/rest/services/VIALIDAD/Red_Vial_Chile/MapServer/3';
+// Vintage en el nombre del archivo; actualizar aquí cuando Vialidad publique
+// una versión nueva en mapasvialidad.mop.gob.cl/descargas/.
+const VINTAGE = '2026_06_30';
 
 const SOURCE = {
-  name: 'Dirección de Vialidad, Ministerio de Obras Públicas — Red Vial Nacional',
-  portal: 'www.mapas.mop.cl (visor) · rest-sit.mop.gob.cl (servicio ArcGIS REST)',
-  url: `${LAYER_URL}/query`,
-  catalog: 'https://www.mop.gob.cl/serviciosmop/red-vial-nacional/',
+  name: `Dirección de Vialidad, Ministerio de Obras Públicas — Red Vial Nacional (${VINTAGE.replaceAll('_', '-')})`,
+  portal: 'mapasvialidad.mop.gob.cl (UGIT-DV, descargas oficiales) · visor: www.mapas.mop.cl',
+  url: `https://mapasvialidad.mop.gob.cl/archivos/sites/10/2026/07/Red_Vial_${VINTAGE}_shp.zip`,
+  catalog: 'https://mapasvialidad.mop.gob.cl/descargas/',
   license:
-    'Dato público institucional (Estado de Chile, Dirección de Vialidad MOP). Atribución: "Dirección de Vialidad, Ministerio de Obras Públicas".',
+    'Dato público institucional (Estado de Chile, Dirección de Vialidad MOP), de carácter referencial. Atribución: "Dirección de Vialidad, Ministerio de Obras Públicas".',
 };
 
-// Atributos a conservar (nombres originales de la fuente, sin renombrar).
-const KEEP_FIELDS = [
-  'NOMBRE_CAMINO',
-  'ROL',
-  'CLASIFICACION',
-  'CARPETA',
-  'REGION',
-  'CONCESIONADO',
-  'KM_I',
-  'KM_F',
-];
+// Campos del DBF a conservar (truncados a 10 caracteres por el formato) y su
+// renombre al nombre canónico del esquema REST oficial de la fuente. REGION y
+// KM_I/KM_F se descartan a propósito: con 14k tramos las propiedades pesan
+// tanto como la geometría, y ese presupuesto se gasta mejor en calidad de
+// trazado (REGION además es evidente por la posición en el mapa).
+const KEEP_FIELDS = ['NOMBRE_CAM', 'ROL', 'CLASIFICAC', 'CARPETA', 'CONCESIONA'];
+const RENAME_FIELDS = ['NOMBRE_CAMINO=NOMBRE_CAM', 'CLASIFICACION=CLASIFICAC', 'CONCESIONADO=CONCESIONA'];
+const FINAL_FIELDS = ['NOMBRE_CAMINO', 'ROL', 'CLASIFICACION', 'CARPETA', 'CONCESIONADO'];
 
 // La red vial se mira a todos los zooms pero el levantamiento GNSS original
-// (1:10.000) trae ~600 vértices por tramo: se simplifica fuerte para caber en
-// el presupuesto de peso (< 6 MB) manteniendo el trazado reconocible.
-const SIMPLIFY = 'visvalingam weighted 3% keep-shapes';
+// (1:10.000) trae cientos de vértices por tramo: se simplifica fuerte para
+// caber en el presupuesto de peso (< 6 MB) manteniendo el trazado reconocible
+// (visvalingam weighted prioriza conservar curvas y ángulos pronunciados).
+const SIMPLIFY = 'visvalingam weighted 0.7% keep-shapes';
 const PRECISION = 0.00001;
 
-const BATCH_SIZE = 900; // maxRecordCount del servidor es 1000
+const ZIP_PATH = join(CACHE, `Red_Vial_${VINTAGE}_shp.zip`);
 const OUT_GEOJSON = join(OUT_DIR, 'red-vial.geojson');
 const OUT_META = join(OUT_DIR, 'red-vial.meta.json');
-const RAW_GEOJSON = join(CACHE, 'red-vial-raw.geojson');
 
 const log = (...a) => console.log('[red-vial]', ...a);
 
@@ -81,88 +88,39 @@ async function exists(p) {
   }
 }
 
-// El servidor MOP se degrada bajo carga sostenida (500 «Error performing
-// query operation» incluso para consultas mínimas) y tarda varios minutos en
-// recuperarse: backoff largo y progresivo entre reintentos.
-async function fetchJson(url, tries = 5) {
-  for (let i = 1; ; i++) {
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(180_000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (data.error) throw new Error(`ArcGIS: ${JSON.stringify(data.error)}`);
-      return data;
-    } catch (err) {
-      if (i >= tries) throw err;
-      log(`reintento ${i}/${tries - 1} en ${30 * i} s tras error: ${err.message}`);
-      await new Promise((r) => setTimeout(r, 30_000 * i));
+async function download() {
+  if (await exists(ZIP_PATH)) {
+    log('zip ya en caché, omitiendo descarga');
+    return;
+  }
+  log(`descargando Red Vial ${VINTAGE} desde mapasvialidad.mop.gob.cl (~214 MB)…`);
+  const res = await fetch(SOURCE.url);
+  if (!res.ok) throw new Error(`Descarga falló: HTTP ${res.status}`);
+  await pipeline(Readable.fromWeb(res.body), createWriteStream(ZIP_PATH));
+  log('descarga completa');
+}
+
+async function unzip() {
+  if (await exists(EXTRACT_DIR)) {
+    log('zip ya extraído, omitiendo unzip');
+    return;
+  }
+  log('descomprimiendo…');
+  execFileSync('unzip', ['-o', '-q', ZIP_PATH, '-d', EXTRACT_DIR], { stdio: 'inherit' });
+}
+
+/** Busca recursivamente el shapefile de la red vial dentro del zip extraído. */
+async function findShp(dir) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const p = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const found = await findShp(p);
+      if (found) return found;
+    } else if (/red_vial/i.test(entry.name) && entry.name.toLowerCase().endsWith('.shp')) {
+      return p;
     }
   }
-}
-
-/** Lista completa de OBJECTID de la capa (cacheada). */
-async function getObjectIds() {
-  const cachePath = join(CACHE, 'object-ids.json');
-  if (await exists(cachePath)) {
-    return JSON.parse(await readFile(cachePath, 'utf8'));
-  }
-  log('consultando lista de OBJECTID…');
-  const data = await fetchJson(`${LAYER_URL}/query?where=1%3D1&returnIdsOnly=true&f=json`);
-  const ids = (data.objectIds ?? []).sort((a, b) => a - b);
-  await writeFile(cachePath, JSON.stringify(ids));
-  return ids;
-}
-
-/** Descarga un lote de features por rango de OBJECTID (cacheado por lote). */
-async function fetchBatch(idFrom, idTo, index, total) {
-  const cachePath = join(CACHE, `batch-${String(index).padStart(3, '0')}.json`);
-  if (await exists(cachePath)) {
-    return JSON.parse(await readFile(cachePath, 'utf8'));
-  }
-  const params = new URLSearchParams({
-    where: `OBJECTID BETWEEN ${idFrom} AND ${idTo}`,
-    outFields: KEEP_FIELDS.join(','),
-    outSR: '4326',
-    f: 'json',
-  });
-  const data = await fetchJson(`${LAYER_URL}/query?${params}`);
-  if (data.exceededTransferLimit) {
-    throw new Error(`lote ${index}: exceededTransferLimit (rango ${idFrom}–${idTo} demasiado grande)`);
-  }
-  await writeFile(cachePath, JSON.stringify(data));
-  log(`lote ${index}/${total}: ${data.features?.length ?? 0} tramos`);
-  return data;
-}
-
-/** Convierte un polyline esriJSON (paths) a geometría GeoJSON. */
-function esriPolylineToGeoJson(geometry) {
-  const paths = geometry?.paths ?? [];
-  if (paths.length === 0) return null;
-  if (paths.length === 1) return { type: 'LineString', coordinates: paths[0] };
-  return { type: 'MultiLineString', coordinates: paths };
-}
-
-async function downloadAndConvert() {
-  const ids = await getObjectIds();
-  log(`${ids.length} tramos en la fuente (OBJECTID ${ids[0]}–${ids[ids.length - 1]})`);
-
-  const features = [];
-  const totalBatches = Math.ceil(ids.length / BATCH_SIZE);
-  for (let i = 0; i < totalBatches; i++) {
-    const slice = ids.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
-    const data = await fetchBatch(slice[0], slice[slice.length - 1], i + 1, totalBatches);
-    for (const f of data.features ?? []) {
-      const geometry = esriPolylineToGeoJson(f.geometry);
-      if (!geometry) continue;
-      const properties = {};
-      for (const k of KEEP_FIELDS) properties[k] = f.attributes?.[k] ?? null;
-      features.push({ type: 'Feature', properties, geometry });
-    }
-  }
-
-  log(`convertidos ${features.length} tramos esriJSON → GeoJSON`);
-  await writeFile(RAW_GEOJSON, JSON.stringify({ type: 'FeatureCollection', features }));
-  return features.length;
+  return null;
 }
 
 function mapshaperBin() {
@@ -179,11 +137,17 @@ function mapshaperVersion() {
   }
 }
 
-function simplify() {
+function simplify(shpPath) {
   log(`simplificando (${SIMPLIFY}, precision=${PRECISION})…`);
   const args = [
     mapshaperBin(),
-    RAW_GEOJSON,
+    shpPath,
+    '-proj',
+    'wgs84',
+    '-filter-fields',
+    KEEP_FIELDS.join(','),
+    '-rename-fields',
+    RENAME_FIELDS.join(','),
     '-simplify',
     ...SIMPLIFY.split(' '),
     '-o',
@@ -192,7 +156,7 @@ function simplify() {
     'format=geojson',
     OUT_GEOJSON,
   ];
-  execFileSync('node', args, { stdio: 'inherit', maxBuffer: 1024 * 1024 * 64 });
+  execFileSync('node', args, { stdio: 'inherit' });
 }
 
 async function writeMeta(featureCount) {
@@ -203,18 +167,20 @@ async function writeMeta(featureCount) {
     portal: SOURCE.portal,
     license: SOURCE.license,
     downloaded_at: new Date().toISOString().slice(0, 10),
+    vintage: VINTAGE.replaceAll('_', '-'),
     feature_count: featureCount,
-    crs: 'EPSG:4326 (reproyectado server-side con outSR=4326)',
-    fields: KEEP_FIELDS,
+    crs: 'EPSG:4326 (la fuente viene en SIRGAS/coordenadas geográficas; reproyectado con mapshaper)',
+    fields: FINAL_FIELDS,
     processing:
-      `ArcGIS REST query por rangos de OBJECTID (esriJSON, outSR=4326) → conversión esriJSON→GeoJSON → ` +
-      `mapshaper -simplify ${SIMPLIFY} precision=${PRECISION}`,
+      `mapshaper -proj wgs84 -filter-fields ${KEEP_FIELDS.join(',')} -rename-fields ${RENAME_FIELDS.join(',')} ` +
+      `-simplify ${SIMPLIFY} precision=${PRECISION}. Los nombres de campo del DBF (truncados a 10 caracteres) ` +
+      `se renombran al esquema canónico del servicio REST oficial de la fuente.`,
     mapshaper_version: mapshaperVersion(),
     note:
       'Dato público oficial (Dirección de Vialidad, Ministerio de Obras Públicas — Red Vial Nacional, ' +
-      'levantamiento GNSS 1:10.000–1:25.000, servicio del visor www.mapas.mop.cl). Geometría simplificada ' +
-      'solo para visualización web: el trazado mostrado es referencial. La toponimia (NOMBRE_CAMINO) y el ' +
-      'ROL son los oficiales de Vialidad. Para análisis o uso normativo, consultar la fuente original.',
+      'descarga oficial de mapasvialidad.mop.gob.cl, el mismo dato del visor www.mapas.mop.cl). Geometría ' +
+      'simplificada solo para visualización web: el trazado mostrado es referencial. La toponimia ' +
+      '(NOMBRE_CAMINO) y el ROL son los oficiales de Vialidad. Para análisis o uso normativo, consultar la fuente original.',
   };
   await writeFile(OUT_META, JSON.stringify(meta, null, 2) + '\n');
 }
@@ -223,8 +189,14 @@ async function main() {
   await mkdir(CACHE, { recursive: true });
   await mkdir(OUT_DIR, { recursive: true });
 
-  await downloadAndConvert();
-  simplify();
+  await download();
+  await unzip();
+
+  const shp = await findShp(EXTRACT_DIR);
+  if (!shp) throw new Error(`No se encontró el shapefile de la red vial dentro de ${EXTRACT_DIR}`);
+  log(`shapefile: ${shp}`);
+
+  simplify(shp);
 
   const gj = JSON.parse(await readFile(OUT_GEOJSON, 'utf8'));
   const count = gj.features?.length ?? 0;

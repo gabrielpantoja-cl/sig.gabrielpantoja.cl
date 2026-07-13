@@ -238,20 +238,15 @@ function buildComunaPopup(props: ComunaProps): string {
  * Popup de un tramo de la Red Caminera (Dirección de Vialidad, MOP). Lidera
  * con la toponimia oficial del camino y el ROL de Vialidad (la razón de ser de
  * la capa: el nombre oficial suele diferir del de Google/OSM), luego la
- * clasificación funcional, la carpeta, la región, el kilometraje del tramo y
- * si está concesionado, cerrando con la cita a la fuente.
+ * clasificación funcional, la carpeta y si está concesionado, cerrando con la
+ * cita a la fuente.
  */
 function buildRedVialPopup(props: RedVialProps): string {
   const group = ROAD_CLASS_GROUPS[roadClassGroup(props.CLASIFICACION)];
-  const fmtKm = (m: number): string =>
-    (m / 1000).toLocaleString('es-CL', { maximumFractionDigits: 3 });
 
   const rows: [string, string][] = [];
   if (props.CLASIFICACION) rows.push(['Clasificación', esc(props.CLASIFICACION)]);
   if (props.CARPETA) rows.push(['Carpeta', esc(props.CARPETA)]);
-  if (props.REGION) rows.push(['Región', esc(props.REGION)]);
-  if (props.KM_I != null && props.KM_F != null)
-    rows.push(['Tramo', `km ${fmtKm(props.KM_I)} – ${fmtKm(props.KM_F)}`]);
   if (props.CONCESIONADO) rows.push(['Concesionado', esc(props.CONCESIONADO)]);
 
   const body = rows
