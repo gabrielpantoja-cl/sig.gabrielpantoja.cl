@@ -15,6 +15,7 @@ siempre el **organismo productor** del dato (regla 1 de la receta en
 | **MINVU** — geoide.minvu.cl | Instrumentos de Planificación Territorial: límites urbanos, PRC, zonificación | ArcGIS REST (`outSR=4326&f=geojson` OK) | Capa límite urbano |
 | **SUBDERE** vía geoportal.cl | División Político-Administrativa (comunas/provincias/regiones, 1:50.000, DPA 2023) | Zip shapefile (~311 MB) del catálogo geoportal.cl | Capa límites comunales |
 | **MOP — Dirección de Vialidad** — mapasvialidad.mop.gob.cl | Red Vial Nacional completa (toponimia oficial, ROL, clasificación, carpeta, concesiones) + Puentes | Zip Shp/Gdb/Kmz con vintage en el nombre (`Red_Vial_2026_06_30_shp.zip`) | Capa red caminera |
+| **CIREN** — esri.ciren.cl | Estudios Agrológicos: Capacidad de Uso de los Suelos (clases I–VIII), 12 regiones (Atacama–Aysén, vintages 2010–2024) | ArcGIS REST moderno (10.91: `f=geojson`, paginación, export, identify). Dataset >500 MB → se consume en vivo (capa dinámica) | Capa suelos agrológicos |
 
 ## El ecosistema MOP (hallazgos 2026-07)
 
@@ -42,7 +43,7 @@ El MOP publica el mismo dato vial por varios canales; en orden de utilidad:
 |---|---|---|
 | **IDE Chile / geoportal.cl** | Catálogo Nacional de Información Geoespacial: agrega los datos de todos los ministerios | Primera parada para descubrir si existe un dato oficial. Descargas erráticas (sin reanudación) pero completas |
 | **SII** — Servicio de Impuestos Internos | Cartografía digital de predios (roles), avalúos fiscales, áreas homogéneas | El ROL de los puntos CBR viene de aquí. Sin API pública de descarga masiva; la cartografía se consulta en mapas.sii.cl |
-| **CIREN** | Capacidad de uso de suelos agrícolas, catastro frutícola, propiedades rurales | Clave para tasación rural (clase de suelo I–VIII). Descargas en ide.ciren.cl |
+| **CIREN** (otros productos) | Catastro frutícola, propiedades rurales, erosión actual/potencial | Complementos de tasación rural en el mismo esri.ciren.cl; shapefiles descargables en ide.minagri.gob.cl/geoweb |
 | **CONAF** | Catastro de uso de suelo y vegetación, bosque nativo, plantaciones | Complementa destino/uso de predios rurales. IDE en sit.conaf.cl |
 | **DGA** (MOP) — Dirección General de Aguas | Derechos de aprovechamiento de aguas, cauces, acuíferos | Muy relevante para valor de suelo rural; vía GEOMOP / dga.mop.gob.cl |
 | **SERNAGEOMIN** | Geología, peligros geológicos (remoción en masa, volcanismo), concesiones mineras | Restricciones de uso y riesgo en tasaciones. Portal geología: portalgeo.sernageomin.cl |
@@ -50,6 +51,22 @@ El MOP publica el mismo dato vial por varios canales; en orden de utilidad:
 | **SMA** — ideserver.sma.gob.cl | Espejos de capas de otros organismos (incl. Red Vial MOP, layer 10) + fiscalización ambiental | Espejo útil si el productor está caído (documentar el porqué si se usa) |
 | **SHOA** | Línea de costa oficial, cartas náuticas, áreas de inundación por tsunami | Borde costero para predios con orilla de mar/lago |
 | **plataformadedatos.cl** (MINCIENCIA/CEDEUS) | Agregador académico-estatal de datasets georreferenciados | Alternativa de descarga cuando geoportal.cl falla |
+
+## Hallazgo transversal: los servidores GIS estatales son frágiles bajo ráfagas
+
+Dos casos documentados (2026-07):
+
+- **MOP rest-sit** (ArcGIS 10.21): tras ~15 consultas grandes seguidas, 500 en
+  TODO el servicio por >30 min. Solución: usar la descarga directa oficial.
+- **CIREN esri** (ArcGIS 10.91): sano responde una imagen de viewport en
+  ~1,2 s, pero la ráfaga de ~40 teselas WMS que dispara Leaflet lo tumba
+  (timeouts de 60 s → HTTP 400). Solución: 1 export por viewport
+  (`L.ImageOverlay` + `moveend`), nunca WMS teselado.
+
+Regla práctica: contra servidores del Estado, **minimizar el número de
+requests simultáneos** (descarga única cacheada para ETL; imagen única por
+viewport para capas dinámicas) y reintentar con backoff largo (minutos, no
+segundos).
 
 ## Reglas al incorporar cualquiera de estas fuentes
 

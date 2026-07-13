@@ -5,9 +5,9 @@
  * Desarrollo Regional y Administrativo (SUBDERE) publicado en geoportal.cl
  * (Grupo de Trabajo DPA: SUBDERE, IGM, DIFROL, INE; escala 1:50.000,
  * circulación autorizada por Resolución N°50/2019 de DIFROL). Generado por
- * scripts/build-comunas.mjs. Estilo de límite administrativo clásico: línea
- * gris pizarra discontinua, con relleno casi nulo para que la capa sea
- * clicable (¿en qué comuna estoy?) sin tapar el mapa base.
+ * scripts/build-comunas.mjs. Estilo de mapa político clásico: línea gris
+ * pizarra discontinua + relleno pastel translúcido distinto por comuna, para
+ * que cada unidad se distinga de sus vecinas sin tapar el mapa base.
  */
 
 /** Propiedades de cada feature en limites-comunales.geojson (nombres de la fuente). */
@@ -23,10 +23,32 @@ export interface ComunaProps {
 
 export const COMUNAS_COLOR = '#475569';
 
+/**
+ * Paleta pastel para el relleno por comuna (tonos suaves, translúcidos, que
+ * no compiten con los pines carmesí ni con las demás capas temáticas). Se
+ * asigna por módulo del código CUT: los CUT son correlativos dentro de cada
+ * provincia, así que las comunas vecinas caen casi siempre en tonos distintos.
+ */
+export const COMUNAS_FILL_PALETTE = [
+  '#fecaca', // rojo pastel
+  '#fed7aa', // naranjo pastel
+  '#fde68a', // ámbar pastel
+  '#d9f99d', // lima pastel
+  '#99f6e4', // turquesa pastel
+  '#bae6fd', // celeste pastel
+  '#ddd6fe', // lavanda pastel
+  '#fbcfe8', // rosa pastel
+] as const;
+
+export function comunaFillColor(cutCom: string | null | undefined): string {
+  const n = Number.parseInt(cutCom ?? '', 10);
+  const idx = Number.isNaN(n) ? 0 : n % COMUNAS_FILL_PALETTE.length;
+  return COMUNAS_FILL_PALETTE[idx];
+}
+
 export const COMUNAS_STYLE = {
   color: COMUNAS_COLOR,
-  fillColor: COMUNAS_COLOR,
-  fillOpacity: 0.02,
+  fillOpacity: 0.35,
   weight: 1.1,
   opacity: 0.8,
   dashArray: '4 3',
