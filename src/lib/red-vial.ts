@@ -15,16 +15,17 @@
  * oscuros, la red regional progresivamente más fina y clara.
  */
 
-/** Propiedades de cada feature en red-vial.geojson (nombres de la fuente). */
+/**
+ * Propiedades de cada feature en red-vial.geojson (esquema canónico de la
+ * fuente; el ETL renombra los nombres truncados del DBF). REGION y KM_I/KM_F
+ * se descartan en el ETL para priorizar peso de geometría.
+ */
 export interface RedVialProps {
   NOMBRE_CAMINO: string | null; // toponimia oficial de Vialidad
   ROL: string | null; // rol del camino (p. ej. "O-374", "Ruta 5")
   CLASIFICACION: string | null;
   CARPETA: string | null; // tipo de carpeta (Pavimento, Ripio, Tierra…)
-  REGION: string | null;
-  CONCESIONADO: string | null; // "Si" / "No"
-  KM_I: number | null; // km inicial del tramo (metros según la fuente)
-  KM_F: number | null; // km final del tramo
+  CONCESIONADO: string | null; // "Sí" / "No"
 }
 
 /** Grupos de clasificación funcional para simbología y leyenda. */

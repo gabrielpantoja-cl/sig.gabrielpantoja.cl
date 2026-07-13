@@ -1,6 +1,6 @@
 # Arquitectura de capas del SIG: catálogo y receta para agregar una capa nueva
 
-> Documento vivo. Última actualización: 2026-07-09.
+> Documento vivo. Última actualización: 2026-07-13.
 
 Este SIG tiene dos familias de capas: los **puntos CBR** (dinámicos, desde Neon
 vía `/api/points`) y las **capas temáticas estáticas** (GeoJSON pre-construido
@@ -17,6 +17,7 @@ atribución visible y cita en el popup.
 | Áreas protegidas (RNAP) | MMA · Registro Nacional de Áreas Protegidas (CC0) | — | ~12 categorías legales | 6,0 MB | `scripts/build-protected-areas.mjs` |
 | Límite urbano (PRC) | MINVU · IPT · geoide.minvu.cl (ArcGIS REST) | — | 601 polígonos | 0,9 MB | `scripts/build-urban-limit.mjs` |
 | Límites comunales (DPA) | SUBDERE · DPA 2023 · geoportal.cl (Grupo DPA: SUBDERE/IGM/DIFROL/INE, 1:50.000) | 2023 | 345 comunas | 2,7 MB | `scripts/build-comunas.mjs` |
+| Red caminera (MOP) | Dirección de Vialidad · mapasvialidad.mop.gob.cl (UGIT-DV, shapefile oficial) | 2026-06-30 | 14.085 tramos (5 grupos de clasificación) | 5,9 MB | `scripts/build-red-vial.mjs` |
 
 Cada GeoJSON va acompañado de un `*.meta.json` (manifiesto de procedencia:
 fuente, URL, licencia, fecha de descarga, campos, cadena de procesamiento,
@@ -42,7 +43,7 @@ el ejemplo más reciente y completo de cada paso.
    1000–2000) y licencia/condiciones de circulación.
 
 2. **Escribir el ETL en `scripts/build-<capa>.mjs`** siguiendo el patrón de
-   los tres existentes: descarga a `scripts/.cache/` (idempotente: si el crudo
+   los existentes: descarga a `scripts/.cache/` (idempotente: si el crudo
    ya está, no re-descarga) → `mapshaper` con `-filter-fields` (solo atributos
    públicos útiles, nombres originales de la fuente sin renombrar),
    `-simplify visvalingam weighted N% keep-shapes` y `precision=0.00001` →
@@ -99,6 +100,27 @@ el ejemplo más reciente y completo de cada paso.
   popup de cada feature y `meta.json`.
 
 ## Lecciones operativas (para no re-aprenderlas)
+
+- **Preferir la descarga directa (zip/shapefile) sobre el API ArcGIS REST
+  cuando la fuente ofrece ambas.** El servidor REST del MOP
+  (rest-sit.mop.gob.cl, ArcGIS 10.21) no soporta `f=geojson` ni paginación,
+  limita a 1.000 registros por consulta y **se degrada bajo descarga sostenida**:
+  tras ~15 consultas de ~10 MB empezó a responder 500 («Error performing query
+  operation») a TODA consulta —incluso `returnCountOnly`— durante más de 30
+  minutos. La misma Vialidad publica el shapefile completo con vintage
+  explícito en mapasvialidad.mop.gob.cl/descargas/ (Gdb/Kmz/Shp): una sola
+  descarga HTTP robusta. Ver `docs/fuentes-gis-chile.md`.
+- **El DBF de un shapefile trunca los nombres de campo a 10 caracteres**
+  (NOMBRE_CAMINO → NOMBRE_CAM). Cuando la misma fuente expone un esquema REST
+  con nombres completos, renombrar en el ETL (`-rename-fields`) al esquema
+  canónico de la fuente y documentarlo en el meta.json — así la app consume
+  los nombres oficiales y no el artefacto del formato.
+- **En capas de líneas con muchos features, las propiedades pesan tanto como
+  la geometría.** En la red vial (14k tramos), los atributos eran ~2,7 MB
+  contra ~3,3 MB de coordenadas: recortar campos redundantes (REGION se ve en
+  el mapa; KM_I/KM_F secundarios) compra presupuesto para calidad de trazado.
+  La simplificación por porcentaje (`visvalingam weighted N% keep-shapes`)
+  rindió mejor peso/calidad que `interval=N` en esta capa.
 
 - **geoportal.cl** sirve las descargas del catálogo con velocidad errática:
   puede cortar conexiones largas y **no soporta reanudación** (`curl -C -` →
