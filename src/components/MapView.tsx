@@ -23,6 +23,12 @@ import {
   type ComunaProps,
 } from '@/lib/comunas';
 import { cbrPinSvg } from '@/lib/cbr-points';
+import {
+  RED_VIAL_ATTRIBUTION,
+  ROAD_CLASS_GROUPS,
+  roadClassGroup,
+  type RedVialProps,
+} from '@/lib/red-vial';
 
 /**
  * Imperative Leaflet map with marker clustering.
@@ -229,6 +235,48 @@ function buildComunaPopup(props: ComunaProps): string {
 }
 
 /**
+ * Popup de un tramo de la Red Caminera (Dirección de Vialidad, MOP). Lidera
+ * con la toponimia oficial del camino y el ROL de Vialidad (la razón de ser de
+ * la capa: el nombre oficial suele diferir del de Google/OSM), luego la
+ * clasificación funcional, la carpeta, la región, el kilometraje del tramo y
+ * si está concesionado, cerrando con la cita a la fuente.
+ */
+function buildRedVialPopup(props: RedVialProps): string {
+  const group = ROAD_CLASS_GROUPS[roadClassGroup(props.CLASIFICACION)];
+  const fmtKm = (m: number): string =>
+    (m / 1000).toLocaleString('es-CL', { maximumFractionDigits: 3 });
+
+  const rows: [string, string][] = [];
+  if (props.CLASIFICACION) rows.push(['Clasificación', esc(props.CLASIFICACION)]);
+  if (props.CARPETA) rows.push(['Carpeta', esc(props.CARPETA)]);
+  if (props.REGION) rows.push(['Región', esc(props.REGION)]);
+  if (props.KM_I != null && props.KM_F != null)
+    rows.push(['Tramo', `km ${fmtKm(props.KM_I)} – ${fmtKm(props.KM_F)}`]);
+  if (props.CONCESIONADO) rows.push(['Concesionado', esc(props.CONCESIONADO)]);
+
+  const body = rows
+    .map(
+      ([k, v]) =>
+        `<tr>` +
+        `<td style="opacity:.55;padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top">${k}</td>` +
+        `<td style="vertical-align:top">${v}</td>` +
+        `</tr>`,
+    )
+    .join('');
+
+  return (
+    `<div style="font-size:0.8rem;line-height:1.45;min-width:210px">` +
+    `<div style="font-weight:600;font-size:0.92rem">${esc(props.NOMBRE_CAMINO || 'Camino sin nombre informado')}</div>` +
+    `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
+    `font-size:0.68rem;font-weight:600;color:#fff;background:${group.color}">` +
+    `${props.ROL ? `ROL ${esc(props.ROL)}` : 'Red Vial MOP'}</div>` +
+    `<table style="border-collapse:collapse">${body}</table>` +
+    `<div style="margin-top:.35rem;font-size:0.62rem;opacity:.5">${RED_VIAL_ATTRIBUTION} · trazado referencial</div>` +
+    `</div>`
+  );
+}
+
+/**
  * Popup de un feature dentro de una capa KML del usuario. Muestra el nombre
  * del Placemark y su descripción como texto plano: cualquier HTML embebido en
  * el KML (habitual en exportes de Google Earth) se descarta antes de escapar,
@@ -255,6 +303,7 @@ export default function MapView({
   showProtected = false,
   showUrbanLimit = false,
   showComunas = false,
+  showRedVial = false,
   kmlLayers = [],
   focus = null,
   onRenderProgress,
@@ -264,6 +313,7 @@ export default function MapView({
   showProtected?: boolean;
   showUrbanLimit?: boolean;
   showComunas?: boolean;
+  showRedVial?: boolean;
   kmlLayers?: KmlLayer[];
   /** Resultado del geocoder: el mapa vuela ahí y deja un marcador pulsante. */
   focus?: GeocodeResult | null;
@@ -278,6 +328,7 @@ export default function MapView({
   const protectedRef = useRef<L.GeoJSON | null>(null);
   const urbanLimitRef = useRef<L.GeoJSON | null>(null);
   const comunasRef = useRef<L.GeoJSON | null>(null);
+  const redVialRef = useRef<L.GeoJSON | null>(null);
   const kmlRef = useRef<Map<string, L.GeoJSON>>(new Map());
   const seenKmlIds = useRef<Set<string>>(new Set());
 
@@ -300,6 +351,8 @@ export default function MapView({
     protectedRef.current?.bringToBack();
     comunasRef.current?.bringToBack();
     urbanLimitRef.current?.bringToFront();
+    // Red caminera sobre los polígonos (líneas finas, deben quedar visibles).
+    redVialRef.current?.bringToFront();
     for (const layer of kmlRef.current.values()) layer.bringToFront();
     clusterRef.current?.bringToFront();
   }, []);
@@ -328,6 +381,7 @@ export default function MapView({
       protectedRef.current = null;
       urbanLimitRef.current = null;
       comunasRef.current = null;
+      redVialRef.current = null;
       kmlById.clear();
       seenIds.clear();
     };
@@ -526,6 +580,61 @@ export default function MapView({
       }
     };
   }, [showComunas, reorderOverlays]);
+
+  // Red caminera — Red Vial Nacional de la Dirección de Vialidad (MOP,
+  // mapas.mop.cl), generado por scripts/build-red-vial.mjs. Líneas violeta con
+  // jerarquía por clasificación funcional; tooltip al pasar el mouse con la
+  // toponimia oficial y el ROL (que suelen diferir de Google/OSM), popup con
+  // el detalle completo del tramo.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (redVialRef.current) {
+      map.removeLayer(redVialRef.current);
+      redVialRef.current = null;
+    }
+
+    if (!showRedVial) return;
+
+    fetch('/data/red-vial.geojson')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((geojson: FeatureCollection<Geometry, RedVialProps>) => {
+        if (!mapRef.current) return;
+        const layer = L.geoJSON(geojson, {
+          style(feature?: Feature<Geometry, RedVialProps>) {
+            const group = ROAD_CLASS_GROUPS[roadClassGroup(feature?.properties?.CLASIFICACION)];
+            return {
+              color: group.color,
+              weight: group.weight,
+              opacity: 0.85,
+              smoothFactor: 1,
+            };
+          },
+          onEachFeature(feature, featureLayer) {
+            featureLayer.bindPopup(buildRedVialPopup(feature.properties), { maxWidth: 300 });
+            const name = feature.properties.NOMBRE_CAMINO;
+            const rol = feature.properties.ROL;
+            if (name || rol) {
+              featureLayer.bindTooltip(
+                `${esc(name ?? '')}${name && rol ? ' · ' : ''}${rol ? `ROL ${esc(rol)}` : ''}`,
+                { sticky: true, direction: 'top', opacity: 0.92 },
+              );
+            }
+          },
+        }).addTo(mapRef.current);
+        redVialRef.current = layer;
+        reorderOverlays();
+      })
+      .catch(() => {});
+
+    return () => {
+      if (redVialRef.current && mapRef.current) {
+        mapRef.current.removeLayer(redVialRef.current);
+        redVialRef.current = null;
+      }
+    };
+  }, [showRedVial, reorderOverlays]);
 
   // Capas KML del usuario — ya parseadas a GeoJSON en el navegador (lib/kml).
   // Se sincronizan por id: se quitan las eliminadas u ocultas, se agregan las
