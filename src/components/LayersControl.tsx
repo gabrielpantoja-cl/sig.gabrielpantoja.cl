@@ -4,6 +4,12 @@ import { useRef, useState, type ReactNode } from 'react';
 import { CATEGORY_COLORS } from '@/lib/protected-areas';
 import { URBAN_LIMIT_COLOR } from '@/lib/urban-limit';
 import { COMUNAS_ATTRIBUTION, COMUNAS_COLOR, COMUNAS_SOURCE_URL } from '@/lib/comunas';
+import {
+  RED_VIAL_ATTRIBUTION,
+  RED_VIAL_COLOR,
+  RED_VIAL_SOURCE_URL,
+  ROAD_CLASS_GROUPS,
+} from '@/lib/red-vial';
 import { CBR_POINT_COLOR } from '@/lib/cbr-points';
 import { KML_MAX_FILE_MB, type KmlLayer } from '@/lib/kml';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
@@ -102,6 +108,8 @@ export function LayersControl({
   onToggleUrbanLimit,
   showComunas,
   onToggleComunas,
+  showRedVial,
+  onToggleRedVial,
   kmlLayers,
   kmlError,
   onAddKmlFiles,
@@ -116,6 +124,8 @@ export function LayersControl({
   onToggleUrbanLimit: (v: boolean) => void;
   showComunas: boolean;
   onToggleComunas: (v: boolean) => void;
+  showRedVial: boolean;
+  onToggleRedVial: (v: boolean) => void;
   kmlLayers: KmlLayer[];
   kmlError: string | null;
   onAddKmlFiles: (files: FileList) => void;
@@ -203,6 +213,42 @@ export function LayersControl({
             oficiales corresponden a DIFROL/SUBDERE.{' '}
             <a
               href={COMUNAS_SOURCE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:opacity-100"
+            >
+              Ver fuente oficial →
+            </a>
+          </p>
+        </LayerRow>
+
+        <LayerRow
+          checked={showRedVial}
+          onChange={onToggleRedVial}
+          label="Red caminera (MOP)"
+          swatch={
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-sm"
+              style={{ background: `${RED_VIAL_COLOR}18`, border: `1.5px solid ${RED_VIAL_COLOR}` }}
+            />
+          }
+        >
+          <ul className="space-y-1 text-xs">
+            {Object.entries(ROAD_CLASS_GROUPS).map(([key, group]) => (
+              <li key={key} className="flex items-center gap-1.5 leading-tight">
+                <span
+                  className="inline-block w-4 shrink-0 rounded-full"
+                  style={{ background: group.color, height: `${Math.max(group.weight, 1.5)}px` }}
+                />
+                <span className="opacity-80">{group.label}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
+            {RED_VIAL_ATTRIBUTION}. Toponimia y ROL oficiales de Vialidad (pueden diferir de
+            Google/OSM); trazado referencial para visualización.{' '}
+            <a
+              href={RED_VIAL_SOURCE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="underline hover:opacity-100"
