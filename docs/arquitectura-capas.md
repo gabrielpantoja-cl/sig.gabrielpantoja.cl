@@ -42,6 +42,12 @@ vivo. Patrón implementado en `MapView.tsx` (efecto de suelos) +
 - `layers=show:<ids>` es obligatorio si las capas del servicio tienen
   `defaultVisibility: false` (CIREN lo tiene: sin eso el export devuelve un
   PNG transparente).
+- **Zoom mínimo obligatorio** (`SUELOS_MIN_ZOOM = 9`): un export de extensión
+  nacional obliga al servidor a rasterizar las 12 regiones completas — tarda
+  minutos, monopoliza el servicio (las consultas siguientes pasan de ~1 s a
+  60 s / HTTP 400) y el navegador lo bloquea con `ERR_BLOCKED_BY_ORB` cuando
+  la respuesta degenera en HTML de error. Bajo el zoom mínimo la capa no
+  emite peticiones (pixel transparente) y la leyenda indica «acerca el mapa».
 - La consulta puntual va por el endpoint `identify` al hacer clic. Ojo: el
   identify devuelve los atributos bajo el **alias** del campo (texto largo,
   encoding inestable), no bajo su nombre — extraer el valor por validación
