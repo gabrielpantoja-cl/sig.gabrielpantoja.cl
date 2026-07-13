@@ -35,8 +35,10 @@ import {
   SUELOS_EXPORT_LAYERS,
   SUELOS_EXPORT_URL,
   SUELOS_IDENTIFY_URL,
+  SUELOS_MIN_ZOOM,
   SUELOS_OPACITY,
   suelosClassColor,
+  TRANSPARENT_PIXEL,
 } from '@/lib/suelos';
 
 /**
@@ -671,7 +673,7 @@ export default function MapView({
 
     if (!showSuelos) return;
 
-    const overlay = L.imageOverlay('', map.getBounds(), {
+    const overlay = L.imageOverlay(TRANSPARENT_PIXEL, map.getBounds(), {
       opacity: SUELOS_OPACITY,
       attribution: 'CIREN · Estudios Agrológicos',
       interactive: false,
@@ -683,6 +685,14 @@ export default function MapView({
       const bounds = map.getBounds();
       const size = map.getSize();
       const id = ++seq;
+      // A escala nacional el export obliga al servidor a rasterizar las 12
+      // regiones completas: tarda minutos y degrada el servicio para todas
+      // las consultas siguientes. Bajo el zoom mínimo no se pide nada.
+      if (map.getZoom() < SUELOS_MIN_ZOOM) {
+        overlay.setUrl(TRANSPARENT_PIXEL);
+        overlay.setBounds(bounds);
+        return;
+      }
       const params = new URLSearchParams({
         bbox: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`,
         bboxSR: '4326',
@@ -713,6 +723,8 @@ export default function MapView({
 
     const onClick = (e: L.LeafletMouseEvent) => {
       otherPopupOpened = false;
+      // Bajo el zoom mínimo la capa no está visible: no consultar identify.
+      if (map.getZoom() < SUELOS_MIN_ZOOM) return;
       const { lat, lng } = e.latlng;
       const bounds = map.getBounds();
       const size = map.getSize();

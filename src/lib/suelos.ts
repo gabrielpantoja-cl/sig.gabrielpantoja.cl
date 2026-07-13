@@ -36,6 +36,19 @@ export const SUELOS_EXPORT_LAYERS = `show:${Array.from({ length: 12 }, (_, i) =>
 export const SUELOS_OPACITY = 0.6;
 
 /**
+ * Zoom mínimo para pedir el raster. Un export de extensión nacional obliga al
+ * servidor a rasterizar las 12 regiones completas (millones de polígonos):
+ * tarda minutos y degrada el servicio para todos (las consultas siguientes
+ * pasan de ~1 s a 60 s). A zoom regional (≥ 9) el render toma ~1 s. Bajo este
+ * zoom la capa no emite peticiones y muestra un pixel transparente.
+ */
+export const SUELOS_MIN_ZOOM = 9;
+
+/** Pixel transparente para "apagar" el ImageOverlay sin sacarlo del mapa. */
+export const TRANSPARENT_PIXEL =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+/**
  * Simbología oficial del servicio CIREN (colores extraídos de la leyenda del
  * MapServer, idénticos en las 12 regiones): rampa de aptitud verde → rojo.
  */

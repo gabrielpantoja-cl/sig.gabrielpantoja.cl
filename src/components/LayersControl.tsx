@@ -289,9 +289,9 @@ export function LayersControl({
             ))}
           </ul>
           <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
-            {SUELOS_ATTRIBUTION}. Capa servida en vivo por el WMS de CIREN (12 regiones
-            estudiadas, Atacama a Aysén). Haz clic en el mapa para consultar la clase de un
-            punto.{' '}
+            {SUELOS_ATTRIBUTION}. Capa servida en vivo por CIREN (12 regiones estudiadas,
+            Atacama a Aysén). <strong>Visible desde zoom regional: acerca el mapa</strong>.
+            Haz clic para consultar la clase de un punto.{' '}
             <a
               href={SUELOS_SOURCE_URL}
               target="_blank"
