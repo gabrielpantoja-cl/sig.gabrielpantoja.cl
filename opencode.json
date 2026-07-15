@@ -1,4 +1,55 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": ["AGENTS.md", "AGENTS.local.md"]
+
+  // Primary model — paid Token Plan at minimax.io.
+  // Provider allowlist below prevents accidental fallback to other providers.
+  "model": "minimax/MiniMax-M3",
+  "small_model": "minimax/MiniMax-M3",
+
+  // Lock the config to the paid Token Plan only. No Anthropic, no
+  // OpenAI, no Google — they will not appear in /models and any
+  // leaked env-var credentials elsewhere are ignored.
+  "enabled_providers": ["minimax"],
+
+  // Keep the OpenCode CLI current. With the Token Plan this is safe
+  // because model IDs are stable within the plan.
+  "autoupdate": true,
+
+  // Playwright MCP — in-IDE browser smoke tests of the Leaflet map
+  // (src/components/MapView.tsx). Local stdio, no headers, no OAuth.
+  // Browser artifacts land in /.playwright-mcp/ (gitignored).
+  "mcp": {
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "-y", "@playwright/mcp@latest"],
+      "enabled": true,
+      "timeout": 30000
+    }
+  },
+
+  // Permission posture: permissive (edit/build allowed everywhere) with
+  // explicit denies for the two non-negotiables called out in
+  // AGENTS.local.md: git push (no deploy/push to production) and
+  // rm -rf (destructive). OpenCode's defaults still deny *.env* and
+  // *.env.*, allow *.env.example — that is preserved.
+  "permission": {
+    "edit": "allow",
+    "bash": {
+      "*": "allow",
+      "git push*": "deny",
+      "rm -rf *": "deny"
+    },
+    "webfetch": "ask",
+    "websearch": "ask",
+    "external_directory": "ask"
+  },
+
+  // Instructions — canonical AGENTS.md plus per-machine override.
+  // Do not add AGENTS.md again or you get a duplicate-load warning.
+  "instructions": ["AGENTS.md", "AGENTS.local.md"],
+
+  // Sharing stays manual (the OpenCode default) so that no session
+  // is auto-uploaded. Snapshots stay enabled (repo is small).
+  "share": "manual",
+  "snapshot": true
 }
