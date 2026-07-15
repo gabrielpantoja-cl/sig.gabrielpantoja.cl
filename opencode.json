@@ -3,13 +3,12 @@
 
   // Primary model — paid Token Plan at minimax.io.
   // Provider allowlist below prevents accidental fallback to other providers.
-  "model": "minimax/MiniMax-M3",
-  "small_model": "minimax/MiniMax-M3",
+  "model": "minimax-coding-plan/MiniMax-M3",
 
   // Lock the config to the paid Token Plan only. No Anthropic, no
   // OpenAI, no Google — they will not appear in /models and any
   // leaked env-var credentials elsewhere are ignored.
-  "enabled_providers": ["minimax"],
+  "enabled_providers": ["minimax-coding-plan"],
 
   // Keep the OpenCode CLI current. With the Token Plan this is safe
   // because model IDs are stable within the plan.
