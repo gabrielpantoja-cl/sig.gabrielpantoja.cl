@@ -116,3 +116,70 @@ These must never be violated:
 - **NEVER add client-side DB access** — all data must go through route handlers in `src/app/api/`
 - **NEVER commit `.env.local`** — it contains the live Neon database URL
 - **NEVER remove semicolons** — the codebase uses them consistently in source files
+
+## AI tooling configuration
+
+This repo's AI tooling is configured in `opencode.json` at the repo root.
+Per-machine overrides live in `AGENTS.local.md` (gitignored) and in
+`~/.config/opencode/opencode.json` on each developer machine. We develop
+on a Linux Mint + Windows 11 dual-boot; the same `opencode.json` and
+`AGENTS.md` are checked in, but `AGENTS.local.md` is regenerated per
+machine by the developer.
+
+### Models
+
+- **Default**: `minimax/MiniMax-M3` (paid Token Plan at minimax.io).
+- **Provider allowlist**: `["minimax"]` — other providers (Anthropic,
+  OpenAI, Google, etc.) are not loaded, so any leaked credentials
+  elsewhere are ignored. There is **no fallback model**. If the
+  Token Plan quota is exhausted the session fails fast.
+- **Data sensitivity**: this repo is **Low** (Tier C/D per the
+  4-tier scheme in `docs/ai-strategy/research-2026-07-14.md`). Exposed
+  CBR data fields are all public per Chilean Ley 19.628 (`rol` is SII's
+  property identifier, not PII). Do not submit code containing the PII
+  columns (`comprador`, `vendedor`, `rut`, `user_id`, `observaciones`)
+  to any model — they are stripped at the API layer in
+  `src/lib/security.ts` and must stay that way.
+
+### MCP servers
+
+- **playwright** — local stdio via `npx -y @playwright/mcp@latest`. Used
+  for in-IDE browser smoke tests of the Leaflet map. Browser artifacts
+  land in `/.playwright-mcp/` (gitignored).
+
+### Skills, agents, commands
+
+Canonical paths (shared, committed):
+
+- `.opencode/agents/*.md` — custom agents (markdown form)
+- `.opencode/commands/*.md` — custom `/slash` commands (markdown form)
+- `.opencode/skills/<name>/SKILL.md` — on-demand skills (one folder per skill)
+
+Personal paths (per-machine, NOT committed; live in the developer's
+home directory so they are isolated between the Linux Mint and Windows
+11 dual-boot machines):
+
+- `~/.config/opencode/agents/*.md`
+- `~/.config/opencode/commands/*.md`
+- `~/.config/opencode/skills/<name>/SKILL.md`
+
+Currently **empty** — the directory skeleton exists for future use.
+Per-machine override: `AGENTS.local.md` (gitignored).
+
+### Permissions
+
+Default posture: **allow** for edits and bash (per the user's permissive
+choice in the 2026-07 audit). Explicit denies, non-negotiable:
+
+- `git push*` — no deploys or pushes to production (per `AGENTS.local.md`)
+- `rm -rf *` — destructive operations are blocked
+
+OpenCode's built-in defaults still apply on top: `*.env`, `*.env.*` are
+denied; `*.env.example` is allowed. `webfetch` and `websearch` are
+`ask`. `external_directory` is `ask`. Full config in `opencode.json`.
+
+### Documentation
+
+- `docs/ai-strategy/research-2026-07-14.md` — Phase 1 pre-flight research
+- `docs/ai-strategy/plan-2026-07-14.md` — approved plan
+- `docs/ai-strategy/migrations/2026-07-skeleton.md` — migration journal
