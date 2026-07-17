@@ -94,6 +94,7 @@ Protected areas layer has 12 legal categories with distinct colors (see `src/lib
 Detailed design docs live in `docs/`. Currently:
 - `docs/arquitectura-capas.md` — layer catalog + recipe for adding a new thematic layer (READ THIS before adding any layer)
 - `docs/fuentes-gis-chile.md` — catalog of official Chilean GIS data sources (verified endpoints, reliability notes, MOP ecosystem findings)
+- `docs/roadmap.md` — prioritized backlog of future layers + UX/product improvements (Catastro Frutícola first)
 - `docs/mejora-sig-mapa-flotante.md` — floating map panel redesign notes (implemented; historical)
 
 Refer to these before making architectural changes to the map or layout.

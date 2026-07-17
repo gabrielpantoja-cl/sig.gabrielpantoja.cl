@@ -1,0 +1,24 @@
+{
+  "source": "CIREN — Catastro Frutícola (CIREN-ODEPA), productores frutícolas",
+  "source_url": "https://esri.ciren.cl/server/rest/services/IDEMINAGRI/CATASTRO_FRUTICOLA/MapServer",
+  "portal": "IDE Minagri (esri.ciren.cl)",
+  "license": "Dato público oficial del Estado de Chile (CIREN, Centro de Información de Recursos Naturales — Ministerio de Agricultura). Levantamiento conjunto CIREN-ODEPA, cobertura regional rotativa. El shapefile empaquetado se comercializa por CIREN; el servicio público MapServer del IDE Minagri se publica en línea y es de libre consulta.",
+  "downloaded_at": "2026-07-17",
+  "feature_count": 94731,
+  "crs": "EPSG:4326 (reproyectado server-side desde EPSG:102100 vía outSR=4326)",
+  "fields": [
+    "desccomu",
+    "rolpredi",
+    "especie_01",
+    "regidere",
+    "comudere",
+    "provdere",
+    "vintage"
+  ],
+  "field_notes": "regidere/comudere/provdere son los códigos oficiales SUBDERE. rolpredi es el ROL del predio (pivote con CBR). especie_01 es la especie principal declarada por potrero; especie_02/03/04 existen sólo en algunas capas regionales (Atacama, La Araucanía, Los Ríos y Los Lagos sólo traen especie_01) y se omiten aquí para mantener un esquema uniforme. vintage es el año CIREN del catastro regional.",
+  "processing": "MapServer CIREN /query paginado con resultOffset (PAGE_SIZE=2000) sobre los 14 sublayers del grupo PRODUCTORES FRUTÍCOLAS (parentLayerId 54); vintage extraído del nombre de cada layer con regex (CIREN YYYY) e inyectado como propiedad; mapshaper -filter-fields desccomu,rolpredi,especie_01,regidere,comudere,provdere,vintage -simplify visvalingam weighted 3% keep-shapes precision=0.00001.",
+  "mapshaper_version": "0.7.33",
+  "coverage": "14 regiones administrativas de Chile (Arica y Parinacota a Aysén; Magallanes y la Antártica Chilena sin catastro frutícola). Cobertura rotativa: cada región se levanta cada ~5 años; los vintages por región se conservan en cada feature.",
+  "pii": "No contiene PII (Ley 19.628): solo ROL público (SII), códigos SUBDERE y nombres de especie. El \"Productor con razón social\" que CIREN incluye en su producto comercial NO está en esta capa.",
+  "note": "Dato público oficial (CIREN, IDE Minagri). Geometría simplificada solo para visualización web. Para uso normativo o análisis detallado, consultar el producto \"Catastro Frutícola\" en ciren.cl."
+}
