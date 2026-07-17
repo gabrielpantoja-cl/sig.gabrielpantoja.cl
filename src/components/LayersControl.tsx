@@ -11,6 +11,11 @@ import {
   ROAD_CLASS_GROUPS,
 } from '@/lib/red-vial';
 import { SUELOS_ATTRIBUTION, SUELOS_CLASSES, SUELOS_SOURCE_URL } from '@/lib/suelos';
+import {
+  CATASTRO_FRUTICOLA_ATTRIBUTION,
+  CATASTRO_FRUTICOLA_LEGEND,
+  CATASTRO_FRUTICOLA_SOURCE_URL,
+} from '@/lib/catastro-fruticola';
 import { CBR_POINT_COLOR } from '@/lib/cbr-points';
 import { KML_MAX_FILE_MB, type KmlLayer } from '@/lib/kml';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
@@ -113,6 +118,8 @@ export function LayersControl({
   onToggleRedVial,
   showSuelos,
   onToggleSuelos,
+  showCatastroFruticola,
+  onToggleCatastroFruticola,
   kmlLayers,
   kmlError,
   onAddKmlFiles,
@@ -131,6 +138,8 @@ export function LayersControl({
   onToggleRedVial: (v: boolean) => void;
   showSuelos: boolean;
   onToggleSuelos: (v: boolean) => void;
+  showCatastroFruticola: boolean;
+  onToggleCatastroFruticola: (v: boolean) => void;
   kmlLayers: KmlLayer[];
   kmlError: string | null;
   onAddKmlFiles: (files: FileList) => void;
@@ -254,6 +263,44 @@ export function LayersControl({
             Google/OSM); trazado referencial para visualización.{' '}
             <a
               href={RED_VIAL_SOURCE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:opacity-100"
+            >
+              Ver fuente oficial →
+            </a>
+          </p>
+        </LayerRow>
+
+        <LayerRow
+          checked={showCatastroFruticola}
+          onChange={onToggleCatastroFruticola}
+          label="Catastro frutícola (CIREN)"
+          swatch={
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-sm"
+              style={{ background: CATASTRO_FRUTICOLA_LEGEND[3].color }}
+            />
+          }
+        >
+          <ul className="max-h-44 space-y-1 overflow-y-auto pr-1 text-xs">
+            {CATASTRO_FRUTICOLA_LEGEND.map(({ label, color }) => (
+              <li key={label} className="flex items-center gap-1.5 leading-tight">
+                <span
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
+                  style={{ background: color }}
+                />
+                <span className="opacity-80">{label}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
+            {CATASTRO_FRUTICOLA_ATTRIBUTION}. Cobertura: 14 regiones administrativas (Aysén
+            a Arica y Parinacota), vintages CIREN 2019–2025 según región (rotativos,
+            cada ~5 años). El ROL del popup coincide con el ROL SII de los puntos CBR.
+            Geometría referencial.{' '}
+            <a
+              href={CATASTRO_FRUTICOLA_SOURCE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="underline hover:opacity-100"
