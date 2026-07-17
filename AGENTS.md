@@ -169,11 +169,11 @@ Per-machine override: `AGENTS.local.md` (gitignored).
 
 ### Permissions
 
-Default posture: **allow** for edits and bash (per the user's permissive
-choice in the 2026-07 audit). Explicit denies, non-negotiable:
-
-- `git push*` — no deploys or pushes to production (per `AGENTS.local.md`)
-- `rm -rf *` — destructive operations are blocked
+Default posture: **allow** for edits and bash. The only explicit deny in
+`opencode.json` is `rm -rf *` (destructive). The previous "non-negotiable"
+deny on `git push*` has been lifted — the agent is now allowed to commit
+and push to `main` on this dev machine. A stricter posture (for example,
+re-imposing the push deny) can be set per-machine in `AGENTS.local.md`.
 
 OpenCode's built-in defaults still apply on top: `*.env`, `*.env.*` are
 denied; `*.env.example` is allowed. `webfetch` and `websearch` are
