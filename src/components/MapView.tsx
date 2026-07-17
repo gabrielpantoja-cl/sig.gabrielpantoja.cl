@@ -31,6 +31,12 @@ import {
   type RedVialProps,
 } from '@/lib/red-vial';
 import {
+  CATASTRO_FRUTICOLA_ATTRIBUTION,
+  especieColor,
+  speciesList,
+  type CatastroFruticolaProps,
+} from '@/lib/catastro-fruticola';
+import {
   SUELOS_ATTRIBUTION,
   SUELOS_EXPORT_LAYERS,
   SUELOS_EXPORT_URL,
@@ -283,6 +289,46 @@ function buildRedVialPopup(props: RedVialProps): string {
 }
 
 /**
+ * Popup de un productor frutícola (CIREN-ODEPA, IDE Minagri). Lidera con el
+ * ROL del predio (el mismo campo con el que el perito busca una transacción
+ * CBR: el pivote más útil de la capa), luego las especies declaradas, la
+ * comuna y el año del catastro regional que levantó el dato. Sin PII: el
+ * nombre del productor que CIREN vende como atributo en el producto
+ * empaquetado NO está en esta capa.
+ */
+function buildCatastroFruticolaPopup(props: CatastroFruticolaProps): string {
+  const especies = speciesList(props);
+  const principal = (props.especie_01 ?? '').trim() || 'Productor frutícola';
+  const color = especieColor(props.especie_01);
+
+  const rows: [string, string][] = [];
+  if (props.desccomu) rows.push(['Comuna', esc(props.desccomu)]);
+  if (especies) rows.push(['Especies declaradas', esc(especies)]);
+  if (props.vintage != null) rows.push(['Catastro CIREN', `Año ${props.vintage}`]);
+
+  const body = rows
+    .map(
+      ([k, v]) =>
+        `<tr>` +
+        `<td style="opacity:.55;padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top">${k}</td>` +
+        `<td style="vertical-align:top">${v}</td>` +
+        `</tr>`,
+    )
+    .join('');
+
+  return (
+    `<div style="font-size:0.8rem;line-height:1.45;min-width:210px">` +
+    `<div style="font-weight:600;font-size:0.92rem">${esc(props.rolpredi || principal)}</div>` +
+    `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
+    `font-size:0.68rem;font-weight:600;color:#fff;background:${color}">` +
+    `${esc(principal)}</div>` +
+    `<table style="border-collapse:collapse">${body}</table>` +
+    `<div style="margin-top:.35rem;font-size:0.62rem;opacity:.5">${CATASTRO_FRUTICOLA_ATTRIBUTION}</div>` +
+    `</div>`
+  );
+}
+
+/**
  * Popup de un feature dentro de una capa KML del usuario. Muestra el nombre
  * del Placemark y su descripción como texto plano: cualquier HTML embebido en
  * el KML (habitual en exportes de Google Earth) se descarta antes de escapar,
@@ -311,6 +357,7 @@ export default function MapView({
   showComunas = false,
   showRedVial = false,
   showSuelos = false,
+  showCatastroFruticola = false,
   kmlLayers = [],
   focus = null,
   onRenderProgress,
@@ -322,6 +369,7 @@ export default function MapView({
   showComunas?: boolean;
   showRedVial?: boolean;
   showSuelos?: boolean;
+  showCatastroFruticola?: boolean;
   kmlLayers?: KmlLayer[];
   /** Resultado del geocoder: el mapa vuela ahí y deja un marcador pulsante. */
   focus?: GeocodeResult | null;
@@ -338,6 +386,7 @@ export default function MapView({
   const comunasRef = useRef<L.GeoJSON | null>(null);
   const redVialRef = useRef<L.GeoJSON | null>(null);
   const suelosRef = useRef<L.ImageOverlay | null>(null);
+  const catastroFruticolaRef = useRef<L.GeoJSON | null>(null);
   const kmlRef = useRef<Map<string, L.GeoJSON>>(new Map());
   const seenKmlIds = useRef<Set<string>>(new Set());
 
@@ -360,6 +409,9 @@ export default function MapView({
     protectedRef.current?.bringToBack();
     comunasRef.current?.bringToBack();
     urbanLimitRef.current?.bringToFront();
+    // Catastro frutícola sobre los polígonos administrativos (los huertos
+    // son el dato sustantivo de la capa: deben quedar visibles).
+    catastroFruticolaRef.current?.bringToFront();
     // Red caminera sobre los polígonos (líneas finas, deben quedar visibles).
     redVialRef.current?.bringToFront();
     for (const layer of kmlRef.current.values()) layer.bringToFront();
@@ -392,6 +444,7 @@ export default function MapView({
       comunasRef.current = null;
       redVialRef.current = null;
       suelosRef.current = null;
+      catastroFruticolaRef.current = null;
       kmlById.clear();
       seenIds.clear();
     };
@@ -652,6 +705,59 @@ export default function MapView({
       }
     };
   }, [showRedVial, reorderOverlays]);
+
+  // Catastro Frutícola (CIREN-ODEPA, IDE Minagri) — polígonos de productores
+  // frutícolas por región. ETL estático (scripts/build-catastro-fruticola.mjs):
+  // los 14 sublayers del grupo PRODUCTORES FRUTÍCOLAS se concatenan y
+  // simplifican en una sola pasada de mapshaper. Color por especie
+  // predominante (especie_01), con relleno translúcido y borde del mismo
+  // tono. Es la única capa que puede tener >100k features: igual que las
+  // áreas protegidas, se monta sobre L.geoJSON (canvas renderer del mapa) y
+  // se estiliza por feature — la simplificación al 1,5 % ya rebajó la
+  // geometría al nivel manejable del navegador.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (catastroFruticolaRef.current) {
+      map.removeLayer(catastroFruticolaRef.current);
+      catastroFruticolaRef.current = null;
+    }
+
+    if (!showCatastroFruticola) return;
+
+    fetch('/data/catastro-fruticola.geojson')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((geojson: FeatureCollection<Geometry, CatastroFruticolaProps>) => {
+        if (!mapRef.current) return;
+        const layer = L.geoJSON(geojson, {
+          style(feature?: Feature<Geometry, CatastroFruticolaProps>) {
+            const color = especieColor(feature?.properties?.especie_01);
+            return {
+              color,
+              fillColor: color,
+              fillOpacity: 0.32,
+              weight: 0.8,
+              opacity: 0.85,
+              smoothFactor: 0.6,
+            };
+          },
+          onEachFeature(feature, featureLayer) {
+            featureLayer.bindPopup(buildCatastroFruticolaPopup(feature.properties), { maxWidth: 280 });
+          },
+        }).addTo(mapRef.current);
+        catastroFruticolaRef.current = layer;
+        reorderOverlays();
+      })
+      .catch(() => {});
+
+    return () => {
+      if (catastroFruticolaRef.current && mapRef.current) {
+        mapRef.current.removeLayer(catastroFruticolaRef.current);
+        catastroFruticolaRef.current = null;
+      }
+    };
+  }, [showCatastroFruticola, reorderOverlays]);
 
   // Suelos agrológicos (CIREN) — capa dinámica remota: el dataset completo
   // supera los 500 MB, así que el servidor de CIREN renderiza la imagen con

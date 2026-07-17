@@ -19,6 +19,7 @@ atribución visible y cita en el popup.
 | Límites comunales (DPA) | SUBDERE · DPA 2023 · geoportal.cl (Grupo DPA: SUBDERE/IGM/DIFROL/INE, 1:50.000) | 2023 | 345 comunas | 2,7 MB | `scripts/build-comunas.mjs` |
 | Red caminera (MOP) | Dirección de Vialidad · mapasvialidad.mop.gob.cl (UGIT-DV, shapefile oficial) | 2026-06-30 | 14.085 tramos (5 grupos de clasificación) | 5,9 MB | `scripts/build-red-vial.mjs` |
 | Suelos agrológicos (CIREN) | CIREN · Estudios Agrológicos · esri.ciren.cl (MapServer, 12 regiones) | 2010–2024 según región | Clases I–VIII + N.C. | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
+| Catastro frutícola (CIREN) | CIREN · IDE Minagri · esri.ciren.cl (MapServer `IDEMINAGRI/CATASTRO_FRUTICOLA`, 14 sublayers) | 2019–2025 según región | ~95k productores (especie_01 + ROL + códigos SUBDERE) | **~30 MB** ⚠ | `scripts/build-catastro-fruticola.mjs` |
 
 Cada GeoJSON va acompañado de un `*.meta.json` (manifiesto de procedencia:
 fuente, URL, licencia, fecha de descarga, campos, cadena de procesamiento,
