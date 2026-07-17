@@ -26,16 +26,16 @@
     }
   },
 
-  // Permission posture: permissive (edit/build allowed everywhere) with
-  // explicit denies for the two non-negotiables called out in
-  // AGENTS.local.md: git push (no deploy/push to production) and
-  // rm -rf (destructive). OpenCode's defaults still deny *.env* and
-  // *.env.*, allow *.env.example — that is preserved.
+  // Permission posture: permissive (edit/build allowed everywhere). The only
+  // explicit deny is `rm -rf` (destructive). The previous deny on `git push*`
+  // has been lifted on the user's request — the agent may now commit and
+  // push to main on this dev machine. A different posture (e.g. re-imposing
+  // the push deny) can be set per-machine in AGENTS.local.md. OpenCode's
+  // built-in defaults still deny *.env* and *.env.*, allow *.env.example.
   "permission": {
     "edit": "allow",
     "bash": {
       "*": "allow",
-      "git push*": "deny",
       "rm -rf *": "deny"
     },
     "webfetch": "ask",
