@@ -1,0 +1,29 @@
+name: Question
+description: Tengo una duda sobre cómo usar o contribuir al SIG.
+title: "[Question]: "
+labels: ["question"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Revisa primero la [documentación](./docs/) y las
+        [discussions](../../discussions) existentes. Si tu duda es sobre
+        seguridad, NO uses este template — sigue [SECURITY.md](./SECURITY.md).
+
+  - type: textarea
+    id: pregunta
+    attributes:
+      label: Tu pregunta
+      placeholder: ¿Cómo agrego una capa nueva de Catastro Frutícola actualizada?
+    validations:
+      required: true
+
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto (opcional)
+      description: Qué intentaste hacer, qué leíste, qué encontraste.
+    validations:
+      required: false

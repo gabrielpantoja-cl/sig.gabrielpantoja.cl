@@ -1,7 +1,38 @@
 {
-  "name": "sig.gabrielpantoja.cl",
+  "name": "sig-suelo",
   "version": "0.1.0",
+  "description": "Single-page Next.js 16 SIG: mapa interactivo de transacciones CBR de suelo rural (centro-sur de Chile) sobre capas temáticas oficiales (áreas protegidas, límite urbano, DPA, red caminera MOP, catastro frutícola CIREN, suelos agrológicos). Stack: React 19, Leaflet + MarkerCluster, Neon Postgres read-only, Tailwind v4. Deploy: Vercel.",
   "private": true,
+  "license": "MIT",
+  "author": {
+    "name": "Gabriel Pantoja",
+    "url": "https://gabrielpantoja.cl"
+  },
+  "homepage": "https://sig.gabrielpantoja.cl",
+  "bugs": {
+    "url": "https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.git"
+  },
+  "keywords": [
+    "gis",
+    "sig",
+    "leaflet",
+    "nextjs",
+    "react",
+    "chile",
+    "cbr",
+    "conservador-bienes-raices",
+    "tasaciones",
+    "eco-informatica",
+    "open-data",
+    "datos-abiertos",
+    "geojson",
+    "areas-protegidas",
+    "neon-postgres"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",

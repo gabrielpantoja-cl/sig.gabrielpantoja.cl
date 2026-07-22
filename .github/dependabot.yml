@@ -1,0 +1,66 @@
+# Dependabot configuration for sig.gabrielpantoja.cl
+# Keeps Next.js, React, Leaflet and dev tooling current with security patches.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Santiago"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+    groups:
+      # Bump runtime deps together so we don't break the lockfile piecemeal.
+      runtime-major:
+        applies-to: version-updates
+        update-types:
+          - "major"
+        patterns:
+          - "next"
+          - "react"
+          - "react-dom"
+          - "@neondatabase/serverless"
+          - "@tmcw/togeojson"
+          - "leaflet"
+          - "leaflet.markercluster"
+      runtime-minor:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "next"
+          - "react"
+          - "react-dom"
+          - "@neondatabase/serverless"
+          - "@tmcw/togeojson"
+          - "leaflet"
+          - "leaflet.markercluster"
+      dev:
+        applies-to: version-updates
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
+        patterns:
+          - "@types/*"
+          - "eslint"
+          - "eslint-config-next"
+          - "tailwindcss"
+          - "@tailwindcss/postcss"
+          - "mapshaper"
+          - "typescript"
+    ignore:
+      # Major bumps need a manual PR with migration notes; Dependabot should
+      # file them but flag accordingly.
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint-config-next"
+        update-types: ["version-update:semver-major"]
