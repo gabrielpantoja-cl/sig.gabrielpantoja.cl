@@ -1,6 +1,6 @@
 # Roadmap del SIG de suelo — `sig.gabrielpantoja.cl`
 
-> Documento vivo. Última actualización: 2026-07-16.
+> Documento vivo. Última actualización: 2026-07-22.
 > Próxima revisión sugerida: trimestral o cuando se cierre una fase.
 
 ## Visión
@@ -304,6 +304,79 @@ anteriores** por ahora. Marcar con `[ ]` cuando se evalúe de nuevo.
 - [ ] **Geoportal.cl / IDE Chile catálogo general** — referencia
       permanente para descubrir nuevas capas publicadas por
       ministerios no considerados en este roadmap.
+
+## ## Fase 0 — Higiene del repositorio público (pre-publish, jul-2026)
+
+Antes de abrir el repo, saneamos lo siguiente:
+
+- [x] **Privacidad**: ningún endpoint expone PII bajo Ley 19.628
+      (`comprador, vendedor, rut, user_id, observaciones`). Reforzado en
+      `src/lib/security.ts` y en el SELECT explícito de cada route handler.
+- [x] **AI tooling**: `opencode.json` con seed neutro, AGENTS.md técnico,
+      AGENTS.local.md (gitignored) con el setup personal del operador.
+      Sin credenciales ni modelos commiteados.
+- [x] **Documentación comunitaria**: CONTRIBUTING.md, CODE_OF_CONDUCT.md,
+      SECURITY.md, templates de issues y PR, dependabot, CI con
+      `npm run lint`.
+- [x] **Licencia**: MIT en código; tabla de licencias por capa en el README.
+- [ ] **Almacenamiento de GeoJSON**: hoy los 5 GeoJSON pre-construidos
+      (`public/data/*.geojson`, ~45 MB en total) viven commiteados al repo.
+      Bajo el umbral de aviso de GitHub (50 MB por archivo) y la lectura
+      funciona offline. **Migración planeada a bucket + CDN**: ver
+      sección siguiente.
+
+### Migración de almacenamiento de GeoJSON (planeada Q4-2026)
+
+**Hoy (temporal, para publicar)**: los GeoJSON están commiteados en
+`public/data/`. Cada `npm run data:build:<capa>` los regenera desde fuentes
+oficiales; los manifests `*.meta.json` van junto. La receta está en
+`docs/arquitectura-capas.md` y funciona, pero tiene tres problemas que nos
+empujan a migrar:
+
+1. **Tamaño del repo en GitHub**: hoy 45 MB totales. La capa Catastro
+   Frutícola pesa ~30 MB y podría crecer a 50–80 MB cuando CIREN libere el
+   próximo catastro. GitHub avisa desde los 50 MB por archivo y bloquea
+   desde 100 MB. Si el repo gana tracción, clonar el árbol completo
+   empieza a ser molesto.
+2. **Git LFS no escala bien aquí**: funciona, pero ocupa ancho de banda de
+   la cuota gratuita de LFS (1 GB/mes en GitHub Free) y los punteros
+   ensucian el historial. Pasa a ser un dolor de cabeza si una capa
+   pasa de 50 MB a 500 MB.
+3. **Optimizaciones del pipeline**: queremos convertir las capas grandes a
+   **PMTiles** o **Vector Tiles** en el ETL (formato binario con
+   range-request HTTP, renderizado nativo en Leaflet/MapLibre). Eso
+   generará artefactos `.pbf`, `.mbtiles`, `.pmtiles` aún más grandes que
+   los GeoJSON actuales — definitivamente no caben en git.
+
+**Decisión (target)**: mover el output del ETL a un bucket externo (R2 / S3
+/ GCS), entregar vía CDN/cloudfront-style, y dejar en el repo solo:
+
+- `public/data/<capa>.meta.json` — el manifiesto de procedencia (es un
+  contrato pequeño, no los datos).
+- `scripts/build-<capa>.mjs` — el ETL reproducible.
+- Una URL pública por capa (versionada por fecha de build) en el meta.json.
+
+**Pasos concretos (cuando se inicie)**:
+
+1. Definir el proveedor (R2 / S3 / Vercel Blob). Costo mensual esperado
+   despreciable para < 1 GB total.
+2. Mover los `public/data/*.geojson` al bucket. Mantener los `*.meta.json`
+   en el repo (son pequeños y versionarlos en git es útil).
+3. Cambiar `MapView.tsx` para que las capas estáticas se carguen desde
+   una URL configurable (env var `NEXT_PUBLIC_LAYER_BASE_URL`).
+4. Los scripts ETL suben al bucket y actualizan el `meta.json` con la URL
+   resultante (CI / GitHub Action si se quiere automatizar).
+5. Documentar en `docs/arquitectura-capas.md` que el output del ETL ya
+   no va al repo.
+
+**Backwards compat durante la migración**: mantener un fallback que lea
+del path local (`/data/<capa>.geojson`) si la URL externa falla. Útil
+para desarrollo offline y para los clones existentes.
+
+**Esfuerzo**: M (1 sprint). Depende de haber elegido proveedor y tener el
+acceso a Vercel configurado. Se hace junto con la siguiente capa grande
+del roadmap (probablemente Predios Rurales CIREN o Catastro Frutícola
+actualizado), no como tarea aislada.
 
 ## Mejoras no-capa (UX y producto) — independiente de las fases
 
