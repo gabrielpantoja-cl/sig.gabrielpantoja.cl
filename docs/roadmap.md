@@ -2,6 +2,12 @@
 
 > Documento vivo. Última actualización: 2026-07-22.
 > Próxima revisión sugerida: trimestral o cuando se cierre una fase.
+>
+> **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
+> públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
+> Las decisiones arquitecturales internas del operador viven en el mirror
+> privado (`infra/privado/sig.gabrielpantoja.cl/architecture/`); este repo
+> contiene solo lo publicable.
 
 ## Visión
 
@@ -305,7 +311,7 @@ anteriores** por ahora. Marcar con `[ ]` cuando se evalúe de nuevo.
       permanente para descubrir nuevas capas publicadas por
       ministerios no considerados en este roadmap.
 
-## ## Fase 0 — Higiene del repositorio público (pre-publish, jul-2026)
+## Fase 0 — Higiene del repositorio público (pre-publish, jul-2026)
 
 Antes de abrir el repo, saneamos lo siguiente:
 

@@ -1,6 +1,11 @@
 # Arquitectura de capas del SIG: catálogo y receta para agregar una capa nueva
 
-> Documento vivo. Última actualización: 2026-07-13.
+> Documento vivo. Última actualización: 2026-07-22.
+>
+> **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
+> públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
+> Cualquier persona puede abrir un PR siguiendo la receta documentada aquí;
+> el ruleset `Protect main` exige pasar el check `ESLint + TypeScript`.
 
 Este SIG tiene dos familias de capas: los **puntos CBR** (dinámicos, desde Neon
 vía `/api/points`) y las **capas temáticas estáticas** (GeoJSON pre-construido

@@ -6,6 +6,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # sig.gabrielpantoja.cl — SIG de suelo
 
+> **This is an open source project.** Released as public source on
+> 2026-07-22 at https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
+> Code is [MIT](./LICENSE); data layers retain their own licenses (see
+> [README § Licencias](./README.md)). Contributions are welcome via PR —
+> read [CONTRIBUTING.md](./CONTRIBUTING.md) first. Behaviour expectations
+> are governed by [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md); security
+> reports go through [SECURITY.md](./SECURITY.md).
+
 Single-page Next.js 16 App Router app. One route (`/`), one page. Maps ~85k CBR land transaction points from Neon + a static GeoJSON layer of protected areas (RNAP).
 
 ## Commands
@@ -14,7 +22,7 @@ Single-page Next.js 16 App Router app. One route (`/`), one page. Maps ~85k CBR 
 |---|---|
 | `npm run dev` | Dev server on `localhost:3000` |
 | `npm run build` | Production build |
-| `npm run lint` | ESLint (`eslint-config-next/core-web-vitals` + TypeScript) |
+| `npm run lint` | ESLint (`eslint-config-next/core-web-vitals` + TypeScript) — required to merge (see [HARD RULES](#hard-rules)) |
 | `npm run data:build:protected` | Regenerate `public/data/areas-protegidas.{geojson,meta.json}` from MMA official data |
 | `npm run data:build:urban` | Regenerate `public/data/limite-urbano.{geojson,meta.json}` from MINVU data |
 | `npm run data:build:comunas` | Regenerate `public/data/limites-comunales.{geojson,meta.json}` from SUBDERE DPA 2023 |
@@ -121,7 +129,7 @@ These must never be violated:
 - **NEVER add client-side DB access** — all data must go through route handlers in `src/app/api/`
 - **NEVER commit `.env.local`** — it contains the live Neon database URL
 - **NEVER remove semicolons** — the codebase uses them consistently in source files
-- **NEVER push directly to `main` or `--force` it** — the `Protect main` ruleset (Settings → Rules) enforces PR-only, requires the `ESLint + TypeScript` check, 1 approving review, and up-to-date branches
+- **NEVER push directly to `main` or `--force` it** — the `Protect main` ruleset (Settings → Rules) enforces PR-only, requires the `ESLint + TypeScript` check, and requires the PR branch to be up to date with `main` before merge. (Note: approving-review count is currently `0` because the repo is single-maintainer; GitHub blocks self-approval on both API and UI, so adding more reviewers is the only path to raise the threshold — see [CONTRIBUTING.md § Pull request workflow](./CONTRIBUTING.md).)
 
 ## AI tooling
 

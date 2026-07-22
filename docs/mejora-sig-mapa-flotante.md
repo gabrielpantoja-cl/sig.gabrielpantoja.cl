@@ -3,6 +3,8 @@
 > **Implementado** (commit `4724fa6`). Se conserva como registro de diseño;
 > los paneles evolucionaron después a dropdowns anclados y el panel de capas
 > a filas con triángulo de despliegue — ver `docs/arquitectura-capas.md`.
+>
+> **Este proyecto es open source** ([MIT](../LICENSE)), ver el README.
 
 ## Contexto
 
