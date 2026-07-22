@@ -110,6 +110,11 @@ Estas nunca se negocian en un PR:
 
 ## Estructura del pull request
 
+0. **El check `Lint` debe pasar antes de mergear**. La rama `main` está
+   protegida por un ruleset que requiere el job `Lint` del workflow
+   `.github/workflows/lint.yml` (corre `npm run lint`) y al menos 1
+   aprobación. Un PR con lint en rojo no se puede mergear.
+
 1. Crea una rama con prefijo descriptivo:
    - `feat/<capa>-nueva` — capa nueva
    - `fix/<síntoma-corto>` — bug fix
