@@ -1,10 +1,9 @@
 /**
  * Security helpers for the public read-only API.
  *
- * Mirrors the hardening of the original gabrielpantoja.cl/api/mapa-cbr.js:
- * origin allowlist (in production), in-memory best-effort rate limiting, and
- * defensive headers. The API is read-only (SELECT via web_readonly), so this is
- * about reducing abuse, not protecting writes.
+ * Origin allowlist (in production), in-memory best-effort rate limiting, and
+ * defensive headers. The API is read-only (SELECT via web_readonly), so this
+ * is about reducing abuse, not protecting writes.
  */
 
 const ALLOWED_ORIGINS = [

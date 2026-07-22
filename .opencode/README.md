@@ -1,11 +1,9 @@
 # `.opencode/` — shared AI tooling
 
-This directory holds shared (committed) OpenCode assets for the
-`sig.gabrielpantoja.cl` repo: custom agents, slash commands, and
-on-demand skills. Per-machine personal assets go in
-`~/.config/opencode/` (NOT committed; lives in each developer's
-home directory and is therefore isolated between the Linux Mint
-and Windows 11 dual-boot machines).
+This directory holds shared (committed) OpenCode assets: custom agents, slash
+commands, and on-demand skills. Per-machine personal assets go in
+`~/.config/opencode/` (NOT committed; lives in each developer's home
+directory and is therefore isolated between machines).
 
 ## Layout
 
