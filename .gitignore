@@ -37,6 +37,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# OpenCode: per-developer config lives outside this repo (see AGENTS.md § AI
+# tooling). Also keep the shared skeleton clean — the opencode skill/plugin
+# packages are installed locally by each developer, never committed.
+opencode.local.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
