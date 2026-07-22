@@ -1,6 +1,12 @@
 # Fuentes GIS oficiales de Chile para este proyecto
 
-> Documento vivo. Última actualización: 2026-07-13.
+> Documento vivo. Última actualización: 2026-07-22.
+>
+> **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
+> públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
+> El catálogo de fuentes listado aquí es la base que cualquier contributor
+> puede usar para proponer una capa nueva siguiendo la receta de
+> [arquitectura-capas.md](./arquitectura-capas.md).
 
 Catálogo de las mejores fuentes **públicas y oficiales** de información
 geoespacial del Estado de Chile, evaluadas para el SIG de suelo. Prioriza
