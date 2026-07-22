@@ -121,6 +121,7 @@ These must never be violated:
 - **NEVER add client-side DB access** — all data must go through route handlers in `src/app/api/`
 - **NEVER commit `.env.local`** — it contains the live Neon database URL
 - **NEVER remove semicolons** — the codebase uses them consistently in source files
+- **NEVER push directly to `main` or `--force` it** — the `Protect main` ruleset (Settings → Rules) enforces PR-only, requires the `ESLint + TypeScript` check, 1 approving review, and up-to-date branches
 
 ## AI tooling
 
