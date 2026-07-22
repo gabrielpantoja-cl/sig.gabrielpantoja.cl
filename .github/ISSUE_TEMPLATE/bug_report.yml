@@ -1,0 +1,113 @@
+name: Bug Report
+description: Algo en la app no funciona como debería.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ¡Gracias por reportar un bug! Por favor llena la siguiente información
+        para que podamos reproducir y arreglar el problema más rápido.
+
+  - type: dropdown
+    id: capa
+    attributes:
+      label: Capa o componente afectado
+      description: ¿En qué parte de la app ocurre el problema?
+      options:
+        - Mapa base (Leaflet / markers / clustering)
+        - Filtros (comuna, año, monto, etc.)
+        - Stats bar (count, avg, $/m²)
+        - Export (CSV / GeoJSON)
+        - Geocoder / búsqueda de direcciones
+        - Capa: áreas protegidas (MMA)
+        - Capa: límite urbano (MINVU)
+        - Capa: límites comunales (DPA)
+        - Capa: red caminera (MOP)
+        - Capa: catastro frutícola (CIREN)
+        - Capa: suelos agrológicos (CIREN, dinámica remota)
+        - Capa KML subida por el usuario
+        - UI / paneles / loader / retro loader
+        - API (5xx, 4xx inesperado)
+        - Otro (explicar en la descripción)
+    validations:
+      required: true
+
+  - type: input
+    id: url
+    attributes:
+      label: URL donde ocurre
+      description: Pega la URL completa (incluyendo filtros en el querystring) o describe el flujo.
+      placeholder: https://sig.gabrielpantoja.cl/?anio_min=2020&comuna=Rancagua
+    validations:
+      required: true
+
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para reproducir
+      description: Lista numerada, lo más detallada posible.
+      placeholder: |
+        1. Ir a ...
+        2. Click en ...
+        3. Ver error en consola
+    validations:
+      required: true
+
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Comportamiento esperado
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamiento actual
+    validations:
+      required: true
+
+  - type: textarea
+    id: consola
+    attributes:
+      label: Salida de la consola del navegador (F12 → Console)
+      description: Pega aquí los errores / warnings relevantes. Borra cualquier dato personal si los hubiera.
+      render: text
+
+  - type: input
+    id: navegador
+    attributes:
+      label: Navegador y versión
+      placeholder: Chrome 128, Firefox 130, Safari 17, etc.
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Sistema operativo
+      placeholder: Windows 11, macOS 14, Ubuntu 24.04, etc.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tamano
+    attributes:
+      label: Tamaño de ventana
+      options:
+        - Móvil (< 768 px)
+        - Tablet (768 – 1280 px)
+        - Desktop (> 1280 px)
+    validations:
+      required: false
+
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto adicional (opcional)
+      description: Capturas, videos (Loom / YouTube), observaciones, etc.
+    validations:
+      required: false

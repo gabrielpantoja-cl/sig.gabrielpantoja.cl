@@ -1,0 +1,90 @@
+name: Feature Request
+description: Propón una mejora, una capa nueva o una integración.
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de abrir: revisa el [roadmap](./docs/roadmap.md) y la
+        [receta para agregar una capa nueva](./docs/arquitectura-capas.md)
+        si lo que quieres agregar es una capa temática oficial del Estado.
+
+  - type: dropdown
+    id: tipo
+    attributes:
+      label: Tipo de propuesta
+      options:
+        - Nueva capa temática oficial del Estado de Chile
+        - Capa raster del usuario (GeoTIFF / PNG georreferenciado)
+        - Mejora de UI / UX
+        - Mejora de accesibilidad (a11y)
+        - Mejora de performance (carga, clustering, etc.)
+        - Nuevo endpoint / formato de exportación
+        - i18n / traducción
+        - Tests automatizados
+        - Documentación (README, AGENTS.md, docs/)
+        - CI / automatización
+        - Otro (explicar abajo)
+    validations:
+      required: true
+
+  - type: textarea
+    id: problema
+    attributes:
+      label: Problema o motivación
+      description: ¿Qué dolor resuelve? ¿Para quién?
+      placeholder: |
+        Como perito en tasaciones judiciales en la región de O'Higgins,
+        necesito ver el Catastro Frutícola superpuesto con los puntos CBR
+        para validar que el destino declarado coincida con el uso real del
+        suelo.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solucion
+    attributes:
+      label: Solución propuesta
+      description: Describe qué quieres que se haga, idealmente con bosquejo de UI o de la API.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternativa
+    attributes:
+      label: Alternativas consideradas
+      description: ¿Por qué esta y no otra?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: fuente_datos
+    attributes:
+      label: Fuente de datos (si aplica)
+      options:
+        - No aplica
+        - Fuente oficial nacional (MMA, MINVU, SUBDERE, MOP, CIREN, IDE Minagri)
+        - Fuente oficial regional / municipal
+        - Fuente privada / de pago
+        - Servicio de terceros (Nominatim, etc.)
+    validations:
+      required: false
+
+  - type: input
+    id: esfuerzo
+    attributes:
+      label: Esfuerzo estimado (S / M / L)
+      description: S ≤ 1 día · M ≤ 1 semana · L > 1 semana
+      placeholder: M
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Contexto adicional (mockups, links, riesgos legales, etc.)
+    validations:
+      required: false
