@@ -152,6 +152,7 @@ export default function Home() {
   const [showUrbanLimit, setShowUrbanLimit] = useState(false);
   const [showComunas, setShowComunas] = useState(false);
   const [showRedVial, setShowRedVial] = useState(false);
+  const [showRedDrenaje, setShowRedDrenaje] = useState(false);
   const [showSuelos, setShowSuelos] = useState(false);
   const [showCatastroFruticola, setShowCatastroFruticola] = useState(false);
 
@@ -357,6 +358,7 @@ export default function Home() {
             showUrbanLimit={showUrbanLimit}
             showComunas={showComunas}
             showRedVial={showRedVial}
+            showRedDrenaje={showRedDrenaje}
             showSuelos={showSuelos}
             showCatastroFruticola={showCatastroFruticola}
             kmlLayers={kmlLayers}
@@ -430,6 +432,8 @@ export default function Home() {
             onToggleComunas={setShowComunas}
             showRedVial={showRedVial}
             onToggleRedVial={setShowRedVial}
+            showRedDrenaje={showRedDrenaje}
+            onToggleRedDrenaje={setShowRedDrenaje}
             showSuelos={showSuelos}
             onToggleSuelos={setShowSuelos}
             showCatastroFruticola={showCatastroFruticola}

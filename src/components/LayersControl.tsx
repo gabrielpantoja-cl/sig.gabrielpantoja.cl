@@ -10,6 +10,11 @@ import {
   RED_VIAL_SOURCE_URL,
   ROAD_CLASS_GROUPS,
 } from '@/lib/red-vial';
+import {
+  DRENAJE_TYPE_GROUPS,
+  RED_DRENAJE_ATTRIBUTION,
+  RED_DRENAJE_SOURCE_URL,
+} from '@/lib/red-drenaje';
 import { SUELOS_ATTRIBUTION, SUELOS_CLASSES, SUELOS_SOURCE_URL } from '@/lib/suelos';
 import {
   CATASTRO_FRUTICOLA_ATTRIBUTION,
@@ -116,6 +121,8 @@ export function LayersControl({
   onToggleComunas,
   showRedVial,
   onToggleRedVial,
+  showRedDrenaje,
+  onToggleRedDrenaje,
   showSuelos,
   onToggleSuelos,
   showCatastroFruticola,
@@ -136,6 +143,8 @@ export function LayersControl({
   onToggleComunas: (v: boolean) => void;
   showRedVial: boolean;
   onToggleRedVial: (v: boolean) => void;
+  showRedDrenaje: boolean;
+  onToggleRedDrenaje: (v: boolean) => void;
   showSuelos: boolean;
   onToggleSuelos: (v: boolean) => void;
   showCatastroFruticola: boolean;
@@ -263,6 +272,43 @@ export function LayersControl({
             Google/OSM); trazado referencial para visualización.{' '}
             <a
               href={RED_VIAL_SOURCE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:opacity-100"
+            >
+              Ver fuente oficial →
+            </a>
+          </p>
+        </LayerRow>
+
+        <LayerRow
+          checked={showRedDrenaje}
+          onChange={onToggleRedDrenaje}
+          label="Red de drenaje (DGA)"
+          swatch={
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-sm"
+              style={{ background: `${DRENAJE_TYPE_GROUPS.rio.color}22`, border: `1.5px solid ${DRENAJE_TYPE_GROUPS.rio.color}` }}
+            />
+          }
+        >
+          <ul className="space-y-1 text-xs">
+            {Object.entries(DRENAJE_TYPE_GROUPS).map(([key, group]) => (
+              <li key={key} className="flex items-center gap-1.5 leading-tight">
+                <span
+                  className="inline-block w-4 shrink-0 rounded-full"
+                  style={{ background: group.color, height: `${Math.max(group.weight, 1.5)}px` }}
+                />
+                <span className="opacity-80">{group.label}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
+            {RED_DRENAJE_ATTRIBUTION}. Toponimia oficial DGA (puede diferir de Google/OSM);
+            jerarquía BNA (cuenca → subcuenca → subsubcuenca) en el popup. Trazado
+            referencial para visualización.{' '}
+            <a
+              href={RED_DRENAJE_SOURCE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="underline hover:opacity-100"

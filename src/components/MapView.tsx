@@ -31,6 +31,12 @@ import {
   type RedVialProps,
 } from '@/lib/red-vial';
 import {
+  DRENAJE_TYPE_GROUPS,
+  RED_DRENAJE_ATTRIBUTION,
+  drenajeType,
+  type RedDrenajeProps,
+} from '@/lib/red-drenaje';
+import {
   CATASTRO_FRUTICOLA_ATTRIBUTION,
   especieColor,
   speciesList,
@@ -289,6 +295,44 @@ function buildRedVialPopup(props: RedVialProps): string {
 }
 
 /**
+ * Popup de un cauce de la Red de Drenaje (DGA, MOP). Lidera con el nombre
+ * oficial del cauce (la razón de ser de la capa: los topónimos hidrográficos
+ * suelen diferir entre SIGs), luego el tipo (Río/Estero) coloreado y la
+ * jerarquía BNA (cuenca → subcuenca → subsubcuenca) que permite encadenar
+ * con las capas de cuencas cuando se integren, cerrando con la cita a la DGA.
+ */
+function buildRedDrenajePopup(props: RedDrenajeProps): string {
+  const group = DRENAJE_TYPE_GROUPS[drenajeType(props)];
+
+  const rows: [string, string][] = [];
+  if (props.COD_CUEN) rows.push(['Cuenca BNA', esc(props.COD_CUEN)]);
+  if (props.COD_SUBC) rows.push(['Subcuenca', esc(props.COD_SUBC)]);
+  if (props.COD_SSUBC) rows.push(['Subsubcuenca', esc(props.COD_SSUBC)]);
+  if (props.NOM_REG) rows.push(['Región', esc(props.NOM_REG)]);
+
+  const body = rows
+    .map(
+      ([k, v]) =>
+        `<tr>` +
+        `<td style="opacity:.55;padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top">${k}</td>` +
+        `<td style="vertical-align:top">${v}</td>` +
+        `</tr>`,
+    )
+    .join('');
+
+  return (
+    `<div style="font-size:0.8rem;line-height:1.45;min-width:200px">` +
+    `<div style="font-weight:600;font-size:0.92rem">${esc(props.NOMBRE || 'Cauce sin nombre informado')}</div>` +
+    `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
+    `font-size:0.68rem;font-weight:600;color:#fff;background:${group.color}">` +
+    `${group.label}</div>` +
+    `<table style="border-collapse:collapse">${body}</table>` +
+    `<div style="margin-top:.35rem;font-size:0.62rem;opacity:.5">${RED_DRENAJE_ATTRIBUTION} · trazado referencial</div>` +
+    `</div>`
+  );
+}
+
+/**
  * Popup de un productor frutícola (CIREN-ODEPA, IDE Minagri). Lidera con el
  * ROL del predio (el mismo campo con el que el perito busca una transacción
  * CBR: el pivote más útil de la capa), luego las especies declaradas, la
@@ -356,6 +400,7 @@ export default function MapView({
   showUrbanLimit = false,
   showComunas = false,
   showRedVial = false,
+  showRedDrenaje = false,
   showSuelos = false,
   showCatastroFruticola = false,
   kmlLayers = [],
@@ -368,6 +413,7 @@ export default function MapView({
   showUrbanLimit?: boolean;
   showComunas?: boolean;
   showRedVial?: boolean;
+  showRedDrenaje?: boolean;
   showSuelos?: boolean;
   showCatastroFruticola?: boolean;
   kmlLayers?: KmlLayer[];
@@ -385,6 +431,7 @@ export default function MapView({
   const urbanLimitRef = useRef<L.GeoJSON | null>(null);
   const comunasRef = useRef<L.GeoJSON | null>(null);
   const redVialRef = useRef<L.GeoJSON | null>(null);
+  const redDrenajeRef = useRef<L.GeoJSON | null>(null);
   const suelosRef = useRef<L.ImageOverlay | null>(null);
   const catastroFruticolaRef = useRef<L.GeoJSON | null>(null);
   const kmlRef = useRef<Map<string, L.GeoJSON>>(new Map());
@@ -414,6 +461,9 @@ export default function MapView({
     catastroFruticolaRef.current?.bringToFront();
     // Red caminera sobre los polígonos (líneas finas, deben quedar visibles).
     redVialRef.current?.bringToFront();
+    // Red de drenaje (ríos + esteros) sobre los polígonos; debajo de la red
+    // caminera porque la vial suele tener jerarquía de trazo más visible.
+    redDrenajeRef.current?.bringToFront();
     for (const layer of kmlRef.current.values()) layer.bringToFront();
     clusterRef.current?.bringToFront();
   }, []);
@@ -443,6 +493,7 @@ export default function MapView({
       urbanLimitRef.current = null;
       comunasRef.current = null;
       redVialRef.current = null;
+      redDrenajeRef.current = null;
       suelosRef.current = null;
       catastroFruticolaRef.current = null;
       kmlById.clear();
@@ -705,6 +756,62 @@ export default function MapView({
       }
     };
   }, [showRedVial, reorderOverlays]);
+
+  // Red de drenaje — ríos y esteros de la DGA (Banco Nacional de Aguas, MOP),
+  // generado por scripts/build-red-drenaje.mjs. ~35k polylines nacionales con
+  // el nombre oficial DGA (suele diferir del de Google/OSM), código de cuenca
+  // BNA y jerarquía visual por tipo (ríos = línea más oscura y gruesa;
+  // esteros = línea más clara y fina). El campo `tipo` del GeoJSON fue
+  // inyectado por el ETL para distinguir origen sin parsear el TIPO textual.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (redDrenajeRef.current) {
+      map.removeLayer(redDrenajeRef.current);
+      redDrenajeRef.current = null;
+    }
+
+    if (!showRedDrenaje) return;
+
+    fetch('/data/red-drenaje.geojson')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((geojson: FeatureCollection<Geometry, RedDrenajeProps>) => {
+        if (!mapRef.current) return;
+        const layer = L.geoJSON(geojson, {
+          style(feature?: Feature<Geometry, RedDrenajeProps>) {
+            const group = DRENAJE_TYPE_GROUPS[drenajeType(feature?.properties)];
+            return {
+              color: group.color,
+              weight: group.weight,
+              opacity: 0.85,
+              smoothFactor: 1,
+            };
+          },
+          onEachFeature(feature, featureLayer) {
+            featureLayer.bindPopup(buildRedDrenajePopup(feature.properties), { maxWidth: 280 });
+            const name = feature.properties.NOMBRE;
+            if (name) {
+              featureLayer.bindTooltip(esc(name), {
+                sticky: true,
+                direction: 'top',
+                opacity: 0.92,
+              });
+            }
+          },
+        }).addTo(mapRef.current);
+        redDrenajeRef.current = layer;
+        reorderOverlays();
+      })
+      .catch(() => {});
+
+    return () => {
+      if (redDrenajeRef.current && mapRef.current) {
+        mapRef.current.removeLayer(redDrenajeRef.current);
+        redDrenajeRef.current = null;
+      }
+    };
+  }, [showRedDrenaje, reorderOverlays]);
 
   // Catastro Frutícola (CIREN-ODEPA, IDE Minagri) — polígonos de productores
   // frutícolas por región. ETL estático (scripts/build-catastro-fruticola.mjs):
