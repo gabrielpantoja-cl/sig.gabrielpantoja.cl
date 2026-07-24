@@ -153,7 +153,7 @@ export default function Home() {
   const [showComunas, setShowComunas] = useState(false);
   const [showRedVial, setShowRedVial] = useState(false);
   const [showSuelos, setShowSuelos] = useState(false);
-  const [showCatastroFruticola, setShowCatastroFruticola] = useState(true);
+  const [showCatastroFruticola, setShowCatastroFruticola] = useState(false);
 
   // Capas KML subidas por el usuario: parseo 100% en el navegador (lib/kml),
   // el archivo nunca sale del dispositivo. El contador de colores es un ref
