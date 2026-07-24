@@ -1,10 +1,19 @@
 {
   "$schema": "https://opencode.ai/config.json",
 
-  // Per-developer settings (model, providers, MCP servers, permissions) are
-  // intentionally NOT committed. Put them in `opencode.local.json` (gitignored)
-  // or in your `~/.config/opencode/opencode.json`. See AGENTS.md § AI tooling
-  // for the per-machine override convention.
+  // Default model + provider allowlist for this repo. Committed so that every
+  // opencode session opened in this directory starts with M-3 from the
+  // minimax-coding-plan Token Plan (the maintainer's chosen provider).
+  // Contributors / other operators can override locally via any of:
+  //   - `OPENCODE_CONFIG` env var pointing to a per-machine file (precedence
+  //     between global and project — see opencode docs § Precedence order), or
+  //   - `~/.config/opencode/opencode.json` (global config; project overrides it), or
+  //   - editing this file on their fork.
+  // The provider allowlist pins opencode to the one paid provider so Qwen /
+  // Ollama / other locally-configured providers cannot sneak in. See AGENTS.md
+  // § AI tooling for the full override convention.
+  "model": "minimax-coding-plan/MiniMax-M3",
+  "enabled_providers": ["minimax-coding-plan"],
 
   // Auto-discover the canonical agent instructions in this repo.
   "instructions": ["AGENTS.md", "AGENTS.local.md"],
