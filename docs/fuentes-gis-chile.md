@@ -21,6 +21,7 @@ siempre el **organismo productor** del dato (regla 1 de la receta en
 | **MINVU** — geoide.minvu.cl | Instrumentos de Planificación Territorial: límites urbanos, PRC, zonificación | ArcGIS REST (`outSR=4326&f=geojson` OK) | Capa límite urbano |
 | **SUBDERE** vía geoportal.cl | División Político-Administrativa (comunas/provincias/regiones, 1:50.000, DPA 2023) | Zip shapefile (~311 MB) del catálogo geoportal.cl | Capa límites comunales |
 | **MOP — Dirección de Vialidad** — mapasvialidad.mop.gob.cl | Red Vial Nacional completa (toponimia oficial, ROL, clasificación, carpeta, concesiones) + Puentes | Zip Shp/Gdb/Kmz con vintage en el nombre (`Red_Vial_2026_06_30_shp.zip`) | Capa red caminera |
+| **DGA** (MOP) — ArcGIS REST `services3.arcgis.com/aSoEm9TBK2shtWjP` | Red hidrográfica nacional: ríos + esteros con nombre oficial BNA + jerarquía de cuencas | FeatureServer `Ríos` + `Esteros` (paginado `resultRecordCount=1000`). La Mapoteca Digital HTML (`dga.mop.gob.cl/.../mapoteca`) está caída (404) desde 2026-07 — el REST es la única vía estable | Capa red de drenaje |
 | **CIREN** — esri.ciren.cl | Estudios Agrológicos: Capacidad de Uso de los Suelos (clases I–VIII), 12 regiones (Atacama–Aysén, vintages 2010–2024) | ArcGIS REST moderno (10.91: `f=geojson`, paginación, export, identify). Dataset >500 MB → se consume en vivo (capa dinámica) | Capa suelos agrológicos |
 
 ## El ecosistema MOP (hallazgos 2026-07)
@@ -51,7 +52,7 @@ El MOP publica el mismo dato vial por varios canales; en orden de utilidad:
 | **SII** — Servicio de Impuestos Internos | Cartografía digital de predios (roles), avalúos fiscales, áreas homogéneas | El ROL de los puntos CBR viene de aquí. Sin API pública de descarga masiva; la cartografía se consulta en mapas.sii.cl |
 | **CIREN** (otros productos) | Catastro frutícola, propiedades rurales, erosión actual/potencial | Complementos de tasación rural en el mismo esri.ciren.cl; shapefiles descargables en ide.minagri.gob.cl/geoweb |
 | **CONAF** | Catastro de uso de suelo y vegetación, bosque nativo, plantaciones | Complementa destino/uso de predios rurales. IDE en sit.conaf.cl |
-| **DGA** (MOP) — Dirección General de Aguas | Derechos de aprovechamiento de aguas, cauces, acuíferos | Muy relevante para valor de suelo rural; vía GEOMOP / dga.mop.gob.cl |
+| **DGA** (MOP) — Dirección General de Aguas | Cauces integrados (ríos/esteros, ver sección anterior). Quedan pendientes: derechos de aprovechamiento (DAA), cuencas BNA como polígono de contexto, glaciares, acuíferos SHAC, estaciones fluviométricas | Complementarios para valorización rural |
 | **SERNAGEOMIN** | Geología, peligros geológicos (remoción en masa, volcanismo), concesiones mineras | Restricciones de uso y riesgo en tasaciones. Portal geología: portalgeo.sernageomin.cl |
 | **INE** | Manzanas censales, entidades pobladas, microdatos Censo 2024 | Densidad/contexto demográfico. geoine-ine-chile.opendata.arcgis.com |
 | **SMA** — ideserver.sma.gob.cl | Espejos de capas de otros organismos (incl. Red Vial MOP, layer 10) + fiscalización ambiental | Espejo útil si el productor está caído (documentar el porqué si se usa) |
