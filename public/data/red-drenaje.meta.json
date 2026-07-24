@@ -1,0 +1,33 @@
+{
+  "sources": [
+    "Dirección General de Aguas (DGA) — Ríos (Banco Nacional de Aguas)",
+    "Dirección General de Aguas (DGA) — Esteros (Banco Nacional de Aguas)"
+  ],
+  "portal": "DGA — ArcGIS REST (services3.arcgis.com/aSoEm9TBK2shtWjP)",
+  "service_urls": [
+    "https://services3.arcgis.com/aSoEm9TBK2shtWjP/ArcGIS/rest/services/R%C3%ADos/FeatureServer/0",
+    "https://services3.arcgis.com/aSoEm9TBK2shtWjP/ArcGIS/rest/services/Esteros/FeatureServer/0"
+  ],
+  "catalog": "https://dga.mop.gob.cl/",
+  "license": "Dato público institucional (Estado de Chile, Dirección General de Aguas MOP). La DGA distribuye los datos en cumplimiento de la Ley 20.285 (Transparencia); atribución obligatoria a la DGA en popup, panel y este manifiesto.",
+  "downloaded_at": "2026-07-24",
+  "feature_count": 35552,
+  "counts_by_tipo": {
+    "rio": 22869,
+    "estero": 12683
+  },
+  "crs": "EPSG:4326 (reproyectado server-side desde EPSG:32719 vía outSR)",
+  "fields": [
+    "NOMBRE",
+    "TIPO",
+    "COD_CUEN",
+    "COD_SUBC",
+    "COD_SSUBC",
+    "NOM_REG",
+    "REGION_NUM",
+    "tipo"
+  ],
+  "processing": "paginación 1000 features/request con backoff 2000/5000/10000 ms sobre 2 FeatureServers de la DGA (Ríos + Esteros); combinado en un único FeatureCollection con campo derivado `tipo` ∈ {rio, estero}; mapshaper -filter-fields NOMBRE,TIPO,COD_CUEN,COD_SUBC,COD_SSUBC,NOM_REG,REGION_NUM,tipo -simplify visvalingam weighted 8% keep-shapes precision=0.00001.",
+  "mapshaper_version": "0.7.33",
+  "note": "Dato público oficial (Dirección General de Aguas, Ministerio de Obras Públicas — Banco Nacional de Aguas, ríos y esteros con nombre oficial). Geometría simplificada solo para visualización web: el trazado mostrado es referencial. La DGA publica el mismo dato en su Mapoteca Digital (portal HTML en dga.mop.gob.cl), pero esa URL devuelve 404 desde 2026 — el FeatureServer ArcGIS es la única vía estable hoy. Para análisis o uso normativo, consultar la fuente original."
+}
