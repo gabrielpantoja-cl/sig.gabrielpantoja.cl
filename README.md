@@ -95,9 +95,15 @@ npm run build
 
 Este repo es leído por Claude Code, OpenCode y Codex. El archivo canónico de
 instrucciones para agentes es **[AGENTS.md](./AGENTS.md)**. La configuración
-por-máquina (modelo, providers, permisos) vive en **[AGENTS.local.md]**
-(gitignored). El `opencode.json` en la raíz es solo un seed neutro mínimo —
-cada operador debe crear su propio `opencode.local.json` si quiere override.
+por-máquina vive en **[AGENTS.local.md](./AGENTS.local.md)** (gitignored).
+
+El `opencode.json` en la raíz está **commiteado con los defaults del maintainer**
+(`model: minimax-coding-plan/MiniMax-M3` + `enabled_providers: ["minimax-coding-plan"]`).
+Aplica a toda sesión de opencode abierta en este directorio. Otros operadores
+pueden overridear localmente con `OPENCODE_CONFIG` (env var a un JSON por
+máquina), `~/.config/opencode/opencode.json` (global), o editando el archivo
+en su fork. Ver **[AGENTS.md § AI tooling](./AGENTS.md)** para los detalles y
+la precedencia completa.
 
 ## Datos en el repo vs. bucket externo
 
