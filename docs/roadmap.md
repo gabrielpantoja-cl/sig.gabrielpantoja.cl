@@ -318,9 +318,10 @@ Antes de abrir el repo, saneamos lo siguiente:
 - [x] **Privacidad**: ningún endpoint expone PII bajo Ley 19.628
       (`comprador, vendedor, rut, user_id, observaciones`). Reforzado en
       `src/lib/security.ts` y en el SELECT explícito de cada route handler.
-- [x] **AI tooling**: `opencode.json` con seed neutro, AGENTS.md técnico,
-      AGENTS.local.md (gitignored) con el setup personal del operador.
-      Sin credenciales ni modelos commiteados.
+- [x] **AI tooling**: AGENTS.md técnico, AGENTS.local.md (gitignored) con
+      el setup personal del operador. `opencode.json` commiteado con
+      `model` + `enabled_providers` del maintainer (sin credenciales — auth
+      del provider se hace por env var / Token Plan, no en el repo).
 - [x] **Documentación comunitaria**: CONTRIBUTING.md, CODE_OF_CONDUCT.md,
       SECURITY.md, templates de issues y PR, dependabot, CI con
       `npm run lint`.

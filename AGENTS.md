@@ -129,16 +129,31 @@ These must never be violated:
 - **NEVER add client-side DB access** — all data must go through route handlers in `src/app/api/`
 - **NEVER commit `.env.local`** — it contains the live Neon database URL
 - **NEVER remove semicolons** — the codebase uses them consistently in source files
-- **NEVER push directly to `main` or `--force` it** — the `Protect main` ruleset (Settings → Rules) enforces PR-only, requires the `ESLint + TypeScript` check, and requires the PR branch to be up to date with `main` before merge. (Note: approving-review count is currently `0` because the repo is single-maintainer; GitHub blocks self-approval on both API and UI, so adding more reviewers is the only path to raise the threshold — see [CONTRIBUTING.md § Pull request workflow](./CONTRIBUTING.md).)
+- **NEVER `--force` push to `main`** — the `Protect main` ruleset (Settings → Rules) blocks force pushes and deletion of `main`. Solo-maintainer workflows normally push directly to `main` (PRs are optional) — the `ESLint + TypeScript` check fires on every direct push via `on: push: branches: [main]` in `.github/workflows/lint.yml`, so a red build will reject the commit. Run `npm run lint` locally before pushing as your only safety net. The PR template stays in `.github/PULL_REQUEST_TEMPLATE.md` for anyone who prefers the branch + PR flow.
 
 ## AI tooling
 
 This repo is read by Claude Code, OpenCode, Codex and other agents. The
-`opencode.json` at the repo root is a **minimal neutral seed** (just the
-schema reference, instruction paths, and `share: "manual"`). It does NOT
-contain model, provider, MCP server or permission settings — those are
-per-developer and live in `opencode.local.json` (gitignored) or in
-`~/.config/opencode/opencode.json` on each developer's machine.
+`opencode.json` at the repo root is **committed with the maintainer's defaults**
+(`model: minimax-coding-plan/MiniMax-M3` + `enabled_providers: ["minimax-coding-plan"]`).
+Project-level config overrides the global `~/.config/opencode/opencode.json`
+on merge, so any opencode session opened in this directory starts with M-3.
+
+Other operators can override locally without touching the committed file via
+any of:
+
+- `OPENCODE_CONFIG` env var pointing to a per-machine JSON file
+  (precedence between global and project — see opencode docs § Precedence order)
+- `~/.config/opencode/opencode.json` (global; project-level overrides it)
+- Editing `opencode.json` on their fork
+
+> **Note (2026-07)**: earlier drafts of this repo referenced an
+> `opencode.local.json` file at the repo root as a per-machine override.
+> opencode does **not** read that filename — only `opencode.json` is recognized
+> at project level (see
+> [opencode.ai/docs/config/#precedence-order](https://opencode.ai/docs/config/#precedence-order)).
+> The `.gitignore` entry for it has been kept as a no-op marker; per-machine
+> overrides live in `~/.config/opencode/opencode.json` instead.
 
 The canonical agent instructions live in `AGENTS.md` (this file).
 Per-machine overrides (paths, shell, MCP, model, providers, permissions)
@@ -165,5 +180,6 @@ The `package.json` / `package-lock.json` / `node_modules/` under
 - `~/.config/opencode/agents/*.md`
 - `~/.config/opencode/commands/*.md`
 - `~/.config/opencode/skills/<name>/SKILL.md`
-- `opencode.local.json` at the repo root (if you want to override the
-  committed `opencode.json` without touching it)
+- `opencode.local.json` at the repo root — **no-op marker** (see Note above;
+  opencode does not read this filename; per-machine overrides go in
+  `~/.config/opencode/opencode.json`)
