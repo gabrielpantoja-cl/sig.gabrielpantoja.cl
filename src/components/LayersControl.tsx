@@ -105,14 +105,20 @@ function LayerRow({
  * Panel de capas del mapa. Separa la activación/desactivación de capas de los
  * botones de descarga (CSV/GeoJSON), que viven en el panel de filtros. Cada
  * capa temática lleva su leyenda y atribución detrás de un triángulo de
- * despliegue (LayerRow), colapsadas por defecto. Incluye la sección «Mis
- * capas», donde el usuario sube archivos .kml que se procesan localmente
- * (ver lib/kml.ts) y se listan con visibilidad y borrado por capa. El estado
- * abierto/cerrado del panel lo controla page.tsx vía MapPanel (uno a la vez).
+ * despliegue (LayerRow), colapsadas por defecto. La capa de transacciones CBR
+ * —la principal— está activada por defecto pero también es ocultable: el
+ * perito la quita cuando quiere componer una vista limpia, por ejemplo para
+ * exportar el mapa como PNG con flecha norte y adjuntarlo a un informe de
+ * tasación. Incluye la sección «Mis capas», donde el usuario sube archivos
+ * .kml que se procesan localmente (ver lib/kml.ts) y se listan con visibilidad
+ * y borrado por capa. El estado abierto/cerrado del panel lo controla page.tsx
+ * vía MapPanel (uno a la vez).
  */
 export function LayersControl({
   activeId,
   onActivate,
+  showPoints,
+  onTogglePoints,
   showProtected,
   onToggleProtected,
   showUrbanLimit,
@@ -132,9 +138,13 @@ export function LayersControl({
   onAddKmlFiles,
   onToggleKml,
   onRemoveKml,
+  onExport,
+  exporting,
 }: {
   activeId: PanelId | null;
   onActivate: (id: PanelId) => void;
+  showPoints: boolean;
+  onTogglePoints: (v: boolean) => void;
   showProtected: boolean;
   onToggleProtected: (v: boolean) => void;
   showUrbanLimit: boolean;
@@ -154,6 +164,12 @@ export function LayersControl({
   onAddKmlFiles: (files: FileList) => void;
   onToggleKml: (id: string) => void;
   onRemoveKml: (id: string) => void;
+  /** Dispara la rasterización de la vista actual a PNG con flecha norte,
+   *  escala y atribuciones. La página se ocupa del guard contra re-entradas. */
+  onExport: () => void;
+  /** True mientras canvas.toBlob está corriendo; deshabilita el botón y
+   *  muestra "Generando…" para feedback al usuario. */
+  exporting: boolean;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -175,8 +191,8 @@ export function LayersControl({
     >
       <div className="space-y-2">
         <LayerRow
-          checked
-          readOnly
+          checked={showPoints}
+          onChange={onTogglePoints}
           label="Transacciones CBR"
           swatch={
             <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CBR_POINT_COLOR }} />
@@ -461,6 +477,49 @@ export function LayersControl({
         <p className="mt-1.5 text-[0.6rem] leading-snug opacity-50">
           Solo .kml, máx. {KML_MAX_FILE_MB} MB. Se procesa en tu navegador; no se sube a ningún
           servidor.
+        </p>
+      </div>
+
+      {/* Export a PNG: rasteriza la vista actual con flecha norte, escala y
+          atribución. Pensado como anexo de informe de tasación. */}
+      <div className="mt-3 border-t border-black/10 pt-2.5 dark:border-white/10">
+        <p className="text-xs font-semibold uppercase tracking-wide opacity-50">Exportar</p>
+
+        <button
+          type="button"
+          onClick={onExport}
+          disabled={exporting}
+          aria-busy={exporting}
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-black/20 py-1.5 text-xs font-medium opacity-90 hover:opacity-100 disabled:opacity-50 dark:border-white/25"
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            className={exporting ? 'animate-spin' : ''}
+          >
+            {exporting ? (
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            ) : (
+              <>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </>
+            )}
+          </svg>
+          {exporting ? 'Generando PNG…' : 'Exportar PNG'}
+        </button>
+
+        <p className="mt-1.5 text-[0.6rem] leading-snug opacity-50">
+          Captura la vista con flecha norte, escala y atribuciones. Ideal como
+          anexo de un informe de tasación.
         </p>
       </div>
     </MapPanel>
