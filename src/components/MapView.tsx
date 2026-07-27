@@ -16,7 +16,7 @@ import {
   URBAN_LIMIT_STYLE,
   type UrbanLimitProps,
 } from '@/lib/urban-limit';
-import { kmlPropText, type KmlFeatureProps, type KmlLayer } from '@/lib/kml';
+import { kmlDisplayName, kmlPropText, type KmlFeatureProps, type KmlLayer } from '@/lib/kml';
 import {
   COMUNAS_ATTRIBUTION,
   COMUNAS_COLOR,
@@ -384,11 +384,15 @@ function buildKmlPopup(props: KmlFeatureProps, layer: KmlLayer): string {
   const name = kmlPropText(props.name).trim();
   const description = stripTags(kmlPropText(props.description));
 
+  // Usamos el alias editable del perito en el badge de la capa para
+  // que el reconocimento visual del feature sea consistente con el panel
+  // lateral y con el cajetín del export PNG.
+  const layerLabel = kmlDisplayName(layer);
   return (
     `<div style="font-size:0.8rem;line-height:1.45;min-width:180px;max-width:260px">` +
-    `<div style="font-weight:600;font-size:0.92rem">${esc(name || layer.name)}</div>` +
+    `<div style="font-weight:600;font-size:0.92rem">${esc(name || layerLabel)}</div>` +
     `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
-    `font-size:0.68rem;font-weight:600;color:#fff;background:${layer.color}">Capa KML · ${esc(layer.name)}</div>` +
+    `font-size:0.68rem;font-weight:600;color:#fff;background:${layer.color}">Capa KML · ${esc(layerLabel)}</div>` +
     (description ? `<div style="opacity:.75">${esc(description)}</div>` : '') +
     `<div style="margin-top:.35rem;font-size:0.62rem;opacity:.5">Archivo local del usuario · no publicado</div>` +
     `</div>`
