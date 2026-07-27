@@ -119,12 +119,13 @@ Refer to these before making architectural changes to the map or layout.
 
 ## Feature workflow
 
-1. **Check Next.js docs first** — always read `node_modules/next/dist/docs/` before writing new code (this is NOT standard Next.js)
+1. **Check Next.js docs first** — always read `node_modules/next/dist/docs/` before writing any code (this is NOT standard Next.js)
 2. **Understand existing patterns** — read the relevant component or route handler for convention reference
 3. **Data layer first** — add DB query logic in `src/app/api/`, never on the client
 4. **MapView is client-only** — always use dynamic import with `ssr: false` for Leaflet components
 5. **Lint before commit** — run `npm run lint` and fix all errors
 6. **Use semicolons** — match the existing code style
+7. **Solo-dev direct push:** for routine changes, commit straight to `main` (`git commit` then `git push`). Use a feature branch only when the change is large enough to want isolation (multi-day work, experimental, etc.) — the `feat/**`, `fix/**`, `chore/**`, `docs/**` LSP-style prefixes are still recommended for readability regardless of where you commit. Local commits before pushing are fine; the GitHub ruleset is the only enforcement layer.
 
 ## HARD RULES
 
@@ -135,7 +136,7 @@ These must never be violated:
 - **NEVER add client-side DB access** — all data must go through route handlers in `src/app/api/`
 - **NEVER commit `.env.local`** — it contains the live Neon database URL
 - **NEVER remove semicolons** — the codebase uses them consistently in source files
-- **NEVER `--force` push to `main`** — the `Protect main` ruleset (Settings → Rules) blocks force pushes and deletion of `main`. Solo-maintainer workflows normally push directly to `main` (PRs are optional) — the `ESLint + TypeScript` check fires on every direct push via `on: push: branches: [main]` in `.github/workflows/lint.yml`, so a red build will reject the commit. Run `npm run lint` locally before pushing as your only safety net. The PR template stays in `.github/PULL_REQUEST_TEMPLATE.md` for anyone who prefers the branch + PR flow.
+- **NEVER `--force` push to `main`** — the `Protect main` ruleset (Settings → Rules) blocks force pushes and deletion of `main` (GitHub-side enforcement, no need for a local `pre-push` hook). Direct push to `main` is allowed for solo-maintainer workflows: the `ESLint + TypeScript` check fires on every push to `main` (`.github/workflows/lint.yml`), so a red build will reject the commit. Run `npm run lint` locally before pushing as your safety net. The ruleset also grants the repo admin a bypass actor for emergencies. The PR template stays in `.github/PULL_REQUEST_TEMPLATE.md` for anyone who prefers the branch + PR flow.
 
 ## AI tooling
 
