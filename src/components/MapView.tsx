@@ -8,7 +8,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import type { GeocodeResult, MapPoint } from '@/lib/types';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
-import { downloadCanvas, exportFilename, exportMapToPng } from '@/lib/map-export';
+import { downloadCanvas, exportFilename, exportMapToPng, type LayerMetadataEntry } from '@/lib/map-export';
 import { categoryColor, type ProtectedAreaProps } from '@/lib/protected-areas';
 import {
   URBAN_LIMIT_ATTRIBUTION,
@@ -434,7 +434,9 @@ export default function MapView({
    *  cuando el usuario lo pulsa, `mapExportRef.current()` rasteriza y descarga
    *  la vista actual. Se re-bindea en cada cambio de flags para que la closure
    *  capture los toggles vigentes al momento del click. */
-  mapExportRef?: MutableRefObject<(() => Promise<void>) | null>;
+  mapExportRef?: MutableRefObject<
+    ((args?: { metadata?: LayerMetadataEntry[] }) => Promise<void>) | null
+  >;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -463,9 +465,15 @@ export default function MapView({
   // el estado vigente de las capas (incluyendo el toggle recién hecho de CBR
   // para componer una vista limpia). El guard `if (exporting)` en page.tsx
   // evita re-entradas mientras una descarga está en curso.
+  //
+  // El caller puede pasar `{ metadata: LayerMetadataEntry[] }` para inyectar
+  // un cajetín de trazabilidad legal en el PNG (filtros aplicados, fuentes de
+  // las capas activas). Lo construye page.tsx al momento del click (con los
+  // filtros vigentes) y lo entrega por args — esto evita reconstruir el useEffect
+  // con cada keystroke en los campos de filtro.
   useEffect(() => {
     if (!mapExportRef) return;
-    mapExportRef.current = async () => {
+    mapExportRef.current = async (args) => {
       const map = mapRef.current;
       if (!map) return;
       const canvas = await exportMapToPng(map, {
@@ -478,6 +486,7 @@ export default function MapView({
         showSuelos,
         showCatastroFruticola,
         cluster: clusterRef.current,
+        metadata: args?.metadata,
       });
       downloadCanvas(canvas, exportFilename());
     };

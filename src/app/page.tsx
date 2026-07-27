@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { Facets, GeocodeResult, MapPoint, Stats } from '@/lib/types';
 import { kmlColorFor, parseKmlFile, type KmlLayer } from '@/lib/kml';
+import type { LayerMetadataEntry } from '@/lib/map-export';
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
@@ -99,8 +100,158 @@ const StatsIcon = (
 
 /** Handle imperativo hacia MapView para disparar el export a PNG. La función
  *  es provista por el componente (tiene acceso al mapa y a los refs de las
- *  capas) y la página sólo la invoca y la bloquea mientras está corriendo. */
-type MapExportFn = () => Promise<void>;
+ *  capas) y la página sólo la invoca y la bloquea mientras está corriendo.
+ *  Acepta `{ metadata }` opcional: page.tsx construye el cajetín de
+ *  trazabilidad legal en el momento del click (con los filtros vigentes) y
+ *  se lo pasa para que MapView lo reenvíe a `exportMapToPng`. */
+type MapExportArgs = { metadata?: LayerMetadataEntry[] };
+type MapExportFn = (args?: MapExportArgs) => Promise<void>;
+
+/** Símbolo que separa unidades monetarias en formato chileno. Las inputs de
+ *  filtros vienen como strings; aquí las formateamos a CLP para el cajetín
+ *  del PNG exportado (la idea es que el informe pericial vea un rango
+ *  legible, no un número crudo de `?monto_min=10000000`). */
+const fmtMoney = (raw: string): string | null => {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return new Intl.NumberFormat('es-CL', {
+    style: 'currency',
+    currency: 'CLP',
+    maximumFractionDigits: 0,
+  }).format(n);
+};
+
+const fmtIntPlain = (v: number): string => v.toLocaleString('es-CL');
+
+/** Inputs para el cajetín de trazabilidad. Es una función pura (no tiene
+ *  closures ni estado) para que sea trivial de testear si añadimos tests. */
+type BuildMetadataInput = {
+  showPoints: boolean;
+  showProtected: boolean;
+  showUrbanLimit: boolean;
+  showComunas: boolean;
+  showRedVial: boolean;
+  showRedDrenaje: boolean;
+  showSuelos: boolean;
+  showCatastroFruticola: boolean;
+  comuna: string;
+  anioFrom: number | null;
+  montoMin: string;
+  montoMax: string;
+  supMin: string;
+  supMax: string;
+  predio: string;
+  rol: string;
+  stats: Stats | null;
+  kmlLayers: KmlLayer[];
+};
+
+/** Construye las entradas del cajetín legal a partir del estado vigente de
+ *  filtros y visibilidad de capas. Se llama al hacer click en «Exportar
+ *  PNG» (no en cada keystroke), así que es OK que filtre un poco más de lo
+ *  necesario: la captura es momentánea, el cajetín solo se usa en ese PNG.
+ *
+ *  Estructura del cajetín (cada entrada = un bloque con negrita + detalles):
+ *  - Transacciones CBR (título con conteo de inscripciones en la selección)
+ *  - Una entrada por cada capa vectorial activa con su fuente oficial
+ *  - Una entrada por cada capa KML subida por el usuario */
+function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEntry[] {
+  const entries: LayerMetadataEntry[] = [];
+
+  if (input.showPoints) {
+    const filtrosLineas: string[] = [];
+    if (input.comuna !== 'todas') filtrosLineas.push(`Comuna: ${input.comuna}`);
+    if (input.anioFrom != null) filtrosLineas.push(`Año desde: ${input.anioFrom}`);
+
+    const minD = fmtMoney(input.montoMin);
+    const maxD = fmtMoney(input.montoMax);
+    if (minD || maxD) {
+      // Construimos el rango con strings pre-formateados para no anidar
+      // template literals con backticks sueltos (riesgo de desbalance de
+      // delimitadores en TSX strict).
+      const left = minD ? `≥ ${minD}` : 'sin mínimo';
+      const right = maxD ? `≤ ${maxD}` : 'sin máximo';
+      filtrosLineas.push(`Monto: ${left} – ${right}`);
+    }
+    if (input.supMin) {
+      const n = Number(input.supMin);
+      if (Number.isFinite(n)) {
+        filtrosLineas.push(`Superficie terreno ≥ ${n.toLocaleString('es-CL')} m²`);
+      }
+    }
+    if (input.supMax) {
+      const n = Number(input.supMax);
+      if (Number.isFinite(n)) {
+        filtrosLineas.push(`Superficie terreno ≤ ${n.toLocaleString('es-CL')} m²`);
+      }
+    }
+    if (input.predio.trim()) filtrosLineas.push(`Predio contiene: «${input.predio.trim()}»`);
+    if (input.rol.trim()) filtrosLineas.push(`ROL SII contiene: «${input.rol.trim()}»`);
+
+    const count = input.stats?.count ?? 0;
+    const details = [
+      `${fmtIntPlain(count)} inscripciones en la selección`,
+      ...filtrosLineas,
+      'Fuente: Servicio de Conservadores de Bienes Raíces (Ley 20.285)',
+    ].join('\n');
+    entries.push({ title: 'Transacciones CBR', details });
+  }
+
+  // Capas temáticas activas: cada una aporta su fuente oficial con URL.
+  if (input.showProtected) {
+    entries.push({
+      title: 'Áreas protegidas (RNAP)',
+      details: 'Designaciones legales según categoría\nFuente: Ministerio del Medio Ambiente · CC0\nhttps://sig.mma.gob.cl/rnap/',
+    });
+  }
+  if (input.showUrbanLimit) {
+    entries.push({
+      title: 'Límite urbano (PRC)',
+      details: 'Planes Reguladores Comunales vigentes\nFuente: MINVU · IPT · geoide.minvu.cl',
+    });
+  }
+  if (input.showComunas) {
+    entries.push({
+      title: 'Límites comunales (DPA 2023)',
+      details: 'División Político-Administrativa referencial\nFuente: SUBDERE · geoportal.cl',
+    });
+  }
+  if (input.showRedVial) {
+    entries.push({
+      title: 'Red caminera (MOP)',
+      details: 'Red Vial Nacional + ROL de Vialidad (puede diferir de Google/OSM)\nFuente: Dirección de Vialidad · mapasvialidad.mop.gob.cl',
+    });
+  }
+  if (input.showRedDrenaje) {
+    entries.push({
+      title: 'Red de drenaje (DGA)',
+      details: 'Ríos + esteros del Banco Nacional de Aguas\nFuente: DGA · MOP · CC-BY 4.0',
+    });
+  }
+  if (input.showSuelos) {
+    entries.push({
+      title: 'Suelos agrológicos (CIREN)',
+      details: 'Capacidad de uso I–VIII, 12 regiones (Atacama a Aysén)\nFuente: CIREN · esri.ciren.cl',
+    });
+  }
+  if (input.showCatastroFruticola) {
+    entries.push({
+      title: 'Catastro frutícola (CIREN-ODEPA)',
+      details: 'Productores frutícolas por especie, vintages 2019–2025 según región\nFuente: CIREN-ODEPA · IDE Minagri',
+    });
+  }
+
+  // Capas KML del usuario
+  for (const kml of input.kmlLayers) {
+    if (!kml.visible) continue;
+    entries.push({
+      title: `KML: ${kml.name}`,
+      details: `${kml.featureCount} entidades vectoriales\nFuente: archivo local del operador (no publicado)`,
+    });
+  }
+
+  return entries;
+}
 
 export default function Home() {
   const [facets, setFacets] = useState<Facets | null>(null);
@@ -149,22 +300,6 @@ export default function Home() {
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
   const togglePanel = (id: PanelId) => setActivePanel((p) => (p === id ? null : id));
 
-  // Imperative handle para el export PNG: MapView publica la función que
-  // rasteriza la vista actual; aquí se la invoca y se bloquea el botón mientras
-  // dura la generación del archivo (canvas.toBlob puede tardar >1s con 74k
-  // pines re-proyectados).
-  const mapExportRef = useRef<MapExportFn | null>(null);
-  const [exporting, setExporting] = useState(false);
-  const handleExportClick = useCallback(async () => {
-    if (exporting || !mapExportRef.current) return;
-    setExporting(true);
-    try {
-      await mapExportRef.current();
-    } finally {
-      setExporting(false);
-    }
-  }, [exporting]);
-
   // Mobile: drawer consolidado (búsqueda + filtros + estadísticas), cerrado
   // por defecto para que el mapa sea dueño de la pantalla.
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -208,6 +343,50 @@ export default function Home() {
     );
 
   const removeKml = (id: string) => setKmlLayers((prev) => prev.filter((l) => l.id !== id));
+
+  // Imperative handle para el export PNG: MapView publica la función que
+  // rasteriza la vista actual; aquí se la invoca y se bloquea el botón mientras
+  // dura la generación del archivo (canvas.toBlob puede tardar >1s con 74k
+  // pines re-proyectados). El cajetín de trazabilidad legal (filtros vigentes
+  // + fuentes de capas activas) se construye acá, en el momento del click, y
+  // se entrega por args para no inflar el deps array del useEffect en MapView.
+  const mapExportRef = useRef<MapExportFn | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const handleExportClick = useCallback(async () => {
+    if (exporting || !mapExportRef.current) return;
+    setExporting(true);
+    try {
+      const metadata = buildExportMetadata({
+        showPoints,
+        showProtected,
+        showUrbanLimit,
+        showComunas,
+        showRedVial,
+        showRedDrenaje,
+        showSuelos,
+        showCatastroFruticola,
+        comuna,
+        anioFrom,
+        montoMin,
+        montoMax,
+        supMin,
+        supMax,
+        predio,
+        rol,
+        stats,
+        kmlLayers,
+      });
+      await mapExportRef.current({ metadata });
+    } finally {
+      setExporting(false);
+    }
+  }, [
+    exporting,
+    showPoints, showProtected, showUrbanLimit, showComunas, showRedVial,
+    showRedDrenaje, showSuelos, showCatastroFruticola,
+    comuna, anioFrom, montoMin, montoMax, supMin, supMax, predio, rol,
+    stats, kmlLayers,
+  ]);
 
   // Load facets once.
   useEffect(() => {
