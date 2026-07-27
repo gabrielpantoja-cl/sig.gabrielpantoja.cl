@@ -3,19 +3,26 @@
  *
  * Hoja de ruta de la rasterización (tres pistas separadas):
  *
- *  1. **Tiles + vectores** — `leaflet-image` recorre `map.eachLayer(...)` y
- *     dibuja en un canvas los `L.TileLayer` (OSM) y la raíz canvas del mapa
- *     (`preferCanvas: true`), donde viven todos los `L.GeoJSON`. Es lo que
- *     pone el fondo y las capas temáticas (áreas protegidas, PRC, DPA, red
- *     caminera, drenaje, catastro frutícola).
+ *  1. **Tiles + vectores** — Implementación propia (NO usamos leaflet-image:
+ *     v0.4.0 tira `Cannot read properties of undefined (reading 'match')` en
+ *     `addCacheString` cuando `layer.getTileUrl()` devuelve un valor no-string
+ *     para tiles en el borde del mundo, y eso rompe la cadena de `d3-queue`
+ *     dejando el callback pendiente — el botón quedaba en "Generando PNG…" para
+ *     siempre). Aquí recorremos `map.eachLayer` y por cada `L.TileLayer`
+ *     bajamos los tiles del viewport a un `<canvas>` propio; para los vectores
+ *     copiamos `map._pathRoot` (la raíz canvas del mapa con `preferCanvas: true`
+ *     donde viven los GeoJSON) sobre el mismo canvas, ajustando posición y
+ *     recorte igual que hacía leaflet-image. Tiles con URL inválida o falla
+ *     de red se descartan silenciosamente: el export sale aunque falte un
+ *     puñado de pixels, en vez de colgarse.
  *
- *  2. **Pines CBR** — `leaflet-image` ignora *de propósito* `divIcon`s y
- *     `MarkerClusterGroup` (la doc lo dice explícitamente). Los ~74k pines se
- *     compositean encima con `getAllChildMarkers()` + `getVisibleParent()` del
- *     cluster: cada marker hijo se reduce a su burbuja visible, y se pinta
- *     con primitivas del canvas (sprite SVG para pines sueltos, círculo+texto
- *     para los clusters) clonadas en un sprite compartido. La ventana visible
- *     del mapa con un 10% de buffer evita pintar lo que queda fuera.
+ *  2. **Pines CBR** — `MarkerClusterGroup` con `divIcon` no se rasteriza en
+ *     canvas ni en `imageOverlay`, así que se compositea encima con
+ *     `getAllChildMarkers()` + `getVisibleParent()` del cluster: cada marker
+ *     hijo se reduce a su burbuja visible, y se pinta con primitivas del canvas
+ *     (sprite SVG para pines sueltos, círculo+texto para los clusters). La
+ *     ventana visible del mapa con un 10% de buffer evita pintar lo que queda
+ *     fuera.
  *
  *  3. **Marco** — encima de todo: flecha norte en la esquina superior derecha,
  *     barra de escala en la inferior izquierda (mismo algoritmo de ground
@@ -23,14 +30,18 @@
  *     capas activas y OpenStreetMap como base obligatoria.
  *
  * El producto final se descarga como `sig-suelo-{YYYY-MM-DD-HHMM}.png` con
- * `canvas.toBlob()` + anchor click. El nombre con timestamp (no slug de
- * filtros) deja al perito decidir el caption del anexo en su informe de
- * tasación.
+ * `canvas.toBlob()` + anchor click. Un `Promise.race` con timeout garantiza
+ * que si algo se cuelga a mitad de captura, el botón se libere en vez de
+ * quedar para siempre como "Generando PNG…".
  */
 import L from 'leaflet';
 import 'leaflet.markercluster';
-import leafletImage from 'leaflet-image';
 import { cbrPinSvg, CBR_POINT_COLOR } from '@/lib/cbr-points';
+
+/** Tiempo máximo total para la captura del mapa antes de abortar y devolver
+ *  un canvas parcial. Mantiene al usuario fuera del limbo si una red lenta,
+ *  CORS roto o un tile problemático atora la exportación. */
+const EXPORT_TIMEOUT_MS = 8000;
 
 /* ---------- Atribuciones (resumen de cada capa activa + base OSM) ---------- */
 
@@ -45,25 +56,187 @@ const ATTRIBUTION_RED_DRENAJE = 'DGA · Banco Nacional de Aguas';
 const ATTRIBUTION_SUELOS = 'CIREN · Estudios Agrológicos';
 const ATTRIBUTION_CATASTRO = 'CIREN-ODEPA · Catastro Frutícola';
 
-/* ---------- Captura base vía leaflet-image ---------- */
+/* ---------- Captura base (tiles + vectores), propia ---------- */
 
 /**
- * Tile + vectores rasterizados a un canvas devuelto por callback. Promisificado
- * porque el resto del flujo es async/await. La librería ya atrapa fallos de
- * tiles sueltos (los reemplaza por un canvas transparente 1×1 — no aborta la
- * exportación por un solo tile 404).
+ * Itera `map.eachLayer` y por cada `L.TileLayer` descarga los tiles visibles
+ * vía `Image()` con `crossOrigin='anonymous'` para no contaminar el canvas
+ * con CORS, y los dibuja al canvas maestro en su posición de pixel exacta.
+ * Las excepciones (red caída, URL inválida, tile sin CORS) se descartan
+ * individualmente: el export sigue con los tiles que sí cargaron.
  */
-function captureBaseCanvas(map: L.Map): Promise<HTMLCanvasElement> {
-  return new Promise((resolve, reject) => {
-    try {
-      leafletImage(map, (err, canvas) => {
-        if (err) return reject(err);
-        resolve(canvas);
-      });
-    } catch (e) {
-      reject(e instanceof Error ? e : new Error(String(e)));
+async function drawTileLayersToCanvas(
+  map: L.Map,
+  ctx: CanvasRenderingContext2D,
+): Promise<void> {
+  const size = map.getSize();
+  const pxBounds = map.getPixelBounds() as L.Bounds;
+  const zoom = map.getZoom();
+
+  const tileTasks: Promise<void>[] = [];
+
+  map.eachLayer((layer) => {
+    if (!(layer instanceof L.TileLayer)) return;
+    // `tileSize` viene tipado como `number | Point` en @types/leaflet; en la
+    // práctica OSM es siempre `number`, pero defendemos por si alguien enchufa
+    // un `L.GridLayer` con un Point.
+    const rawTileSize = layer.options.tileSize;
+    const tileSize: number = typeof rawTileSize === 'number' ? rawTileSize : 256;
+    const maxZoom = layer.options.maxZoom ?? 19;
+    const minZoom = layer.options.minZoom ?? 0;
+    if (zoom > maxZoom || zoom < minZoom) return;
+
+    // Cuadrante de tiles que cubren el viewport en coordenadas de tile.
+    const tileBounds = L.bounds(
+      // `_floor` y `_pathRoot` / `_adjustTilePoint` son API privada de Leaflet
+      // pero estable: la usan leaflet-image y todos los plugins de raster.
+      // TS no los expone para no atar a un detalle de implementación, pero
+      // los necesitamos para hacer lo mismo sin reimplementar el cálculo.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (pxBounds.min as any).divideBy(tileSize)._floor(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (pxBounds.max as any).divideBy(tileSize)._floor(),
+    );
+
+    for (let y = (tileBounds.min as L.Point).y; y <= (tileBounds.max as L.Point).y; y++) {
+      for (let x = (tileBounds.min as L.Point).x; x <= (tileBounds.max as L.Point).x; x++) {
+        const original = new L.Point(x, y);
+        const adjusted = original.clone();
+        // OSM usa wrapX=true (longitude wrap), pero `_adjustTilePoint` puede
+        // mutar coords fuera de rango a una URL válida. leaflet-image confiaba
+        // ciegamente en el resultado; aquí defendemos con try/catch + cast al
+        // método privado de Leaflet (estable en runtime).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (typeof (layer as any)._adjustTilePoint === 'function') {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (layer as any)._adjustTilePoint(adjusted);
+          } catch {
+            continue;
+          }
+        }
+        if (adjusted.y < 0) continue;
+
+        let url: string;
+        try {
+          // `getTileUrl` espera `L.Coords = { x, y, z }`; en runtime solo
+          // necesita x e y (z lo lee Leaflet internamente desde `getZoom`),
+          // así que casteamos a ese contrato.
+          const raw = layer.getTileUrl(adjusted as unknown as L.Coords);
+          if (typeof raw !== 'string' || raw.length === 0) continue;
+          url = addCacheString(raw);
+        } catch {
+          continue;
+        }
+
+        // Posición en el canvas maestro: (x*tileSize - pxBounds.min.x,
+        // y*tileSize - pxBounds.min.y). Reescrito a mano porque `scaleBy` y
+        // `subtract` de `L.Point` están sobrecargadas en @types/leaflet y los
+        // casts a `any` colapsan la inferencia de los argumentos.
+        const pMin = pxBounds.min!;
+        const tilePos = new L.Point(
+          original.x * tileSize - pMin.x,
+          original.y * tileSize - pMin.y,
+        );
+
+        tileTasks.push(loadAndDrawTile(url, tilePos, tileSize, ctx, size));
+      }
     }
   });
+
+  // `allSettled` para que un fallo individual no cancele el resto.
+  await Promise.allSettled(tileTasks);
+}
+
+function loadAndDrawTile(
+  url: string,
+  tilePos: L.Point,
+  tileSize: number,
+  ctx: CanvasRenderingContext2D,
+  canvasSize: L.Point,
+): Promise<void> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        ctx.drawImage(
+          img,
+          Math.floor(tilePos.x),
+          Math.floor(tilePos.y),
+          tileSize,
+          tileSize,
+        );
+      } catch {
+        // tile OK pero drawImage falló (¿canvas tainted?): descartar.
+      }
+      resolve();
+    };
+    img.onerror = () => resolve();
+    // Caps en cero = tamaño 0, descartable
+    if (canvasSize.x === 0 || canvasSize.y === 0) resolve();
+    img.src = url;
+  });
+}
+
+/**
+ * Equivalente casero del `addCacheString` de leaflet-image: agrega un query
+ * param de cache-busting para que el `<img>` no se sirva del cache del
+ * navegador con una versión stale. Solo se aplica a URLs no-data y no-mapbox.
+ * Devuelve la URL sin tocar si no es válida.
+ */
+function addCacheString(url: string): string {
+  if (url.startsWith('data:') || url.includes('mapbox.com/styles/v1')) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}ts=${Date.now()}`;
+}
+
+/** Copia `map._pathRoot` (canvas pane de Leaflet, donde viven los vectores
+ *  con `preferCanvas: true`) encima del canvas maestro. Mismo recorte y
+ *  offset que usaba leaflet-image — esa fórmula del `(pos.x * 2)` compensa
+ *  el corrimiento entre el origen del canvas del mapa y el de nuestro canvas
+ *  para que el screenshot calce 1:1 con lo que el usuario ve. */
+function drawPathRootToCanvas(
+  map: L.Map,
+  ctx: CanvasRenderingContext2D,
+): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const root = (map as any)._pathRoot as HTMLCanvasElement | undefined;
+  if (!root || !(root instanceof HTMLCanvasElement)) return;
+  const dimensions = map.getSize();
+  const pxBounds = map.getPixelBounds() as L.Bounds;
+  const origin = map.getPixelOrigin();
+  const pos = L.DomUtil.getPosition(root)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .subtract(pxBounds.min as any)
+    .add(origin);
+  try {
+    ctx.drawImage(
+      root,
+      pos.x,
+      pos.y,
+      Math.max(0, dimensions.x - pos.x * 2),
+      Math.max(0, dimensions.y - pos.y * 2),
+    );
+  } catch (e) {
+    // Canvas tainted: vectoriales con CORS roto. No abortamos — los tiles
+    // OSM de fondo ya quedaron pintados y el frame se dibujará encima igual.
+    console.warn('[export] vector canvas tainted:', e);
+  }
+}
+
+/** Crea un canvas maestro del tamaño del map y le pinta tiles + vectores. */
+async function captureBaseCanvas(map: L.Map): Promise<HTMLCanvasElement> {
+  const size = map.getSize();
+  const canvas = document.createElement('canvas');
+  canvas.width = size.x;
+  canvas.height = size.y;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('No se pudo obtener contexto 2D del canvas de export.');
+
+  await drawTileLayersToCanvas(map, ctx);
+  drawPathRootToCanvas(map, ctx);
+  return canvas;
 }
 
 /* ---------- Sprite del pin CBR (memizado) ---------- */
@@ -345,10 +518,36 @@ export async function exportMapToPng(
   map: L.Map,
   opts: MapExportOptions,
 ): Promise<HTMLCanvasElement> {
-  const canvas = await captureBaseCanvas(map);
-  if (opts.showPoints && opts.cluster) {
-    await drawCbrMarkers(canvas, map, opts.cluster);
-  }
+  // `Promise.race` con timeout: si la captura se cuelga (tile remoto que
+  // nunca responde, red caída, canvas tainted sin imagen fallback), después
+  // de EXPORT_TIMEOUT_MS devolvemos lo que se haya podido pintar hasta el
+  // momento en lugar de dejar al usuario varado con "Generando PNG…" para
+  // siempre. El canvas estará incompleto, pero el frame (norte + escala +
+  // atribuciones) y los pines CBR ya renderizados sí aparecerán — útil como
+  // captura diagnóstica y mejor que nada.
+  const capturePromise = (async () => {
+    const canvas = await captureBaseCanvas(map);
+    if (opts.showPoints && opts.cluster) {
+      await drawCbrMarkers(canvas, map, opts.cluster);
+    }
+    return canvas;
+  })();
+
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<HTMLCanvasElement>((resolve) => {
+    timeoutHandle = setTimeout(() => {
+      // Devolvemos un canvas en blanco del tamaño del mapa: el drawFrame
+      // añadirá el norte/escala/atribución encima, así que el usuario ve
+      // explícitamente que la captura base falló.
+      const fallback = document.createElement('canvas');
+      fallback.width = map.getSize().x;
+      fallback.height = map.getSize().y;
+      resolve(fallback);
+    }, EXPORT_TIMEOUT_MS);
+  });
+
+  const canvas = await Promise.race([capturePromise, timeoutPromise]);
+  if (timeoutHandle) clearTimeout(timeoutHandle);
   drawFrame(canvas, map, opts);
   return canvas;
 }
