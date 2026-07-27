@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import L from 'leaflet';
 import 'leaflet.markercluster';
 import 'leaflet/dist/leaflet.css';
@@ -8,6 +8,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import type { GeocodeResult, MapPoint } from '@/lib/types';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
+import { downloadCanvas, exportFilename, exportMapToPng } from '@/lib/map-export';
 import { categoryColor, type ProtectedAreaProps } from '@/lib/protected-areas';
 import {
   URBAN_LIMIT_ATTRIBUTION,
@@ -396,6 +397,7 @@ function buildKmlPopup(props: KmlFeatureProps, layer: KmlLayer): string {
 
 export default function MapView({
   points,
+  showPoints = true,
   showProtected = false,
   showUrbanLimit = false,
   showComunas = false,
@@ -407,8 +409,12 @@ export default function MapView({
   focus = null,
   onRenderProgress,
   onRenderComplete,
+  mapExportRef,
 }: {
   points: MapPoint[];
+  /** Capa principal (~74k transacciones CBR). Apagarla deja el mapa limpio para
+   * componer una vista sin transacciones (p.ej. antes de exportar a PNG). */
+  showPoints?: boolean;
   showProtected?: boolean;
   showUrbanLimit?: boolean;
   showComunas?: boolean;
@@ -423,6 +429,12 @@ export default function MapView({
   onRenderProgress?: (processed: number, total: number) => void;
   /** Los marcadores ya están pintados en pantalla — el loader puede cerrar. */
   onRenderComplete?: () => void;
+  /** Handle al que MapView publica el método imperativo de export. La página
+   *  padre (page.tsx) lo conecta al botón "Exportar PNG" de LayersControl:
+   *  cuando el usuario lo pulsa, `mapExportRef.current()` rasteriza y descarga
+   *  la vista actual. Se re-bindea en cada cambio de flags para que la closure
+   *  capture los toggles vigentes al momento del click. */
+  mapExportRef?: MutableRefObject<(() => Promise<void>) | null>;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -445,6 +457,44 @@ export default function MapView({
     onRenderProgressRef.current = onRenderProgress;
     onRenderCompleteRef.current = onRenderComplete;
   }, [onRenderProgress, onRenderComplete]);
+
+  // Publica el método de export en el ref entregado por la página. La closure
+  // se re-bindea en cada cambio de flags para que la captura refleje siempre
+  // el estado vigente de las capas (incluyendo el toggle recién hecho de CBR
+  // para componer una vista limpia). El guard `if (exporting)` en page.tsx
+  // evita re-entradas mientras una descarga está en curso.
+  useEffect(() => {
+    if (!mapExportRef) return;
+    mapExportRef.current = async () => {
+      const map = mapRef.current;
+      if (!map) return;
+      const canvas = await exportMapToPng(map, {
+        showPoints,
+        showProtected,
+        showUrbanLimit,
+        showComunas,
+        showRedVial,
+        showRedDrenaje,
+        showSuelos,
+        showCatastroFruticola,
+        cluster: clusterRef.current,
+      });
+      downloadCanvas(canvas, exportFilename());
+    };
+    return () => {
+      mapExportRef.current = null;
+    };
+  }, [
+    mapExportRef,
+    showPoints,
+    showProtected,
+    showUrbanLimit,
+    showComunas,
+    showRedVial,
+    showRedDrenaje,
+    showSuelos,
+    showCatastroFruticola,
+  ]);
 
   // Con varias capas asíncronas compartiendo el overlayPane (preferCanvas), el
   // orden de apilado debe re-imponerse tras cada mutación de capa, sin
@@ -501,7 +551,28 @@ export default function MapView({
     };
   }, []);
 
-  // Rebuild the cluster layer whenever the filtered points change.
+  // Mount/unmount the already-built cluster layer based on visibility. El efecto
+  // de build de abajo siempre construye y puebla el cluster (para que el
+  // pipeline de progreso del render siga alimentando al RetroLoader aunque la
+  // capa esté oculta al boot), y asigna clusterRef; éste sólo añade o quita el
+  // cluster del mapa cuando showPoints cambia. Los ~74k marcadores se conservan
+  // entre toggles: nada se reconstruye.
+  useEffect(() => {
+    const map = mapRef.current;
+    const cluster = clusterRef.current;
+    if (!map || !cluster) return;
+    if (showPoints && !map.hasLayer(cluster)) {
+      map.addLayer(cluster);
+      reorderOverlays();
+    } else if (!showPoints && map.hasLayer(cluster)) {
+      map.removeLayer(cluster);
+    }
+  }, [showPoints, reorderOverlays]);
+
+  // Rebuild the cluster layer whenever the filtered points change. La visibilidad
+  // (showPoints) la maneja el efecto de arriba — éste sólo reconstruye los
+  // marcadores y decide si el grupo recién construido se adjunta al mapa según
+  // el valor de showPoints vigente al momento del build.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -546,8 +617,10 @@ export default function MapView({
 
     // El grupo debe estar en el mapa ANTES de addLayers: solo así markercluster
     // procesa por chunks (sin congelar el hilo principal ~3,5 s con 85k puntos)
-    // y emite chunkProgress.
-    map.addLayer(group);
+    // y emite chunkProgress. Si la capa está oculta al construir, igual
+    // construimos el grupo y dejamos clusterRef apuntando a él — el efecto de
+    // visibilidad arriba lo añadirá al mapa en el primer toggle a true.
+    if (showPoints) map.addLayer(group);
     if (markers.length > 0) {
       group.addLayers(markers);
     } else {
@@ -556,21 +629,30 @@ export default function MapView({
     clusterRef.current = group;
     reorderOverlays();
 
-    // Cleanup: quita el grupo mientras el mapa sigue vivo y suelta la ref. Sin
-    // esto, el doble montaje de StrictMode deja clusterRef apuntando a un grupo
-    // cuyo mapa ya fue destruido, y el removeLayer del siguiente ciclo llama a
-    // getMinZoom() sobre un _map null (los marcadores divIcon recalculan la
-    // grilla de zoom al removerse, a diferencia de los circleMarker de canvas).
+    // Cleanup: si esta corrida todavía es la "viva" y el grupo está en el mapa
+    // (visible), lo quitamos. La ref se libera para que el próximo ciclo
+    // (filtros nuevos o toggle) asigne una nueva. Sin esto, el doble montaje
+    // de StrictMode deja clusterRef apuntando a un grupo cuyo mapa ya fue
+    // destruido, y el removeLayer del siguiente ciclo llama a getMinZoom()
+    // sobre un _map null (los marcadores divIcon recalculan la grilla de zoom
+    // al removerse, a diferencia de los circleMarker de canvas).
     return () => {
       cancelled = true;
       // Neutraliza los chunks pendientes del grupo saliente: sin mapa,
       // _addLayer dereferencia this._map.getMinZoom() y lanza TypeError.
       (group as unknown as { _addLayer: () => void })._addLayer = () => {};
-      if (clusterRef.current) {
-        map.removeLayer(clusterRef.current);
+      if (clusterRef.current === group) {
+        if (mapRef.current?.hasLayer(group)) {
+          mapRef.current.removeLayer(group);
+        }
         clusterRef.current = null;
       }
     };
+    // showPoints se lee solo para decidir si se añade el grupo al mapa;
+    // la visibilidad la gobierna el efecto de toggle de arriba, y NO queremos
+    // reconstruir 74k markers cada vez que se apaga la capa para componer una
+    // vista limpia.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [points, reorderOverlays]);
 
   // Protected areas layer — official MMA / Registro Nacional de Áreas
