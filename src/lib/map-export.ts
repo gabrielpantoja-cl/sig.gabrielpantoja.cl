@@ -8,13 +8,21 @@
  *     `addCacheString` cuando `layer.getTileUrl()` devuelve un valor no-string
  *     para tiles en el borde del mundo, y eso rompe la cadena de `d3-queue`
  *     dejando el callback pendiente — el botón quedaba en "Generando PNG…" para
- *     siempre). Aquí recorremos `map.eachLayer` y por cada `L.TileLayer`
- *     bajamos los tiles del viewport a un `<canvas>` propio; para los vectores
- *     copiamos `map._pathRoot` (la raíz canvas del mapa con `preferCanvas: true`
- *     donde viven los GeoJSON) sobre el mismo canvas, ajustando posición y
- *     recorte igual que hacía leaflet-image. Tiles con URL inválida o falla
- *     de red se descartan silenciosamente: el export sale aunque falte un
- *     puñado de pixels, en vez de colgarse.
+ *     siempre).
+ *
+ *     Para los tiles: recorremos `map.eachLayer` y por cada `L.TileLayer`
+ *     bajamos los tiles del viewport a un `<canvas>` propio vía `Image()`. Si
+ *     la URL falla, el tile se descarta individualmente (`Promise.allSettled`),
+ *     el export sigue.
+ *
+ *     Para los vectores: con `preferCanvas: true` (configurado en MapView),
+ *     Leaflet crea un `L.Canvas` renderer con su propio `<canvas>` dentro de
+ *     `.leaflet-overlay-pane`. **Esa** canvas es la que contiene los GeoJSON
+ *     (áreas protegidas, PRC, DPA, red caminera, drenaje, catastro frutícola,
+ *     polígonos KML del usuario). La buscamos con `querySelector('canvas')` y
+ *     la copiamos al canvas maestro vía `getBoundingClientRect` para
+ *     respetar el offset que Leaflet aplica por paneo y zoom-animation. La
+ *     `_pathRoot` que usaba el viejo Leaflet (0.x) NO existe en 1.9.x.
  *
  *  2. **Pines CBR** — `MarkerClusterGroup` con `divIcon` no se rasteriza en
  *     canvas ni en `imageOverlay`, así que se compositea encima con
@@ -24,10 +32,12 @@
  *     ventana visible del mapa con un 10% de buffer evita pintar lo que queda
  *     fuera.
  *
- *  3. **Marco** — encima de todo: flecha norte en la esquina superior derecha,
- *     barra de escala en la inferior izquierda (mismo algoritmo de ground
- *     resolution que `L.Control.Scale`), y strip de atribución abajo con las
- *     capas activas y OpenStreetMap como base obligatoria.
+ *  3. **Marco** — encima de todo: brújula estilo cartográfico en la esquina
+ *     superior derecha (tick marks de 30°, aguja roja al norte tipo N, sans-
+ *     serif limpio para la letra 'N'), barra de escala en la inferior
+ *     izquierda (mismo algoritmo de ground resolution que `L.Control.Scale`),
+ *     y strip de atribución abajo con las capas activas y OpenStreetMap como
+ *     base obligatoria.
  *
  * El producto final se descarga como `sig-suelo-{YYYY-MM-DD-HHMM}.png` con
  * `canvas.toBlob()` + anchor click. Un `Promise.race` con timeout garantiza
@@ -36,7 +46,7 @@
  */
 import L from 'leaflet';
 import 'leaflet.markercluster';
-import { cbrPinSvg, CBR_POINT_COLOR } from '@/lib/cbr-points';
+import { cbrPinSvg } from '@/lib/cbr-points';
 
 /** Tiempo máximo total para la captura del mapa antes de abortar y devolver
  *  un canvas parcial. Mantiene al usuario fuera del limbo si una red lenta,
@@ -191,36 +201,58 @@ function addCacheString(url: string): string {
   return `${url}${sep}ts=${Date.now()}`;
 }
 
-/** Copia `map._pathRoot` (canvas pane de Leaflet, donde viven los vectores
- *  con `preferCanvas: true`) encima del canvas maestro. Mismo recorte y
- *  offset que usaba leaflet-image — esa fórmula del `(pos.x * 2)` compensa
- *  el corrimiento entre el origen del canvas del mapa y el de nuestro canvas
- *  para que el screenshot calce 1:1 con lo que el usuario ve. */
+/** Localiza el `<canvas>` que Leaflet usa como renderer vectorial dentro del
+ *  `overlayPane`. Con `preferCanvas: true` (configurado en MapView) todos los
+ *  GeoJSON (áreas protegidas, PRC, DPA, red caminera, drenaje, catastro,
+ *  polígonos KML subidos por el usuario) terminan dibujados ahí. La
+ *  `_pathRoot` que existía en Leaflet 0.x ya no existe en 1.9.x.
+ *
+ *  Estrategia de copia:
+ *    1. `querySelector('canvas')` busca el primer canvas hijo de overlayPane.
+ *    2. `getBoundingClientRect()` sobre ese canvas Y sobre `map.getContainer()`
+ *       para calcular el offset en CSS pixels (rect.left - containerRect.left).
+ *    3. `ctx.drawImage(canvas, dx, dy, dw, dh)` copia respetando además el
+ *       escalado retina (canvas.width natural = 2× style.width en HiDPI, el
+ *       argumento dw/dh hace el downscale automáticamente).
+ *
+ *  Si el mapa no tiene vectores cargados (todas las casillas apagadas, o un
+ *  mapa recién abierto), no hay canvas y la función sale silenciosa. */
 function drawPathRootToCanvas(
   map: L.Map,
   ctx: CanvasRenderingContext2D,
 ): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const root = (map as any)._pathRoot as HTMLCanvasElement | undefined;
-  if (!root || !(root instanceof HTMLCanvasElement)) return;
-  const dimensions = map.getSize();
-  const pxBounds = map.getPixelBounds() as L.Bounds;
-  const origin = map.getPixelOrigin();
-  const pos = L.DomUtil.getPosition(root)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .subtract(pxBounds.min as any)
-    .add(origin);
+  // `getPanes()` puede devolver undefined en versiones raras o durante el
+  // desmontaje; defendemos con optional chaining + cast al tipo interno que la
+  // firma expone (`DefaultMapPanes & { [name]: HTMLElement }`).
+  const panes = map.getPanes?.() as L.DefaultMapPanes | undefined;
+  const overlayPane = panes?.overlayPane;
+  if (!overlayPane) return;
+
+  // Si hay varios canvas en el pane (StrictMode, recargas), preferimos el de
+  // área positiva: el renderer anterior, con tamaño 0, no aporta nada.
+  const canvases = Array.from(
+    overlayPane.querySelectorAll('canvas'),
+  ) as HTMLCanvasElement[];
+  const root = canvases.find((c) => c.width > 0 && c.height > 0) ?? null;
+  if (!root) return;
+
+  const mapContainer = map.getContainer();
+  if (!mapContainer) return;
+
+  const canvasRect = root.getBoundingClientRect();
+  const containerRect = mapContainer.getBoundingClientRect();
+  if (canvasRect.width === 0 || canvasRect.height === 0) return;
+
+  const dx = canvasRect.left - containerRect.left;
+  const dy = canvasRect.top - containerRect.top;
+
   try {
-    ctx.drawImage(
-      root,
-      pos.x,
-      pos.y,
-      Math.max(0, dimensions.x - pos.x * 2),
-      Math.max(0, dimensions.y - pos.y * 2),
-    );
+    ctx.drawImage(root, dx, dy, canvasRect.width, canvasRect.height);
   } catch (e) {
-    // Canvas tainted: vectoriales con CORS roto. No abortamos — los tiles
-    // OSM de fondo ya quedaron pintados y el frame se dibujará encima igual.
+    // Canvas tainted (caso muy raro: vectorial con CORS roto). No abortamos
+    // — los tiles OSM de fondo ya quedaron pintados y el frame se dibuja
+    // encima igual, así que el PNG sale con la base mapa + norte/escala/
+    // atribuciones, sin los vectores.
     console.warn('[export] vector canvas tainted:', e);
   }
 }
@@ -400,42 +432,98 @@ function drawScaleBar(
   );
 }
 
-function drawCompass(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+function drawCompass(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  r = 30,
+): void {
   ctx.save();
-  // Halo blanco para que la rosa contraste sobre cualquier fondo
+
+  // === Disco blanco translúcido + sombra suave ===
+  // La sombra solo afecta el primer `fill` (el del disco). Para los strokes
+  // siguientes la desactivamos con shadowColor='transparent' para que las
+  // marcas y anillos no proyecten fantasma.
+  ctx.shadowColor = 'rgba(15,23,42,0.28)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 2;
   ctx.beginPath();
-  ctx.arc(cx, cy, 22, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
   ctx.fill();
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.shadowColor = 'transparent';
+
+  // === Anillo exterior + anillo interior muy fino ===
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(15,23,42,0.5)';
   ctx.stroke();
 
-  // Aguja: punta roja al norte (color de marca CBR), cola gris
   ctx.beginPath();
-  ctx.moveTo(cx, cy - 16);
-  ctx.lineTo(cx - 4, cy + 2);
-  ctx.lineTo(cx, cy + 12);
-  ctx.lineTo(cx + 4, cy + 2);
+  ctx.arc(cx, cy, r - 3.5, 0, Math.PI * 2);
+  ctx.lineWidth = 0.5;
+  ctx.strokeStyle = 'rgba(15,23,42,0.22)';
+  ctx.stroke();
+
+  // === Marcas de tick (16 marcas, cada 22.5°; las 4 cardinales N/E/S/W son
+  //     más largas) — el detalle de instrumentos cartográficos. ===
+  ctx.lineWidth = 0.8;
+  ctx.strokeStyle = 'rgba(15,23,42,0.6)';
+  for (let i = 0; i < 16; i++) {
+    const angle = (i / 16) * Math.PI * 2 - Math.PI / 2; // arranca arriba (12 en punto)
+    const isCardinal = i % 4 === 0;
+    const inner = isCardinal ? r - 7 : r - 4;
+    const outer = r - 1.5;
+    const x1 = cx + Math.cos(angle) * inner;
+    const y1 = cy + Math.sin(angle) * inner;
+    const x2 = cx + Math.cos(angle) * outer;
+    const y2 = cy + Math.sin(angle) * outer;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  // === Aguja de dos colores (estilo instrumento de precisión) ===
+  const tip = r - 9;            // longitud de cada mitad
+  const base = 3.2;             // ancho del hombro (a nivel del centro)
+  const notch = r - 16;         // vértice interior por encima del centro
+
+  // Mitad norte (rojo carmesí, color de marca CBR para que el norte se
+  // identifique a primera vista con las entidades del mapa).
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - tip);
+  ctx.lineTo(cx - base, cy);
+  ctx.lineTo(cx, cy - notch);
+  ctx.lineTo(cx + base, cy);
   ctx.closePath();
-  ctx.fillStyle = CBR_POINT_COLOR;
+  ctx.fillStyle = '#e11d48';
   ctx.fill();
 
+  // Mitad sur (gris pizarra para contraste sobrio con el rojo del norte).
   ctx.beginPath();
-  ctx.moveTo(cx, cy + 12);
-  ctx.lineTo(cx - 4, cy + 2);
-  ctx.lineTo(cx, cy - 16);
-  ctx.lineTo(cx + 4, cy + 2);
+  ctx.moveTo(cx, cy - notch);
+  ctx.lineTo(cx - base, cy);
+  ctx.lineTo(cx, cy + tip * 0.7);
+  ctx.lineTo(cx + base, cy);
   ctx.closePath();
-  ctx.fillStyle = '#1f2937';
+  ctx.fillStyle = '#475569';
   ctx.fill();
 
-  // Letra "N" blanca sobre la punta roja
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 11px sans-serif';
+  // === Pin central (reloj de pulsera clásico) ===
+  ctx.beginPath();
+  ctx.arc(cx, cy, 1.4, 0, Math.PI * 2);
+  ctx.fillStyle = '#0f172a';
+  ctx.fill();
+
+  // === Letra 'N' en sans-serif semibold, en blanco sobre la mitad roja ===
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 10px "Inter", "Segoe UI", system-ui, -apple-system, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('N', cx, cy - 7);
+  ctx.fillText('N', cx, cy - (tip - 6));
+
   ctx.restore();
 }
 
@@ -477,8 +565,11 @@ function drawFrame(
   // Margen interno: deja un anillo para que la brújula y la escala no se
   // pisen con el borde del canvas al hacer zoom-out extremo.
   const margin = 18;
+  const compassR = 30;
 
-  drawCompass(ctx, canvas.width - margin - 22, margin + 22);
+  // Brújula en la esquina superior derecha (centro de la rosa a
+  // `width-margin-r` píxeles del borde derecho).
+  drawCompass(ctx, canvas.width - margin - compassR, margin + compassR, compassR);
   drawScaleBar(ctx, map, { x: margin, y: canvas.height - margin - 6 });
 
   const atts: string[] = [ATTRIBUTION_OSM];
