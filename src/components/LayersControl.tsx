@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CATEGORY_COLORS } from '@/lib/protected-areas';
 import { URBAN_LIMIT_COLOR } from '@/lib/urban-limit';
 import { COMUNAS_ATTRIBUTION, COMUNAS_COLOR, COMUNAS_SOURCE_URL } from '@/lib/comunas';
@@ -22,7 +22,7 @@ import {
   CATASTRO_FRUTICOLA_SOURCE_URL,
 } from '@/lib/catastro-fruticola';
 import { CBR_POINT_COLOR } from '@/lib/cbr-points';
-import { KML_MAX_FILE_MB, type KmlLayer } from '@/lib/kml';
+import { KML_MAX_FILE_MB, kmlDisplayName, type KmlLayer } from '@/lib/kml';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
 
 /**
@@ -110,10 +110,107 @@ function LayerRow({
  * perito la quita cuando quiere componer una vista limpia, por ejemplo para
  * exportar el mapa como PNG con flecha norte y adjuntarlo a un informe de
  * tasación. Incluye la sección «Mis capas», donde el usuario sube archivos
- * .kml que se procesan localmente (ver lib/kml.ts) y se listan con visibilidad
- * y borrado por capa. El estado abierto/cerrado del panel lo controla page.tsx
- * vía MapPanel (uno a la vez).
+ * .kml que se procesan localmente (ver lib/kml.ts) y se listan con visibilidad,
+ * borrado, renombrado y swatch de color por capa. El estado abierto/cerrado
+ * del panel lo controla page.tsx vía MapPanel (uno a la vez).
  */
+
+/**
+ * Alias editable inline para una capa KML. El perito la sube con el nombre
+ * del archivo («Res-305-Lts-81-100.kml»), hace clic sobre el texto y la
+ * renombra a algo peritajísticamente útil («Sector de Tasación»). El cambio
+ * se propaga al cajetín del PNG exportado y al popup del feature, no toca
+ * el `name` original.
+ *
+ * Modelo de interacción: clic en el span → abre `<input>` con foco + selección
+ * total. Enter confirma, blur confirma, Escape cancela. El input acepta
+ * también limpiar el texto: en ese caso el cajetín vuelve a mostrar el
+ * `name` original (debido al fallback `displayName || name`).
+ */
+function InlineEditableKmlName({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Al entrar en modo edición, sincronizamos el draft con el value vigente.
+  // Si el perito está editando y un cambio externo actualiza `value`, NO
+  // pisamos su tecleo: el draft queda congelado hasta confirmar/cancelar.
+  // Esto evita el patrón "setState en useEffect" que eslint marca como
+  // re-render en cascada — el sync ocurre solo en el evento del usuario.
+  const startEdit = () => {
+    setDraft(value);
+    setEditing(true);
+  };
+
+  // Tras montar el <input>, seleccionamos todo el texto para que la tecla
+  // siguiente lo reemplace sin tener que borrar primero. Solo aplica a la
+  // transición entering edit (deps: editing), no se re-dispara si value cambia.
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed !== value) onSave(trimmed); // vacío → "" y display cae a name.
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    setDraft(value);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            cancel();
+          }
+        }}
+        maxLength={120}
+        className="min-w-0 flex-1 rounded border border-black/30 bg-white px-1 text-xs outline-none focus:border-[hsl(153_28%_35%)] dark:border-white/40 dark:bg-black/40"
+        aria-label="Renombrar capa"
+      />
+    );
+  }
+
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={startEdit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          startEdit();
+        }
+      }}
+      className="min-w-0 flex-1 cursor-text truncate rounded px-1 -mx-1 outline-none hover:bg-black/5 focus:bg-black/5 dark:hover:bg-white/10 dark:focus:bg-white/10"
+      title="Clic para renombrar"
+    >
+      {value}
+    </span>
+  );
+}
 export function LayersControl({
   activeId,
   onActivate,
@@ -138,6 +235,7 @@ export function LayersControl({
   onAddKmlFiles,
   onToggleKml,
   onRemoveKml,
+  onRenameKml,
   onExport,
   exporting,
 }: {
@@ -164,6 +262,11 @@ export function LayersControl({
   onAddKmlFiles: (files: FileList) => void;
   onToggleKml: (id: string) => void;
   onRemoveKml: (id: string) => void;
+  /** Actualiza el alias editable del perito («Sector de Tasación», etc.).
+   *  El cambio se refleja en el popup del feature y en el cajetín del PNG
+   *  exportado. El nombre original del archivo, en `KmlLayer.name`, no se
+   *  toca: solo se reemplaza `displayName`. */
+  onRenameKml: (id: string, displayName: string) => void;
   /** Dispara la rasterización de la vista actual a PNG con flecha norte,
    *  escala y atribuciones. La página se ocupa del guard contra re-entradas. */
   onExport: () => void;
@@ -419,33 +522,41 @@ export function LayersControl({
 
         {kmlLayers.length > 0 && (
           <ul className="mt-2 space-y-1.5 text-xs">
-            {kmlLayers.map((layer) => (
-              <li key={layer.id} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={layer.visible}
-                  onChange={() => onToggleKml(layer.id)}
-                  className="accent-[hsl(153_28%_35%)]"
-                  aria-label={`Mostrar capa ${layer.name}`}
-                />
-                <span
-                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
-                  style={{ background: layer.color }}
-                />
-                <span className="min-w-0 flex-1 truncate" title={layer.name}>
-                  {layer.name}
-                  <span className="ml-1 opacity-50">({layer.featureCount})</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onRemoveKml(layer.id)}
-                  aria-label={`Quitar capa ${layer.name}`}
-                  className="shrink-0 rounded px-1 leading-none opacity-40 hover:opacity-100"
-                >
-                  ✕
-                </button>
-              </li>
-            ))}
+            {kmlLayers.map((layer) => {
+              // El alias efectivo prioriza el nombre editado por el perito;
+              // si está vacío o es solo espacios, cae al nombre del archivo.
+              // El original del archivo queda como tooltip para diagnóstico.
+              const label = kmlDisplayName(layer);
+              return (
+                <li key={layer.id} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={layer.visible}
+                    onChange={() => onToggleKml(layer.id)}
+                    className="accent-[hsl(153_28%_35%)]"
+                    aria-label={`Mostrar capa ${label}`}
+                  />
+                  <span
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
+                    style={{ background: layer.color }}
+                  />
+                  <InlineEditableKmlName
+                    value={label}
+                    onSave={(v) => onRenameKml(layer.id, v)}
+                  />
+                  <span className="opacity-50 no-shrink-0">({layer.featureCount})</span>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveKml(layer.id)}
+                    aria-label={`Quitar capa ${label}`}
+                    className="shrink-0 rounded px-1 leading-none opacity-40 hover:opacity-100"
+                    title={layer.name !== label ? `Original: ${layer.name}` : 'Quitar capa'}
+                  >
+                    ✕
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
 

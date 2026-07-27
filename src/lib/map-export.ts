@@ -555,12 +555,16 @@ function drawAttributionStrip(
 }
 
 /** Cajetín de trazabilidad (estilo «cajetín de plano»): tarjeta blanca
- *  translúcida con título en negrita y detalles en cuerpo. Se ancla en la
- *  esquina inferior izquierda, encima de la barra de escala; si el cajetín
- *  creciera más allá del alto disponible se trunca con un mensaje
- *  «(… más entradas)». El ancho del rectángulo se dimensiona al texto más
- *  largo (con padding) y se acota al 42 % del ancho del canvas para no
- *  tapar el mapa con cajas enormes cuando hay muchos filtros. */
+ *  translúcida con título en negrita (11 px) y detalles en cuerpo (10 px).
+ *  Cada entrada lleva su muestra geométrica a la izquierda del título —
+ *  fillRect 12×12 para polígonos, trazo grueso para líneas, círculo r=4
+ *  para puntos — usando el mismo colorectal que la capa real en el mapa,
+ *  para que el perito reconozca cada capa sin abrir el archivo de origen.
+ *
+ *  Se ancla en la esquina inferior izquierda, encima de la barra de
+ *  escala; si excede el alto disponible se trunca con «… (más entradas
+ *  omitidas)». El ancho del rectángulo se dimensiona al texto más largo
+ *  (con padding) y se acota al 42 % del ancho del canvas. */
 function drawMetadataCard(
   ctx: CanvasRenderingContext2D,
   entries: LayerMetadataEntry[],
@@ -571,16 +575,23 @@ function drawMetadataCard(
   const margin = 18;
   const padding = 12;
   const lineHeight = 14;
+  const swatchSize = 12;          // px del cuadrado / línea
+  const swatchGap = 6;            // aire entre muestra y texto
+  const textIndent = swatchSize + swatchGap; // = 18, uniform indent
   const titleFont = '600 11px "Inter", "Segoe UI", system-ui, sans-serif';
   const detailFont = '10px "Inter", "Segoe UI", system-ui, sans-serif';
 
-  // Layout plano: cada title o detail line termina en un renglón. Los
-  // '\n' dentro de `details` se respetan. Entre entries NO insertamos
-  // línea en blanco: el tipo de letra del título bold crea el corte visual.
-  type LayoutLine = { text: string; isTitle: boolean };
+  /** Una línea de la pila rinde el texto más la entry a la que pertenece
+   *  (para poder dibujar el swatch del color apropiado en el renglón de
+   *  título). */
+  type LayoutLine = { text: string; isTitle: boolean; entry?: LayerMetadataEntry };
+
+  // Layout plano: cada title o detail line termina en un renglón. Los '\n'
+  // dentro de `details` se respetan. Entre entries NO insertamos línea en
+  // blanco: el tipo de letra del título bold crea el corte visual.
   const layout: LayoutLine[] = [];
   for (const entry of entries) {
-    if (entry.title) layout.push({ text: entry.title, isTitle: true });
+    if (entry.title) layout.push({ text: entry.title, isTitle: true, entry });
     const detailLines = entry.details.split('\n');
     for (const line of detailLines) {
       if (line.length > 0) layout.push({ text: line, isTitle: false });
@@ -588,12 +599,15 @@ function drawMetadataCard(
   }
   if (layout.length === 0) return;
 
-  // Mide el ancho del renglón más ancho, alternando tipografías.
+  // Mide el ancho del renglón más ancho, sumando la indent uniforme para
+  // que las líneas de detalle (sin swatch) respeten la misma alineación
+  // que el título — sin esto, los detalles arrancarían donde el título
+  // termina y se rompería la jerarquía visual.
   let maxWidth = 0;
   for (const line of layout) {
     ctx.save();
     ctx.font = line.isTitle ? titleFont : detailFont;
-    const w = ctx.measureText(line.text).width;
+    const w = ctx.measureText(line.text).width + textIndent;
     ctx.restore();
     if (w > maxWidth) maxWidth = w;
   }
@@ -635,17 +649,67 @@ function drawMetadataCard(
   ctx.strokeStyle = 'rgba(15,23,42,0.35)';
   ctx.strokeRect(x + 0.5, y + 0.5, cardWidth - 1, cardHeight - 1);
 
-  // Texto
+  // Texto + muestras. Todas las líneas arrancan en `textIndent` (alineación
+  // profesional). Solo el renglón de título pinta su swatch a la izquierda.
   ctx.textBaseline = 'top';
   ctx.textAlign = 'left';
+  const swatchX = x + padding;
+  const textX = swatchX + textIndent;
   let cursorY = y + padding;
   for (const line of fullLines) {
     if (line.text) {
       ctx.font = line.isTitle ? titleFont : detailFont;
       ctx.fillStyle = line.isTitle ? '#0f172a' : '#475569';
-      ctx.fillText(line.text, x + padding, cursorY);
+      if (line.isTitle && line.entry?.color) {
+        drawMetadataSwatch(
+          ctx,
+          line.entry.color,
+          line.entry.shape ?? 'square',
+          swatchX,
+          cursorY - 1, // compensar el ascent tipográfico del título
+          swatchSize,
+        );
+      }
+      ctx.fillText(line.text, textX, cursorY);
     }
     cursorY += lineHeight;
+  }
+  ctx.restore();
+}
+
+/** Pinta la muestra geométrica de 12×12 px a la izquierda del título en el
+ *  cajetín. Implementación única para centralizar las 3 formas (square /
+ *  line / dot) — si añadimos otros tipos (cross, star, etc.) hay un solo
+ *  sitio donde tocar. */
+function drawMetadataSwatch(
+  ctx: CanvasRenderingContext2D,
+  color: string,
+  shape: LayerMetadataShape,
+  x: number,
+  y: number,
+  size: number,
+): void {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  if (shape === 'dot') {
+    // Marcador puntual centrado verticalmente en el swatch.
+    ctx.beginPath();
+    ctx.arc(x + size / 2, y + size / 2, Math.max(3, size / 2 - 1), 0, Math.PI * 2);
+    ctx.fill();
+  } else if (shape === 'line') {
+    // Trazo grueso con extremos redondeados que se siente como una calzada
+    // en miniatura (refleja la naturaleza lineal de la capa en el mapa).
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x + 1, y + size / 2);
+    ctx.lineTo(x + size - 1, y + size / 2);
+    ctx.stroke();
+  } else {
+    // Por defecto, cuadrado relleno — el caso de polígono/área (compatible
+    // con lo que ya usábamos antes del swatch).
+    ctx.fillRect(x, y, size, size);
   }
   ctx.restore();
 }
@@ -699,20 +763,41 @@ export type LayerExportFlags = {
   showCatastroFruticola: boolean;
 };
 
+/** Forma de la muestra (swatch) que precede al título en el cajetín. Cada
+ *  color del swatch se corresponde con la capa real del mapa — el mismo
+ *  verde de las áreas protegidas, el ámbar del PRC, el violeta de la red
+ *  MOP, etc. — para que el perito reconozca cada capa en el PNG sin
+ *  tener que mirar el mapa. */
+export type LayerMetadataShape = 'square' | 'line' | 'dot';
+
 /**
  * Una entrada del cajetín de trazabilidad (estilo «cajetín de plano»): un
- * título corto en negrita (12 px) y un bloque de detalles en cuerpo (10 px)
- * que soporta `\n` para líneas múltiples. El renderer del cajetín mide el
- * ancho del texto más largo con `ctx.measureText` y ajusta el rectángulo
- * para que el bloque se vea limpio y respete los padding internos.
+ * título corto en negrita (11 px) y un bloque de detalles en cuerpo (10 px)
+ * que soporta `\n` para líneas múltiples. El renderer del cajetín dibuja una
+ * muestra geométrica a la izquierda del título usando `color` + `shape`, y
+ * mide el ancho del texto más largo con `ctx.measureText` para dimensionar
+ * el rectángulo.
  *
  * Ejemplo:
  *   { title: 'Límite urbano (PRC)',
- *     details: 'Comuna: Coyhaique\nInstrumento: PRC Coyhaique\nFuente: MINVU' }
+ *     details: 'Comuna: Coyhaique\nInstrumento: PRC Coyhaique\nFuente: MINVU',
+ *     color: '#c2410c',
+ *     shape: 'square' }
  */
 export type LayerMetadataEntry = {
   title: string;
   details: string;
+  /** Colorectal principal de la capa en el mapa. Si se omite, no se dibuja
+   *  swatch junto al título (útil para entradas de metadatos administrativos
+   *  que no tienen una capa visual asociada). */
+  color?: string;
+  /** Forma de la muestra. Por defecto: 'square' (cuadrado 12×12 relleno).
+   *  - 'square': fillRect — para capas de polígono / áreas protegidas / DPA.
+   *  - 'line':   strokeRound 3 px — para capas lineales (red caminera /
+   *              drenaje, límites comunales a veces).
+   *  - 'dot':    arco lleno r=4 — para capas de marcadores puntuales
+   *              (transacciones CBR o KML de puntos). */
+  shape?: LayerMetadataShape;
 };
 
 export type MapExportOptions = LayerExportFlags & {
