@@ -554,10 +554,106 @@ function drawAttributionStrip(
   ctx.restore();
 }
 
+/** Cajetín de trazabilidad (estilo «cajetín de plano»): tarjeta blanca
+ *  translúcida con título en negrita y detalles en cuerpo. Se ancla en la
+ *  esquina inferior izquierda, encima de la barra de escala; si el cajetín
+ *  creciera más allá del alto disponible se trunca con un mensaje
+ *  «(… más entradas)». El ancho del rectángulo se dimensiona al texto más
+ *  largo (con padding) y se acota al 42 % del ancho del canvas para no
+ *  tapar el mapa con cajas enormes cuando hay muchos filtros. */
+function drawMetadataCard(
+  ctx: CanvasRenderingContext2D,
+  entries: LayerMetadataEntry[],
+  canvas: HTMLCanvasElement,
+): void {
+  if (!entries || entries.length === 0) return;
+
+  const margin = 18;
+  const padding = 12;
+  const lineHeight = 14;
+  const titleFont = '600 11px "Inter", "Segoe UI", system-ui, sans-serif';
+  const detailFont = '10px "Inter", "Segoe UI", system-ui, sans-serif';
+
+  // Layout plano: cada title o detail line termina en un renglón. Los
+  // '\n' dentro de `details` se respetan. Entre entries NO insertamos
+  // línea en blanco: el tipo de letra del título bold crea el corte visual.
+  type LayoutLine = { text: string; isTitle: boolean };
+  const layout: LayoutLine[] = [];
+  for (const entry of entries) {
+    if (entry.title) layout.push({ text: entry.title, isTitle: true });
+    const detailLines = entry.details.split('\n');
+    for (const line of detailLines) {
+      if (line.length > 0) layout.push({ text: line, isTitle: false });
+    }
+  }
+  if (layout.length === 0) return;
+
+  // Mide el ancho del renglón más ancho, alternando tipografías.
+  let maxWidth = 0;
+  for (const line of layout) {
+    ctx.save();
+    ctx.font = line.isTitle ? titleFont : detailFont;
+    const w = ctx.measureText(line.text).width;
+    ctx.restore();
+    if (w > maxWidth) maxWidth = w;
+  }
+
+  const availableHeight = canvas.height - margin * 2 - 60; // -60 deja sitio a la escala + brújula
+  const desiredHeight = layout.length * lineHeight + padding * 2;
+  const truncatedHeight = Math.min(desiredHeight, availableHeight);
+  const linesPerCard = Math.max(
+    1,
+    Math.floor((truncatedHeight - padding * 2) / lineHeight),
+  );
+  const fullLines = layout.slice(0, linesPerCard);
+  if (layout.length > linesPerCard) {
+    fullLines.push({ text: '… (más entradas omitidas)', isTitle: false });
+  }
+
+  const cardWidth = Math.min(canvas.width * 0.42, maxWidth + padding * 2);
+  const cardHeight = fullLines.length * lineHeight + padding * 2;
+
+  // Posición: esquina inferior izquierda, encima de la barra de escala.
+  // La escala ocupa ~24 px arriba del borde (caja de bg de 22 px, baseline
+  // a `canvas.height - margin - 6`); dejamos 6 px de aire y luego el cajetín.
+  const x = margin;
+  const y = canvas.height - margin - 30 - cardHeight;
+
+  ctx.save();
+
+  // Tarjeta con sombra sutil para separarla del mapa (aunque no tanta como
+  // la brújula: el cajetín es más grande y no debe verse "flotante").
+  ctx.shadowColor = 'rgba(15,23,42,0.12)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 2;
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.fillRect(x, y, cardWidth, cardHeight);
+
+  // Borde
+  ctx.shadowColor = 'transparent';
+  ctx.lineWidth = 0.5;
+  ctx.strokeStyle = 'rgba(15,23,42,0.35)';
+  ctx.strokeRect(x + 0.5, y + 0.5, cardWidth - 1, cardHeight - 1);
+
+  // Texto
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+  let cursorY = y + padding;
+  for (const line of fullLines) {
+    if (line.text) {
+      ctx.font = line.isTitle ? titleFont : detailFont;
+      ctx.fillStyle = line.isTitle ? '#0f172a' : '#475569';
+      ctx.fillText(line.text, x + padding, cursorY);
+    }
+    cursorY += lineHeight;
+  }
+  ctx.restore();
+}
+
 function drawFrame(
   canvas: HTMLCanvasElement,
   map: L.Map,
-  flags: LayerExportFlags,
+  opts: MapExportOptions,
 ): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -570,16 +666,23 @@ function drawFrame(
   // Brújula en la esquina superior derecha (centro de la rosa a
   // `width-margin-r` píxeles del borde derecho).
   drawCompass(ctx, canvas.width - margin - compassR, margin + compassR, compassR);
+
+  // Cajetín de trazabilidad legal — encima de la barra de escala para no
+  // robarnos el bottom-left tradicional. El ancho se adapta al contenido.
+  if (opts.metadata && opts.metadata.length > 0) {
+    drawMetadataCard(ctx, opts.metadata, canvas);
+  }
+
   drawScaleBar(ctx, map, { x: margin, y: canvas.height - margin - 6 });
 
   const atts: string[] = [ATTRIBUTION_OSM];
-  if (flags.showProtected) atts.push(ATTRIBUTION_PROTECTED);
-  if (flags.showUrbanLimit) atts.push(ATTRIBUTION_URBAN);
-  if (flags.showComunas) atts.push(ATTRIBUTION_COMUNAS);
-  if (flags.showRedVial) atts.push(ATTRIBUTION_RED_VIAL);
-  if (flags.showRedDrenaje) atts.push(ATTRIBUTION_RED_DRENAJE);
-  if (flags.showSuelos) atts.push(ATTRIBUTION_SUELOS);
-  if (flags.showCatastroFruticola) atts.push(ATTRIBUTION_CATASTRO);
+  if (opts.showProtected) atts.push(ATTRIBUTION_PROTECTED);
+  if (opts.showUrbanLimit) atts.push(ATTRIBUTION_URBAN);
+  if (opts.showComunas) atts.push(ATTRIBUTION_COMUNAS);
+  if (opts.showRedVial) atts.push(ATTRIBUTION_RED_VIAL);
+  if (opts.showRedDrenaje) atts.push(ATTRIBUTION_RED_DRENAJE);
+  if (opts.showSuelos) atts.push(ATTRIBUTION_SUELOS);
+  if (opts.showCatastroFruticola) atts.push(ATTRIBUTION_CATASTRO);
   drawAttributionStrip(ctx, atts);
 }
 
@@ -596,8 +699,28 @@ export type LayerExportFlags = {
   showCatastroFruticola: boolean;
 };
 
+/**
+ * Una entrada del cajetín de trazabilidad (estilo «cajetín de plano»): un
+ * título corto en negrita (12 px) y un bloque de detalles en cuerpo (10 px)
+ * que soporta `\n` para líneas múltiples. El renderer del cajetín mide el
+ * ancho del texto más largo con `ctx.measureText` y ajusta el rectángulo
+ * para que el bloque se vea limpio y respete los padding internos.
+ *
+ * Ejemplo:
+ *   { title: 'Límite urbano (PRC)',
+ *     details: 'Comuna: Coyhaique\nInstrumento: PRC Coyhaique\nFuente: MINVU' }
+ */
+export type LayerMetadataEntry = {
+  title: string;
+  details: string;
+};
+
 export type MapExportOptions = LayerExportFlags & {
   cluster: L.MarkerClusterGroup | null;
+  /** Trazabilidad legal del export — pintada como cajetín en la esquina
+   *  inferior izquierda (sobre la escala). Si `undefined` o vacío, no se
+   *  dibuja cajetín. */
+  metadata?: LayerMetadataEntry[];
 };
 
 /**
