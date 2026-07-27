@@ -97,6 +97,11 @@ const StatsIcon = (
   </svg>
 );
 
+/** Handle imperativo hacia MapView para disparar el export a PNG. La función
+ *  es provista por el componente (tiene acceso al mapa y a los refs de las
+ *  capas) y la página sólo la invoca y la bloquea mientras está corriendo. */
+type MapExportFn = () => Promise<void>;
+
 export default function Home() {
   const [facets, setFacets] = useState<Facets | null>(null);
 
@@ -144,10 +149,30 @@ export default function Home() {
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
   const togglePanel = (id: PanelId) => setActivePanel((p) => (p === id ? null : id));
 
+  // Imperative handle para el export PNG: MapView publica la función que
+  // rasteriza la vista actual; aquí se la invoca y se bloquea el botón mientras
+  // dura la generación del archivo (canvas.toBlob puede tardar >1s con 74k
+  // pines re-proyectados).
+  const mapExportRef = useRef<MapExportFn | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const handleExportClick = useCallback(async () => {
+    if (exporting || !mapExportRef.current) return;
+    setExporting(true);
+    try {
+      await mapExportRef.current();
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting]);
+
   // Mobile: drawer consolidado (búsqueda + filtros + estadísticas), cerrado
   // por defecto para que el mapa sea dueño de la pantalla.
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // Las transacciones CBR son la capa principal y vienen activadas por defecto,
+  // pero el perito las puede ocultar para componer una vista limpia (por ej.
+  // al exportar el mapa como anexo PNG de un informe de tasación).
+  const [showPoints, setShowPoints] = useState(true);
   const [showProtected, setShowProtected] = useState(false);
   const [showUrbanLimit, setShowUrbanLimit] = useState(false);
   const [showComunas, setShowComunas] = useState(false);
@@ -354,6 +379,7 @@ export default function Home() {
         <div className="absolute inset-0">
           <MapView
             points={points}
+            showPoints={showPoints}
             showProtected={showProtected}
             showUrbanLimit={showUrbanLimit}
             showComunas={showComunas}
@@ -365,6 +391,7 @@ export default function Home() {
             focus={focus}
             onRenderProgress={handleRenderProgress}
             onRenderComplete={handleRenderComplete}
+            mapExportRef={mapExportRef}
           />
         </div>
         {/* Se desmonta solo (gone) tras llegar al 100% y hacer fade-out. */}
@@ -424,6 +451,8 @@ export default function Home() {
           <LayersControl
             activeId={activePanel}
             onActivate={togglePanel}
+            showPoints={showPoints}
+            onTogglePoints={setShowPoints}
             showProtected={showProtected}
             onToggleProtected={setShowProtected}
             showUrbanLimit={showUrbanLimit}
@@ -443,6 +472,8 @@ export default function Home() {
             onAddKmlFiles={addKmlFiles}
             onToggleKml={toggleKml}
             onRemoveKml={removeKml}
+            onExport={handleExportClick}
+            exporting={exporting}
           />
         </div>
 

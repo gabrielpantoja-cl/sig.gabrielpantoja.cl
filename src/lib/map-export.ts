@@ -1,0 +1,387 @@
+/**
+ * Export del mapa visible a PNG.
+ *
+ * Hoja de ruta de la rasterización (tres pistas separadas):
+ *
+ *  1. **Tiles + vectores** — `leaflet-image` recorre `map.eachLayer(...)` y
+ *     dibuja en un canvas los `L.TileLayer` (OSM) y la raíz canvas del mapa
+ *     (`preferCanvas: true`), donde viven todos los `L.GeoJSON`. Es lo que
+ *     pone el fondo y las capas temáticas (áreas protegidas, PRC, DPA, red
+ *     caminera, drenaje, catastro frutícola).
+ *
+ *  2. **Pines CBR** — `leaflet-image` ignora *de propósito* `divIcon`s y
+ *     `MarkerClusterGroup` (la doc lo dice explícitamente). Los ~74k pines se
+ *     compositean encima con `getAllChildMarkers()` + `getVisibleParent()` del
+ *     cluster: cada marker hijo se reduce a su burbuja visible, y se pinta
+ *     con primitivas del canvas (sprite SVG para pines sueltos, círculo+texto
+ *     para los clusters) clonadas en un sprite compartido. La ventana visible
+ *     del mapa con un 10% de buffer evita pintar lo que queda fuera.
+ *
+ *  3. **Marco** — encima de todo: flecha norte en la esquina superior derecha,
+ *     barra de escala en la inferior izquierda (mismo algoritmo de ground
+ *     resolution que `L.Control.Scale`), y strip de atribución abajo con las
+ *     capas activas y OpenStreetMap como base obligatoria.
+ *
+ * El producto final se descarga como `sig-suelo-{YYYY-MM-DD-HHMM}.png` con
+ * `canvas.toBlob()` + anchor click. El nombre con timestamp (no slug de
+ * filtros) deja al perito decidir el caption del anexo en su informe de
+ * tasación.
+ */
+import L from 'leaflet';
+import 'leaflet.markercluster';
+import leafletImage from 'leaflet-image';
+import { cbrPinSvg, CBR_POINT_COLOR } from '@/lib/cbr-points';
+
+/* ---------- Atribuciones (resumen de cada capa activa + base OSM) ---------- */
+
+// OpenStreetMap es la única fuente no-controlable por el usuario: el export
+// debe reconocerla siempre para cumplir la licencia ODbL.
+const ATTRIBUTION_OSM = '© OpenStreetMap contributors';
+const ATTRIBUTION_PROTECTED = 'MMA · Registro Nacional de Áreas Protegidas · CC0';
+const ATTRIBUTION_URBAN = 'MINVU · IPT · geoide.minvu.cl';
+const ATTRIBUTION_COMUNAS = 'SUBDERE · División Político-Administrativa 2023';
+const ATTRIBUTION_RED_VIAL = 'MOP · Dirección de Vialidad';
+const ATTRIBUTION_RED_DRENAJE = 'DGA · Banco Nacional de Aguas';
+const ATTRIBUTION_SUELOS = 'CIREN · Estudios Agrológicos';
+const ATTRIBUTION_CATASTRO = 'CIREN-ODEPA · Catastro Frutícola';
+
+/* ---------- Captura base vía leaflet-image ---------- */
+
+/**
+ * Tile + vectores rasterizados a un canvas devuelto por callback. Promisificado
+ * porque el resto del flujo es async/await. La librería ya atrapa fallos de
+ * tiles sueltos (los reemplaza por un canvas transparente 1×1 — no aborta la
+ * exportación por un solo tile 404).
+ */
+function captureBaseCanvas(map: L.Map): Promise<HTMLCanvasElement> {
+  return new Promise((resolve, reject) => {
+    try {
+      leafletImage(map, (err, canvas) => {
+        if (err) return reject(err);
+        resolve(canvas);
+      });
+    } catch (e) {
+      reject(e instanceof Error ? e : new Error(String(e)));
+    }
+  });
+}
+
+/* ---------- Sprite del pin CBR (memizado) ---------- */
+
+let _pinSpritePromise: Promise<HTMLImageElement> | null = null;
+
+/**
+ * Serializa el SVG del pin carmesí a un `Image` HTML cargable por `drawImage`.
+ * Se cachea en singleton porque las ~74k invocaciones comparten la misma
+ * textura: rasterizar el sprite una vez cuesta ~10 ms, no millones.
+ */
+function loadCbrPinSprite(): Promise<HTMLImageElement> {
+  if (_pinSpritePromise) return _pinSpritePromise;
+  _pinSpritePromise = new Promise((resolve, reject) => {
+    const svg = cbrPinSvg().replace(
+      '<svg ',
+      'xmlns="http://www.w3.org/2000/svg" ',
+    );
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('No se pudo rasterizar el sprite del pin CBR'));
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  });
+  return _pinSpritePromise;
+}
+
+/* ---------- Composite de marcadores CBR visibles ---------- */
+
+/**
+ * Itera todos los markers del cluster y, para cada uno, se queda con su padre
+ * visible (`getVisibleParent`): si el marker se muestra suelto, ese es su
+ * padre; si está agrupado, el padre es una burbuja `L.MarkerCluster`. Luego
+ * deduplica por identidad y dibuja lo que efectivamente el usuario ve en
+ * pantalla. La bounding box se infla un 10 % para no perder nada en el borde
+ * durante un paneo brusco justo antes del export.
+ */
+async function drawCbrMarkers(
+  canvas: HTMLCanvasElement,
+  map: L.Map,
+  cluster: L.MarkerClusterGroup,
+): Promise<void> {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const allMarkers = cluster.getAllChildMarkers();
+  const sprite = await loadCbrPinSprite();
+  const visibleBounds = map.getBounds().pad(0.1);
+
+  const seen = new Set<unknown>();
+  for (const child of allMarkers) {
+    const visible = cluster.getVisibleParent(child);
+    if (seen.has(visible)) continue;
+    seen.add(visible);
+
+    const latlng = visible.getLatLng();
+    if (!visibleBounds.contains(latlng)) continue;
+    const pos = map.latLngToContainerPoint(latlng);
+
+    // `L.MarkerCluster` expone getChildCount(); los singletons no. Duck-typing
+    // evita depender del árbol de herencia exacto de la librería.
+    if (typeof (visible as L.MarkerCluster).getChildCount === 'function') {
+      drawClusterBubble(ctx, pos, (visible as L.MarkerCluster).getChildCount());
+    } else {
+      // Singleton: el iconAnchor del divIcon está en [12, 32], así que la
+      // punta del pin calza exactamente en (pos.x, pos.y).
+      ctx.drawImage(sprite, pos.x - 12, pos.y - 32, 24, 32);
+    }
+  }
+}
+
+/**
+ * Burbuja de cluster pintada al estilo de Leaflet.markercluster (default):
+ * un círculo con fill #5fb7e0, borde blanco y conteo en negrita. El radio
+ * escala por las mismas dos puertas que la librería (`< 10`, `< 100`, `≥ 100`)
+ * para que el export se vea igual de "orgánico" que el mapa en vivo.
+ */
+function drawClusterBubble(
+  ctx: CanvasRenderingContext2D,
+  pos: L.Point,
+  count: number,
+): void {
+  const radius = count < 10 ? 14 : count < 100 ? 18 : 22;
+  const cy = pos.y - radius / 2; // mismo offset vertical que las CSS de markercluster
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(pos.x, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = '#5fb7e0';
+  ctx.globalAlpha = 0.85;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#fff';
+  ctx.stroke();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.max(radius - 2, 10)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(count), pos.x, cy);
+  ctx.restore();
+}
+
+/* ---------- Marco: norte + escala + atribuciones ---------- */
+
+/** Anchura típica de una barra de escala: ~1/6 del ancho del mapa (en píxeles),
+ *  redondeada al primer valor "lindo" (1, 2, 5, 10, 20, 50…) en metros. */
+function niceScaleMeters(meters: number): number {
+  const steps = [
+    1, 2, 5, 10, 20, 50, 100, 200, 500,
+    1000, 2000, 5000, 10000, 20000, 50000,
+    100000, 200000, 500000, 1000000,
+  ];
+  return steps.find((s) => s >= meters) ?? meters;
+}
+
+/** Misma fórmula ground resolution que Leaflet, basada en la circunferencia
+ *  ecuatorial (40075016.686 m) y la latitud del centro del mapa. */
+function metersPerPixel(map: L.Map): number {
+  const lat = map.getCenter().lat;
+  return (
+    (40075016.686 * Math.cos((lat * Math.PI) / 180)) /
+    Math.pow(2, map.getZoom() + 8)
+  );
+}
+
+function drawScaleBar(
+  ctx: CanvasRenderingContext2D,
+  map: L.Map,
+  origin: { x: number; y: number },
+): void {
+  const mPerPx = metersPerPixel(map);
+  const targetMeters = (ctx.canvas.width - origin.x * 2) / 6 * mPerPx;
+  const widthM = niceScaleMeters(targetMeters);
+  const widthPx = widthM / mPerPx;
+
+  const x = origin.x;
+  const y = origin.y;
+
+  // Fondo blanco translúcido para que se lea sobre cualquier tile
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fillRect(x - 4, y - 14, widthPx + 8, 22);
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x - 4, y - 14, widthPx + 8, 22);
+
+  // Barra con segmentos alternados (estilo Google Earth Pro)
+  ctx.fillStyle = '#1f2937';
+  ctx.fillRect(x, y - 4, widthPx, 6);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(x, y - 4, widthPx / 2, 6);
+
+  // Etiqueta "N km" o "N m" según magnitud
+  ctx.fillStyle = '#1f2937';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(
+    widthM >= 1000 ? `${(widthM / 1000).toLocaleString('es-CL')} km` : `${widthM} m`,
+    x + widthPx / 2,
+    y - 8,
+  );
+}
+
+function drawCompass(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  ctx.save();
+  // Halo blanco para que la rosa contraste sobre cualquier fondo
+  ctx.beginPath();
+  ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.stroke();
+
+  // Aguja: punta roja al norte (color de marca CBR), cola gris
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 16);
+  ctx.lineTo(cx - 4, cy + 2);
+  ctx.lineTo(cx, cy + 12);
+  ctx.lineTo(cx + 4, cy + 2);
+  ctx.closePath();
+  ctx.fillStyle = CBR_POINT_COLOR;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + 12);
+  ctx.lineTo(cx - 4, cy + 2);
+  ctx.lineTo(cx, cy - 16);
+  ctx.lineTo(cx + 4, cy + 2);
+  ctx.closePath();
+  ctx.fillStyle = '#1f2937';
+  ctx.fill();
+
+  // Letra "N" blanca sobre la punta roja
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('N', cx, cy - 7);
+  ctx.restore();
+}
+
+/** Strip de atribución abajo del canvas, en una sola línea con fondo blanco
+ *  translúcido. OpenStreetMap va primero (licencia ODbL, obligatoria). El
+ *  resto, en el orden en que se pasan (capas activas). El corto espacio
+ *  vertical privilegia tamaño de letra legible sobre el mapa completo. */
+function drawAttributionStrip(
+  ctx: CanvasRenderingContext2D,
+  lines: string[],
+): void {
+  const W = ctx.canvas.width;
+  const H = ctx.canvas.height;
+  const text = lines.join(' · ');
+  ctx.save();
+  ctx.font = '10px sans-serif';
+  const tw = ctx.measureText(text).width;
+  const padX = 6;
+  const stripH = 16;
+  const x = W - tw - padX * 2 - 4;
+  const y = H - stripH;
+  ctx.fillStyle = 'rgba(255,255,255,0.78)';
+  ctx.fillRect(x, y, tw + padX * 2, stripH);
+  ctx.fillStyle = '#1f2937';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + padX, y + stripH / 2);
+  ctx.restore();
+}
+
+function drawFrame(
+  canvas: HTMLCanvasElement,
+  map: L.Map,
+  flags: LayerExportFlags,
+): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  // Margen interno: deja un anillo para que la brújula y la escala no se
+  // pisen con el borde del canvas al hacer zoom-out extremo.
+  const margin = 18;
+
+  drawCompass(ctx, canvas.width - margin - 22, margin + 22);
+  drawScaleBar(ctx, map, { x: margin, y: canvas.height - margin - 6 });
+
+  const atts: string[] = [ATTRIBUTION_OSM];
+  if (flags.showProtected) atts.push(ATTRIBUTION_PROTECTED);
+  if (flags.showUrbanLimit) atts.push(ATTRIBUTION_URBAN);
+  if (flags.showComunas) atts.push(ATTRIBUTION_COMUNAS);
+  if (flags.showRedVial) atts.push(ATTRIBUTION_RED_VIAL);
+  if (flags.showRedDrenaje) atts.push(ATTRIBUTION_RED_DRENAJE);
+  if (flags.showSuelos) atts.push(ATTRIBUTION_SUELOS);
+  if (flags.showCatastroFruticola) atts.push(ATTRIBUTION_CATASTRO);
+  drawAttributionStrip(ctx, atts);
+}
+
+/* ---------- API pública ---------- */
+
+export type LayerExportFlags = {
+  showPoints: boolean;
+  showProtected: boolean;
+  showUrbanLimit: boolean;
+  showComunas: boolean;
+  showRedVial: boolean;
+  showRedDrenaje: boolean;
+  showSuelos: boolean;
+  showCatastroFruticola: boolean;
+};
+
+export type MapExportOptions = LayerExportFlags & {
+  cluster: L.MarkerClusterGroup | null;
+};
+
+/**
+ * Orquesta las tres pistas: tiles + vectores → pines CBR → marco. Devuelve
+ * el canvas final. La descarga o composición adicional queda en manos de
+ * quien llama (`downloadCanvas` aquí abajo, o subida al servidor, etc.).
+ */
+export async function exportMapToPng(
+  map: L.Map,
+  opts: MapExportOptions,
+): Promise<HTMLCanvasElement> {
+  const canvas = await captureBaseCanvas(map);
+  if (opts.showPoints && opts.cluster) {
+    await drawCbrMarkers(canvas, map, opts.cluster);
+  }
+  drawFrame(canvas, map, opts);
+  return canvas;
+}
+
+/**
+ * Genera el nombre de archivo con timestamp local: legible para un anexo de
+ * informe y ordenable en una carpeta de varias exportaciones del mismo día.
+ */
+export function exportFilename(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const yyyy = now.getFullYear();
+  const mm = pad(now.getMonth() + 1);
+  const dd = pad(now.getDate());
+  const hh = pad(now.getHours());
+  const mi = pad(now.getMinutes());
+  return `sig-suelo-${yyyy}-${mm}-${dd}-${hh}${mi}.png`;
+}
+
+/**
+ * Dispara la descarga del canvas como PNG vía anchor + `toBlob`. La URL
+ * temporal se revoca al segundo siguiente — suficiente para que el click se
+ * procese antes de la limpieza.
+ */
+export function downloadCanvas(canvas: HTMLCanvasElement, filename: string): void {
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, 'image/png');
+}
