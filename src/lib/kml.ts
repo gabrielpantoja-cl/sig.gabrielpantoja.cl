@@ -14,12 +14,22 @@ import type { Feature, FeatureCollection, Geometry } from 'geojson';
 /** Una capa KML cargada por el usuario, lista para dibujarse en el mapa. */
 export interface KmlLayer {
   id: string;
-  name: string; // nombre del archivo, sin extensión
+  /** Nombre del archivo (sin extensión). Inmutable: viene del File upload. */
+  name: string;
+  /** Alias editable en el sidebar para ponerle etiqueta peritajística
+   *  («Sector de Tasación», «Predio 12», etc.). Si está vacío o no se
+   *  ha renombrado, los consumidores caen a `name`. Se inicializa igual al
+   *  nombre del archivo en `parseKmlFile`. */
+  displayName: string;
   color: string; // color asignado de la paleta, distinto por capa
   visible: boolean;
   featureCount: number;
   geojson: FeatureCollection<Geometry, KmlFeatureProps>;
 }
+
+/** Helper para consumidores: prioriza el alias editable del perito. */
+export const kmlDisplayName = (layer: KmlLayer): string =>
+  layer.displayName.trim() || layer.name;
 
 /**
  * Propiedades que togeojson conserva de cada Placemark y que usa el popup.
@@ -105,9 +115,14 @@ export async function parseKmlFile(file: File, color: string): Promise<KmlLayer>
     );
   }
 
+  const baseName = file.name.replace(/\.kml$/i, '');
   return {
     id: crypto.randomUUID(),
-    name: file.name.replace(/\.kml$/i, ''),
+    name: baseName,
+    // El display arranca igual al nombre del archivo; el usuario puede
+    // renombrarlo desde el panel y el cambio se propaga al cajetín del
+    // export PNG y al popup del feature.
+    displayName: baseName,
     color,
     visible: true,
     featureCount: features.length,

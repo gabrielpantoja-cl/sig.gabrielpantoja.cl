@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { Facets, GeocodeResult, MapPoint, Stats } from '@/lib/types';
-import { kmlColorFor, parseKmlFile, type KmlLayer } from '@/lib/kml';
+import { kmlColorFor, kmlDisplayName, parseKmlFile, type KmlLayer } from '@/lib/kml';
 import type { LayerMetadataEntry } from '@/lib/map-export';
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
@@ -194,59 +194,85 @@ function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEntry[] {
       ...filtrosLineas,
       'Fuente: Servicio de Conservadores de Bienes Raíces (Ley 20.285)',
     ].join('\n');
-    entries.push({ title: 'Transacciones CBR', details });
+    entries.push({
+      title: 'Transacciones CBR',
+      details,
+      color: '#e11d48', // carmesí — color de marca CBR (lib/cbr-points)
+      shape: 'dot',
+    });
   }
 
-  // Capas temáticas activas: cada una aporta su fuente oficial con URL.
+  // Capas temáticas activas: cada una aporta su fuente oficial + el color
+  // y la forma que se ven en el mapa, para que la muestra del cajetín se
+  // corresponda 1:1 con el polígono/línea/marker del mapa en vivo.
   if (input.showProtected) {
     entries.push({
       title: 'Áreas protegidas (RNAP)',
       details: 'Designaciones legales según categoría\nFuente: Ministerio del Medio Ambiente · CC0\nhttps://sig.mma.gob.cl/rnap/',
+      color: '#10b981', // verde bosque, dominante de las categorías RNAP
+      shape: 'square',
     });
   }
   if (input.showUrbanLimit) {
     entries.push({
       title: 'Límite urbano (PRC)',
       details: 'Planes Reguladores Comunales vigentes\nFuente: MINVU · IPT · geoide.minvu.cl',
+      color: '#c2410c', // ámbar (URBAN_LIMIT_COLOR)
+      shape: 'square',
     });
   }
   if (input.showComunas) {
     entries.push({
       title: 'Límites comunales (DPA 2023)',
       details: 'División Político-Administrativa referencial\nFuente: SUBDERE · geoportal.cl',
+      color: '#475569', // pizarra (COMUNAS_COLOR)
+      shape: 'square',
     });
   }
   if (input.showRedVial) {
     entries.push({
       title: 'Red caminera (MOP)',
       details: 'Red Vial Nacional + ROL de Vialidad (puede diferir de Google/OSM)\nFuente: Dirección de Vialidad · mapasvialidad.mop.gob.cl',
+      color: '#7c3aed', // violeta (clase 'nacional' de ROAD_CLASS_GROUPS)
+      shape: 'line',
     });
   }
   if (input.showRedDrenaje) {
     entries.push({
       title: 'Red de drenaje (DGA)',
       details: 'Ríos + esteros del Banco Nacional de Aguas\nFuente: DGA · MOP · CC-BY 4.0',
+      color: '#0ea5e9', // cian (paleta drenaje)
+      shape: 'line',
     });
   }
   if (input.showSuelos) {
     entries.push({
       title: 'Suelos agrológicos (CIREN)',
       details: 'Capacidad de uso I–VIII, 12 regiones (Atacama a Aysén)\nFuente: CIREN · esri.ciren.cl',
+      color: '#ca8a04', // amarillo tierra (SUELOS_CLASSES aprox.)
+      shape: 'square',
     });
   }
   if (input.showCatastroFruticola) {
     entries.push({
       title: 'Catastro frutícola (CIREN-ODEPA)',
       details: 'Productores frutícolas por especie, vintages 2019–2025 según región\nFuente: CIREN-ODEPA · IDE Minagri',
+      color: '#be185d', // magenta (especie por defecto)
+      shape: 'square',
     });
   }
 
-  // Capas KML del usuario
+  // Capas KML del operador: usamos el alias del perito (`kmlDisplayName`),
+  // que es lo que aparece ya en el popup del feature tras renombrarlo.
+  // El color es el de la paleta asignada por `kmlColorFor` al subir la capa,
+  // único por KML para que se distingan entre sí dentro de un mismo mapa.
   for (const kml of input.kmlLayers) {
     if (!kml.visible) continue;
     entries.push({
-      title: `KML: ${kml.name}`,
+      title: `KML: ${kmlDisplayName(kml)}`,
       details: `${kml.featureCount} entidades vectoriales\nFuente: archivo local del operador (no publicado)`,
+      color: kml.color,
+      shape: 'square',
     });
   }
 
@@ -343,6 +369,14 @@ export default function Home() {
     );
 
   const removeKml = (id: string) => setKmlLayers((prev) => prev.filter((l) => l.id !== id));
+
+  /** Renombra el alias del perito para una capa KML. Acepta string vacío
+   *  (el cajetín cae al `name` del archivo cuando `displayName` está vacío).
+   *  No toca `geojson` ni el color — solo la etiqueta humana. */
+  const renameKml = (id: string, displayName: string) =>
+    setKmlLayers((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, displayName } : l)),
+    );
 
   // Imperative handle para el export PNG: MapView publica la función que
   // rasteriza la vista actual; aquí se la invoca y se bloquea el botón mientras
@@ -651,6 +685,7 @@ export default function Home() {
             onAddKmlFiles={addKmlFiles}
             onToggleKml={toggleKml}
             onRemoveKml={removeKml}
+            onRenameKml={renameKml}
             onExport={handleExportClick}
             exporting={exporting}
           />
