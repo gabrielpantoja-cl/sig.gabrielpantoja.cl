@@ -613,11 +613,27 @@ export default function MapView({
         if (cancelled) return;
         onRenderProgressRef.current?.(processed, total);
         if (processed >= total) {
-          // Doble rAF: garantiza que los clusters ya se pintaron en pantalla
-          // antes de avisar (el loader cierra exactamente con el mapa listo).
-          requestAnimationFrame(() =>
-            requestAnimationFrame(() => onRenderCompleteRef.current?.()),
-          );
+          // markercluster ejecuta el callback de chunkProgress *antes* de las
+          // llamadas síncronas que anexan los clusters al map pane
+          // (_refreshClustersIcons + _recursivelyAddChildrenToMap). Un doble
+          // rAF aquí (~32 ms) compensa en CPUs rápidas pero puede quedarse
+          // corto cuando el hilo principal está recién saliendo del decode
+          // JSON y todavía hay layout pendiente para ~65+ íconos recién
+          // creados: el loader cierra y el mapa sigue en blanco.
+          //
+          // Diferimos a una microtask (corre al final del tick actual, justo
+          // después del sync DOM work que el markercluster aún tiene por
+          // hacer) y luego encadenamos dos rAFs para garantizar paint. Si la
+          // cleanup del efecto marcó `cancelled`, los callbacks descartan.
+          queueMicrotask(() => {
+            if (cancelled) return;
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                if (cancelled) return;
+                onRenderCompleteRef.current?.();
+              }),
+            );
+          });
         }
       },
     });
@@ -636,9 +652,13 @@ export default function MapView({
     if (showPoints) map.addLayer(group);
     if (markers.length > 0) {
       group.addLayers(markers);
-    } else {
-      onRenderCompleteRef.current?.();
     }
+    // Importante: cuando `points` aún es [] (primer mount antes de que el
+    // fetch de /api/points resuelva, o el doble mount de StrictMode) NO
+    // disparamos onRenderComplete: el loader debe esperar a los markers
+    // reales. El catch del fetch en page.tsx cierra el loader si la red
+    // falla; si los datos son legítimamente vacíos, el boot ya terminó y
+    // handleRenderComplete es un no-op por booting.current=false.
     clusterRef.current = group;
     reorderOverlays();
 
