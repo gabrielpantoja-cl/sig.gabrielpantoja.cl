@@ -612,7 +612,13 @@ export default function MapView({
       chunkProgress(processed: number, total: number) {
         if (cancelled) return;
         onRenderProgressRef.current?.(processed, total);
-        if (processed >= total) {
+        // markercluster llama a chunkProgress(0, 0, …) cuando addLayers[]
+        // recibe un array vacío (p.ej. el primer mount de StrictMode mientras
+        // /api/points aún no resolvió). `processed >= total` se cumple para
+        // (0, 0) y disparaba el cierre del loader sin markers en pantalla.
+        // Gateamos con total > 0 (equivalente a processed > 0) para exigir
+        // que realmente hubo algo que procesar.
+        if (processed >= total && total > 0) {
           // markercluster ejecuta el callback de chunkProgress *antes* de las
           // llamadas síncronas que anexan los clusters al map pane
           // (_refreshClustersIcons + _recursivelyAddChildrenToMap). Un doble
