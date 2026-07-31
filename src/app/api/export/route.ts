@@ -16,9 +16,9 @@ const MAX_ROWS = 120000;
 // SELECT expression (maps the camelCase Neon column to a clean output key) and
 // the output keys used for CSV headers / GeoJSON properties / row access.
 const SELECT_EXPR =
-  'lat, lng, monto, anio, comuna, predio, "superficieTerreno" AS superficie, rol, destino';
+  'lat, lng, monto, anio, comuna, predio, "superficieTerreno" AS superficie, rol, destino, fechaescritura';
 const COLUMNS = [
-  'lat', 'lng', 'monto', 'anio', 'comuna', 'predio', 'superficie', 'rol', 'destino',
+  'lat', 'lng', 'monto', 'anio', 'comuna', 'predio', 'superficie', 'rol', 'destino', 'fechaescritura',
 ] as const;
 
 function csvCell(value: unknown): string {
@@ -55,6 +55,17 @@ export async function GET(req: Request) {
       params,
     )) as Record<string, unknown>[];
 
+    // Normaliza fechaescritura: la columna llega como Date y queremos serializar
+    // un ISO date (YYYY-MM-DD) tanto en CSV como en GeoJSON. Sin esto, CSV
+    // muestra "Thu Jan 15 2026 …" por culpa de Date.prototype.toString.
+    for (const r of rows) {
+      if (r.fechaescritura instanceof Date) {
+        r.fechaescritura = r.fechaescritura.toISOString().slice(0, 10);
+      } else if (r.fechaescritura) {
+        r.fechaescritura = String(r.fechaescritura).slice(0, 10);
+      }
+    }
+
     if (format === 'geojson') {
       const features = rows.map((r) => ({
         type: 'Feature' as const,
@@ -70,6 +81,9 @@ export async function GET(req: Request) {
           superficie: r.superficie != null ? Number(r.superficie) : null,
           rol: r.rol,
           destino: r.destino,
+          fechaescritura: r.fechaescritura
+            ? new Date(r.fechaescritura as string).toISOString().slice(0, 10)
+            : null,
         },
       }));
       const fc = { type: 'FeatureCollection' as const, features };
