@@ -31,18 +31,21 @@ export async function GET(req: Request) {
     // Filter referenciales inside a CTE (where the unqualified filter columns are
     // unambiguous), then LEFT JOIN conservadores for the human-readable CBR name.
     // Both tables have a `comuna` column, so a direct join would be ambiguous.
+    // `fechaescritura` (sin espacios, así en la DB) aliasa a fechaEscritura para
+    // mantener el camelCase en el JSON que consume el frontend.
     const rows = (await sql.query(
       `WITH r AS (
          SELECT lat, lng, monto, anio, comuna, predio,
                 "superficieTerreno" AS superficie, rol, destino,
-                fojas, numero, "conservadorId"
+                fechaescritura, fojas, numero, "conservadorId"
          FROM referenciales
          WHERE ${where}
          ORDER BY anio DESC
          LIMIT ${MAX_POINTS}
        )
        SELECT r.lat, r.lng, r.monto, r.anio, r.comuna, r.predio, r.superficie,
-              r.rol, r.destino, r.fojas, r.numero, c.nombre AS conservador
+              r.rol, r.destino, r.fechaescritura, r.fojas, r.numero,
+              c.nombre AS conservador
        FROM r
        LEFT JOIN conservadores c ON c.id = r."conservadorId"`,
       params,
@@ -58,6 +61,7 @@ export async function GET(req: Request) {
       superficie: r.superficie != null ? Number(r.superficie) : null,
       rol: r.rol,
       destino: r.destino,
+      fechaEscritura: r.fechaescritura ? new Date(r.fechaescritura as string).toISOString().slice(0, 10) : null,
       fojas: r.fojas,
       numero: r.numero != null ? Number(r.numero) : null,
       conservador: r.conservador,
