@@ -85,6 +85,18 @@ const formatCLP = (value: number | null): string =>
         maximumFractionDigits: 0,
       }).format(value);
 
+/**
+ * Fecha de la escritura en formato chileno DD/MM/YYYY. Acepta el ISO 8601
+ * (YYYY-MM-DD) que entrega el API o un `Date` ya parseado. Devuelve string
+ * vacío si el dato es null/undefined (el popup ya omite la fila en ese caso).
+ */
+const formatDateCL = (iso: string | null | undefined): string => {
+  if (!iso) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return '';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+};
+
 const esc = (s: string | null): string =>
   (s ?? '').replace(
     /[&<>"']/g,
@@ -94,7 +106,10 @@ const esc = (s: string | null): string =>
 /**
  * Popup HTML for a single transaction. Leads with the predio/comuna and price,
  * then the CBR registry citation (Fojas N° / año), the conservador it belongs to
- * and the remaining public attributes (ROL, superficie, destino).
+ * and the remaining public attributes (ROL, superficie, fecha de escritura).
+ * El código de destino SII se omite a propósito: aporta poco al perito fuera
+ * del informe catastral y compite con la fecha de la escritura, que es la
+ * pieza temporal clave para el cruce de inscripciones.
  */
 function buildPopup(p: MapPoint): string {
   const cite = [
@@ -109,7 +124,8 @@ function buildPopup(p: MapPoint): string {
   if (p.conservador) rows.push(['Conservador', `CBR ${esc(p.conservador)}`]);
   if (p.rol) rows.push(['ROL', esc(p.rol)]);
   if (p.superficie) rows.push(['Superficie de terreno', `${p.superficie.toLocaleString('es-CL')} m²`]);
-  if (p.destino) rows.push(['Destino', esc(p.destino)]);
+  const fechaEsc = formatDateCL(p.fechaEscritura);
+  if (fechaEsc) rows.push(['Fecha de escritura', fechaEsc]);
 
   const body = rows
     .map(

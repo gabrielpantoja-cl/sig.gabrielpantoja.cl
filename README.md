@@ -46,7 +46,7 @@ Browser → /api/geocode → Nominatim/OSM (address search, Chile only, cached p
 ## Datos & privacidad
 
 Columnas expuestas por punto: `lat, lng, monto, anio, comuna, predio,
-superficie, rol, destino, fojas, numero, conservador`.
+superficie, rol, destino, fechaEscritura, fojas, numero, conservador`.
 
 - **`rol` SII se expone**: es el identificador público de propiedad del SII, no
   es dato personal bajo la Ley 19.628. Habilita la búsqueda por ROL para
