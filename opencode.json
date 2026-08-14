@@ -12,8 +12,8 @@
   // The provider allowlist pins opencode to the one paid provider so Qwen /
   // Ollama / other locally-configured providers cannot sneak in. See AGENTS.md
   // § AI tooling for the full override convention.
-  "model": "minimax-coding-plan/MiniMax-M3",
-  "enabled_providers": ["minimax-coding-plan"],
+  "model": "openai/gpt-5.6-luna",
+  "enabled_providers": ["openai"],
 
   // Auto-discover the canonical agent instructions in this repo.
   "instructions": ["AGENTS.md", "AGENTS.local.md"],
