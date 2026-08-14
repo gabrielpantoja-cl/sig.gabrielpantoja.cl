@@ -142,9 +142,9 @@ These must never be violated:
 
 This repo is read by Claude Code, OpenCode, Codex and other agents. The
 `opencode.json` at the repo root is **committed with the maintainer's defaults**
-(`model: minimax-coding-plan/MiniMax-M3` + `enabled_providers: ["minimax-coding-plan"]`).
+(`model: openai/gpt-5.6-luna` + `enabled_providers: ["openai"]`).
 Project-level config overrides the global `~/.config/opencode/opencode.json`
-on merge, so any opencode session opened in this directory starts with M-3.
+on merge, so any OpenCode session opened in this directory starts with GPT-5.6 Luna.
 
 Other operators can override locally without touching the committed file via
 any of:
