@@ -11,23 +11,44 @@
  * CAPA DINÁMICA REMOTA: el dataset completo supera los 500 MB (una sola
  * región pesa ~40 MB en GeoJSON), así que el servidor de CIREN renderiza la
  * imagen con su simbología oficial y el navegador solo descarga UN PNG por
- * viewport (endpoint `export` del MapServer + L.ImageOverlay refrescado al
- * mover el mapa). No se usa el WMS teselado a propósito: Leaflet dispara ~40
+ * viewport mediante el proxy `/api/suelos/export` + L.ImageOverlay refrescado
+ * al mover el mapa. El proxy normaliza CORS, timeout y fallas ArcGIS. No se
+ * usa el WMS teselado a propósito: Leaflet dispara ~40
  * GetMap simultáneos por vista y el servidor estatal colapsa (400/timeout);
  * con una sola export por movimiento el servicio responde. La clase de un
- * punto se consulta al hacer clic vía el endpoint `identify` (JSON).
+ * punto se consulta al hacer clic vía `/api/suelos/identify` (JSON saneado).
  *
  * Nota: las 12 capas regionales tienen `defaultVisibility: false` en el
  * servicio — el export DEBE llevar `layers=show:0,...,11` o devuelve un PNG
  * transparente.
  */
 
-const SUELOS_BASE = 'https://esri.ciren.cl/server';
-const SUELOS_SERVICE = `${SUELOS_BASE}/rest/services/ESTUDIO_AGROLOGICO_SUELOS/MapServer`;
+/** Rutas same-origin: el servidor valida y normaliza las fallas de CIREN. */
+export const SUELOS_EXPORT_URL = '/api/suelos/export';
 
-export const SUELOS_EXPORT_URL = `${SUELOS_SERVICE}/export`;
+export const SUELOS_IDENTIFY_URL = '/api/suelos/identify';
 
-export const SUELOS_IDENTIFY_URL = `${SUELOS_SERVICE}/identify`;
+/** Identificador humano estable mostrado cuando el proveedor no responde. */
+export const SUELOS_SERVICE_NAME =
+  'CIREN · ESTUDIO_AGROLOGICO_SUELOS · ArcGIS MapServer';
+
+export type SuelosOperation = 'export' | 'identify';
+
+export type SuelosStatus =
+  | { kind: 'idle' }
+  | { kind: 'zoom-required'; minZoom: number }
+  | { kind: 'loading' }
+  | { kind: 'ready' }
+  | { kind: 'error'; service: string; operation: SuelosOperation };
+
+export interface SuelosProxyErrorBody {
+  error?: {
+    code?: string;
+    message?: string;
+    service?: string;
+    operation?: SuelosOperation;
+  };
+}
 
 /** Las 12 capas regionales del servicio (Atacama … Aysén), ids '0'–'11'. */
 export const SUELOS_EXPORT_LAYERS = `show:${Array.from({ length: 12 }, (_, i) => i).join(',')}`;

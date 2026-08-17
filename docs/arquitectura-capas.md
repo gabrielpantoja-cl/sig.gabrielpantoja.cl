@@ -40,28 +40,37 @@ oficial es demasiado pesado para GeoJSON estático (el de CIREN supera los
 vivo. Patrón implementado en `MapView.tsx` (efecto de suelos) +
 `src/lib/suelos.ts`:
 
-- **Un `L.ImageOverlay` refrescado en `moveend`** contra el endpoint `export`
-  del MapServer (UN PNG por viewport). **No usar el WMS teselado**: Leaflet
+- **Un `L.ImageOverlay` refrescado en `moveend`** contra `/api/suelos/export`,
+  proxy validado del endpoint `export` del MapServer (UN PNG por viewport).
+  El proxy fija el servicio, limita parámetros y tamaño, aplica timeout y
+  normaliza respuestas HTTP/HTML de ArcGIS. **No usar el WMS teselado**: Leaflet
   dispara ~40 GetMap simultáneos por vista y los servidores estatales colapsan
   (CIREN pasó de 1,2 s por imagen a 400/timeout de 60 s bajo esa ráfaga).
-- La imagen nueva se **pre-carga** antes de reemplazar la anterior (sin
-  parpadeo) y un contador de secuencia descarta respuestas fuera de orden.
+- La respuesta se valida y la imagen nueva se **pre-carga** antes de instalarla;
+  al mover el mapa se limpia el raster anterior para no presentar cobertura
+  desfasada. Un `AbortController` y un contador de secuencia cancelan o descartan
+  respuestas fuera de orden.
 - `layers=show:<ids>` es obligatorio si las capas del servicio tienen
   `defaultVisibility: false` (CIREN lo tiene: sin eso el export devuelve un
   PNG transparente).
 - **Zoom mínimo obligatorio** (`SUELOS_MIN_ZOOM = 9`): un export de extensión
   nacional obliga al servidor a rasterizar las 12 regiones completas — tarda
   minutos, monopoliza el servicio (las consultas siguientes pasan de ~1 s a
-  60 s / HTTP 400) y el navegador lo bloquea con `ERR_BLOCKED_BY_ORB` cuando
-  la respuesta degenera en HTML de error. Bajo el zoom mínimo la capa no
-  emite peticiones (pixel transparente) y la leyenda indica «acerca el mapa».
-- La consulta puntual va por el endpoint `identify` al hacer clic. Ojo: el
+  60 s / HTTP 400). El proxy rechaza el HTML de error que ArcGIS devuelve en
+  esas fallas. Bajo el zoom mínimo la capa no emite peticiones (pixel
+  transparente) y la leyenda indica «acerca el mapa».
+- La consulta puntual va por `/api/suelos/identify` al hacer clic. Ojo: el
   identify devuelve los atributos bajo el **alias** del campo (texto largo,
-  encoding inestable), no bajo su nombre — extraer el valor por validación
-  (`/^(I|II|...|N\.C\.)$/`), no por clave.
+  encoding inestable), no bajo su nombre: el proxy extrae la clase por
+  validación (`/^(I|II|...|N\.C\.)$/`) y no expone los demás atributos.
 - Trade-off aceptado: requiere el servidor del organismo en línea, no funciona
   offline y la simbología es la del servicio (se replica en la leyenda local
   con los colores extraídos de `/MapServer/legend?f=json`).
+- Si CIREN falla, el panel y el mapa identifican explícitamente
+  `CIREN · ESTUDIO_AGROLOGICO_SUELOS · ArcGIS MapServer` y la operación
+  afectada (`export` o `identify`). Una caída nunca debe presentarse como
+  «sin clase de suelo»; ese mensaje queda reservado a respuestas válidas sin
+  cobertura puntual.
 
 Además existen las **capas KML del usuario** (subidas en el panel Capas,
 parseadas 100 % en el navegador — `src/lib/kml.ts` — nunca suben a un

@@ -45,13 +45,16 @@ import {
 } from '@/lib/catastro-fruticola';
 import {
   SUELOS_ATTRIBUTION,
-  SUELOS_EXPORT_LAYERS,
   SUELOS_EXPORT_URL,
   SUELOS_IDENTIFY_URL,
   SUELOS_MIN_ZOOM,
   SUELOS_OPACITY,
+  SUELOS_SERVICE_NAME,
   suelosClassColor,
   TRANSPARENT_PIXEL,
+  type SuelosOperation,
+  type SuelosProxyErrorBody,
+  type SuelosStatus,
 } from '@/lib/suelos';
 
 /**
@@ -102,6 +105,35 @@ const esc = (s: string | null): string =>
     /[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
   );
+
+async function suelosFailureDetails(
+  response: Response,
+  fallbackOperation: SuelosOperation,
+): Promise<{ service: string; operation: SuelosOperation }> {
+  try {
+    const body = (await response.json()) as SuelosProxyErrorBody;
+    const operation = body.error?.operation === 'identify' || body.error?.operation === 'export'
+      ? body.error.operation
+      : fallbackOperation;
+    return {
+      service: body.error?.service === SUELOS_SERVICE_NAME
+        ? body.error.service
+        : SUELOS_SERVICE_NAME,
+      operation,
+    };
+  } catch {
+    return { service: SUELOS_SERVICE_NAME, operation: fallbackOperation };
+  }
+}
+
+function waitForImage(url: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error('Invalid soils image'));
+    image.src = url;
+  });
+}
 
 /**
  * Popup HTML for a single transaction. Leads with the predio/comuna and price,
@@ -429,6 +461,7 @@ export default function MapView({
   focus = null,
   onRenderProgress,
   onRenderComplete,
+  onSuelosStatus,
   mapExportRef,
 }: {
   points: MapPoint[];
@@ -449,6 +482,8 @@ export default function MapView({
   onRenderProgress?: (processed: number, total: number) => void;
   /** Los marcadores ya están pintados en pantalla — el loader puede cerrar. */
   onRenderComplete?: () => void;
+  /** Disponibilidad operacional de la capa remota de suelos para el panel UI. */
+  onSuelosStatus?: (status: SuelosStatus) => void;
   /** Handle al que MapView publica el método imperativo de export. La página
    *  padre (page.tsx) lo conecta al botón "Exportar PNG" de LayersControl:
    *  cuando el usuario lo pulsa, `mapExportRef.current()` rasteriza y descarga
@@ -475,10 +510,12 @@ export default function MapView({
   // (y reconstruir 85k marcadores) porque el padre re-creó una función.
   const onRenderProgressRef = useRef(onRenderProgress);
   const onRenderCompleteRef = useRef(onRenderComplete);
+  const onSuelosStatusRef = useRef(onSuelosStatus);
   useEffect(() => {
     onRenderProgressRef.current = onRenderProgress;
     onRenderCompleteRef.current = onRenderComplete;
-  }, [onRenderProgress, onRenderComplete]);
+    onSuelosStatusRef.current = onSuelosStatus;
+  }, [onRenderProgress, onRenderComplete, onSuelosStatus]);
 
   // Publica el método de export en el ref entregado por la página. La closure
   // se re-bindea en cada cambio de flags para que la captura refleje siempre
@@ -1010,7 +1047,9 @@ export default function MapView({
   // WMS teselado tumbaba el servidor con ~40 GetMap simultáneos). La imagen
   // se pre-carga y recién entonces reemplaza a la anterior (sin parpadeo), y
   // un contador de secuencia descarta respuestas fuera de orden. Al hacer
-  // clic se consulta la clase vía identify; si el clic abrió el popup de otra
+  // clic se consulta la clase vía identify; ambas operaciones pasan por el
+  // proxy same-origin del SIG, que valida CIREN y devuelve errores seguros con
+  // el identificador exacto del servicio. Si el clic abrió el popup de otra
   // capa (comuna, camino, pin), se aborta para no pisarlo.
   useEffect(() => {
     const map = mapRef.current;
@@ -1021,7 +1060,10 @@ export default function MapView({
       suelosRef.current = null;
     }
 
-    if (!showSuelos) return;
+    if (!showSuelos) {
+      onSuelosStatusRef.current?.({ kind: 'idle' });
+      return;
+    }
 
     const overlay = L.imageOverlay(TRANSPARENT_PIXEL, map.getBounds(), {
       opacity: SUELOS_OPACITY,
@@ -1030,104 +1072,191 @@ export default function MapView({
     }).addTo(map);
     suelosRef.current = overlay;
 
-    let seq = 0;
-    const refresh = () => {
+    let exportSequence = 0;
+    let exportController: AbortController | null = null;
+    let identifySequence = 0;
+    let identifyController: AbortController | null = null;
+    let activeBlobUrl: string | null = null;
+
+    const clearRaster = (bounds: L.LatLngBounds) => {
+      overlay.setUrl(TRANSPARENT_PIXEL);
+      overlay.setBounds(bounds);
+      if (activeBlobUrl) {
+        URL.revokeObjectURL(activeBlobUrl);
+        activeBlobUrl = null;
+      }
+    };
+
+    const refresh = async () => {
       const bounds = map.getBounds();
       const size = map.getSize();
-      const id = ++seq;
+      const id = ++exportSequence;
+      exportController?.abort();
+      exportController = null;
       // A escala nacional el export obliga al servidor a rasterizar las 12
       // regiones completas: tarda minutos y degrada el servicio para todas
       // las consultas siguientes. Bajo el zoom mínimo no se pide nada.
       if (map.getZoom() < SUELOS_MIN_ZOOM) {
-        overlay.setUrl(TRANSPARENT_PIXEL);
-        overlay.setBounds(bounds);
+        clearRaster(bounds);
+        onSuelosStatusRef.current?.({ kind: 'zoom-required', minZoom: SUELOS_MIN_ZOOM });
         return;
       }
+      clearRaster(bounds);
+      onSuelosStatusRef.current?.({ kind: 'loading' });
+      const controller = new AbortController();
+      exportController = controller;
       const params = new URLSearchParams({
         bbox: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`,
-        bboxSR: '4326',
-        imageSR: '3857', // misma proyección que el mapa: el PNG calza sin deformarse
         size: `${size.x},${size.y}`,
-        layers: SUELOS_EXPORT_LAYERS,
-        format: 'png32',
-        transparent: 'true',
-        f: 'image',
       });
       const url = `${SUELOS_EXPORT_URL}?${params}`;
-      const img = new Image();
-      img.onload = () => {
-        if (id !== seq || !suelosRef.current) return;
-        suelosRef.current.setUrl(url);
+      let candidateBlobUrl: string | null = null;
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) {
+          const failure = await suelosFailureDetails(response, 'export');
+          if (id === exportSequence && !controller.signal.aborted) {
+            onSuelosStatusRef.current?.({ kind: 'error', ...failure });
+          }
+          return;
+        }
+        const blob = await response.blob();
+        if (blob.type !== 'image/png') throw new Error('Invalid soils response');
+        candidateBlobUrl = URL.createObjectURL(blob);
+        await waitForImage(candidateBlobUrl);
+        if (id !== exportSequence || controller.signal.aborted || !suelosRef.current) {
+          URL.revokeObjectURL(candidateBlobUrl);
+          return;
+        }
+        suelosRef.current.setUrl(candidateBlobUrl);
         suelosRef.current.setBounds(bounds);
-      };
-      img.src = url;
+        activeBlobUrl = candidateBlobUrl;
+        candidateBlobUrl = null;
+        onSuelosStatusRef.current?.({ kind: 'ready' });
+      } catch (error) {
+        if (candidateBlobUrl) URL.revokeObjectURL(candidateBlobUrl);
+        if (controller.signal.aborted || id !== exportSequence) return;
+        console.error('No se pudo cargar la cobertura de suelos CIREN.', error);
+        onSuelosStatusRef.current?.({
+          kind: 'error',
+          service: SUELOS_SERVICE_NAME,
+          operation: 'export',
+        });
+      }
     };
 
-    map.on('moveend', refresh);
-    refresh();
+    const onMoveEnd = () => void refresh();
+    map.on('moveend', onMoveEnd);
+    void refresh();
 
-    let otherPopupOpened = false;
+    let popupGeneration = 0;
+    let popupOpenedThisTurn = false;
     const onPopupOpen = () => {
-      otherPopupOpened = true;
+      popupGeneration++;
+      popupOpenedThisTurn = true;
+      queueMicrotask(() => {
+        popupOpenedThisTurn = false;
+      });
     };
 
-    const onClick = (e: L.LeafletMouseEvent) => {
-      otherPopupOpened = false;
+    const onClick = async (e: L.LeafletMouseEvent) => {
+      // Un feature vectorial puede abrir su popup durante el mismo evento. No
+      // disparamos identify en ese caso ni reemplazamos popups abiertos después.
+      if (popupOpenedThisTurn) return;
+      const expectedPopupGeneration = popupGeneration;
       // Bajo el zoom mínimo la capa no está visible: no consultar identify.
       if (map.getZoom() < SUELOS_MIN_ZOOM) return;
+      const id = ++identifySequence;
+      identifyController?.abort();
+      const controller = new AbortController();
+      identifyController = controller;
       const { lat, lng } = e.latlng;
       const bounds = map.getBounds();
       const size = map.getSize();
       const params = new URLSearchParams({
         geometry: `${lng},${lat}`,
-        geometryType: 'esriGeometryPoint',
-        sr: '4326',
-        layers: 'all',
         tolerance: '2',
         mapExtent: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`,
         imageDisplay: `${size.x},${size.y},96`,
-        returnGeometry: 'false',
-        f: 'json',
       });
-
-      fetch(`${SUELOS_IDENTIFY_URL}?${params}`)
-        .then((r) => (r.ok ? r.json() : Promise.reject()))
-        .then((data: { results?: { layerName?: string; attributes?: Record<string, string> }[] }) => {
-          // El popup de un vector (comuna, camino, pin) llega primero: no pisarlo.
-          if (otherPopupOpened || !mapRef.current || !suelosRef.current) return;
-          const result = data.results?.[0];
-          // El identify devuelve los atributos bajo el ALIAS del campo (texto
-          // largo, con encoding inestable), no bajo su nombre (`textcaus`):
-          // se busca entre los valores el que sea una clase válida.
-          const clase = Object.values(result?.attributes ?? {})
-            .map((v) => String(v).trim())
-            .find((v) => /^(I|II|III|IV|V|VI|VII|VIII|N\.C\.)$/.test(v));
-          const region = result?.layerName ?? '';
-          const body = clase
-            ? `<div style="font-weight:600;font-size:0.92rem">Capacidad de uso: Clase ${esc(clase)}</div>` +
-              `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
-              `font-size:0.68rem;font-weight:600;color:#1e293b;background:${suelosClassColor(clase)};` +
-              `border:1px solid rgba(0,0,0,.15)">Suelos agrológicos CIREN</div>` +
-              (region ? `<div style="opacity:.7">${esc(region)}</div>` : '')
-            : `<div style="font-weight:600;font-size:0.92rem">Sin clase de suelo en este punto</div>` +
-              `<div style="opacity:.7;margin-top:.2rem">Fuera del área estudiada por CIREN (12 regiones, Atacama a Aysén)</div>`;
-          L.popup({ maxWidth: 280 })
+      try {
+        const response = await fetch(`${SUELOS_IDENTIFY_URL}?${params}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          const failure = await suelosFailureDetails(response, 'identify');
+          if (
+            id !== identifySequence || controller.signal.aborted ||
+            popupGeneration !== expectedPopupGeneration ||
+            !mapRef.current || !suelosRef.current
+          ) return;
+          L.popup({ maxWidth: 300 })
             .setLatLng(e.latlng)
             .setContent(
-              `<div style="font-size:0.8rem;line-height:1.45;min-width:200px">${body}` +
-                `<div style="margin-top:.35rem;font-size:0.62rem;opacity:.5">${SUELOS_ATTRIBUTION}</div></div>`,
+              `<div style="font-size:0.8rem;line-height:1.45;min-width:220px">` +
+              `<div style="font-weight:600;font-size:0.92rem;color:#b91c1c">No se pudo consultar el suelo</div>` +
+              `<div style="margin-top:.25rem;opacity:.75">El servicio no respondió: ${esc(failure.service)} ` +
+              `(operación ${esc(failure.operation)}). Intenta nuevamente en unos segundos.</div>` +
+              `</div>`,
             )
             .openOn(mapRef.current);
-        })
-        .catch(() => {});
+          return;
+        }
+        const data = (await response.json()) as {
+          results?: { layerName?: string; soilClass?: string | null }[];
+        };
+        if (
+          id !== identifySequence || controller.signal.aborted ||
+          popupGeneration !== expectedPopupGeneration ||
+          !mapRef.current || !suelosRef.current
+        ) return;
+        const result = data.results?.find((item) => item.soilClass) ?? data.results?.[0];
+        const clase = result?.soilClass ?? null;
+        const region = result?.layerName ?? '';
+        const body = clase
+          ? `<div style="font-weight:600;font-size:0.92rem">Capacidad de uso: Clase ${esc(clase)}</div>` +
+            `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
+            `font-size:0.68rem;font-weight:600;color:#1e293b;background:${suelosClassColor(clase)};` +
+            `border:1px solid rgba(0,0,0,.15)">Suelos agrológicos CIREN</div>` +
+            (region ? `<div style="opacity:.7">${esc(region)}</div>` : '')
+          : `<div style="font-weight:600;font-size:0.92rem">Sin clase CIREN registrada en este punto</div>` +
+            `<div style="opacity:.7;margin-top:.2rem">El servicio respondió correctamente, pero el punto puede estar fuera del área estudiada o no tener clasificación disponible.</div>`;
+        L.popup({ maxWidth: 300 })
+          .setLatLng(e.latlng)
+          .setContent(
+            `<div style="font-size:0.8rem;line-height:1.45;min-width:220px">${body}` +
+              `<div style="margin-top:.35rem;font-size:0.62rem;opacity:.5">${SUELOS_ATTRIBUTION}</div></div>`,
+          )
+          .openOn(mapRef.current);
+      } catch (error) {
+        if (controller.signal.aborted || id !== identifySequence) return;
+        console.error('No se pudo consultar la clase de suelo CIREN.', error);
+        if (
+          popupGeneration !== expectedPopupGeneration ||
+          !mapRef.current || !suelosRef.current
+        ) return;
+        L.popup({ maxWidth: 300 })
+          .setLatLng(e.latlng)
+          .setContent(
+            `<div style="font-size:0.8rem;line-height:1.45;min-width:220px">` +
+              `<div style="font-weight:600;font-size:0.92rem;color:#b91c1c">No se pudo consultar el suelo</div>` +
+              `<div style="margin-top:.25rem;opacity:.75">El servicio no respondió: ${esc(SUELOS_SERVICE_NAME)} ` +
+              `(operación identify). Intenta nuevamente en unos segundos.</div></div>`,
+          )
+          .openOn(mapRef.current);
+      }
     };
 
     map.on('popupopen', onPopupOpen);
     map.on('click', onClick);
 
     return () => {
-      seq++; // invalida cualquier export en vuelo
-      map.off('moveend', refresh);
+      exportSequence++;
+      identifySequence++;
+      exportController?.abort();
+      identifyController?.abort();
+      if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
+      map.off('moveend', onMoveEnd);
       map.off('popupopen', onPopupOpen);
       map.off('click', onClick);
       if (suelosRef.current && mapRef.current) {
