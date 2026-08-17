@@ -98,12 +98,22 @@ instrucciones para agentes es **[AGENTS.md](./AGENTS.md)**. La configuración
 por-máquina vive en **[AGENTS.local.md](./AGENTS.local.md)** (gitignored).
 
 El `opencode.json` en la raíz está **commiteado con los defaults del maintainer**
-(`model: minimax-coding-plan/MiniMax-M3` + `enabled_providers: ["minimax-coding-plan"]`).
+(`model: openai/gpt-5.6-luna` + `enabled_providers: ["openai"]`). El primary
+`orchestrator` usa el mismo modelo y coordina los subagentes especializados de
+`.opencode/agents/`.
 Aplica a toda sesión de opencode abierta en este directorio. Otros operadores
 pueden overridear localmente con `OPENCODE_CONFIG` (env var a un JSON por
 máquina), `~/.config/opencode/opencode.json` (global), o editando el archivo
 en su fork. Ver **[AGENTS.md § AI tooling](./AGENTS.md)** para los detalles y
 la precedencia completa.
+
+Los subagentes del proyecto son `gis-architect-agent` (Leaflet/GIS),
+`canvas-export-agent` (exportación PNG), `nextjs-architect-agent` (Next.js),
+`neon-data-engineer-agent` (API, SQL y privacidad) y
+`etl-pipeline-engineer-agent` (fuentes oficiales y pipelines GIS). Son
+read-only: el `orchestrator` aplica los cambios después de revisar sus
+informes. Consulta [.opencode/agents/README.md](./.opencode/agents/README.md)
+para el roster y las reglas de delegación.
 
 ## Datos en el repo vs. bucket externo
 
