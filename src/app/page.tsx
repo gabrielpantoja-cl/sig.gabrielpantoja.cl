@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import type { Facets, GeocodeResult, MapPoint, Stats } from '@/lib/types';
 import { kmlColorFor, kmlDisplayName, parseKmlFile, type KmlLayer } from '@/lib/kml';
 import type { LayerMetadataEntry } from '@/lib/map-export';
+import { SUELOS_SERVICE_NAME, type SuelosStatus } from '@/lib/suelos';
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
@@ -340,6 +341,7 @@ export default function Home() {
   const [showRedVial, setShowRedVial] = useState(false);
   const [showRedDrenaje, setShowRedDrenaje] = useState(false);
   const [showSuelos, setShowSuelos] = useState(false);
+  const [suelosStatus, setSuelosStatus] = useState<SuelosStatus>({ kind: 'idle' });
   const [showCatastroFruticola, setShowCatastroFruticola] = useState(false);
 
   // Capas KML subidas por el usuario: parseo 100% en el navegador (lib/kml),
@@ -599,6 +601,7 @@ export default function Home() {
             showRedVial={showRedVial}
             showRedDrenaje={showRedDrenaje}
             showSuelos={showSuelos}
+            onSuelosStatus={setSuelosStatus}
             showCatastroFruticola={showCatastroFruticola}
             kmlLayers={kmlLayers}
             focus={focus}
@@ -609,6 +612,17 @@ export default function Home() {
         </div>
         {/* Se desmonta solo (gone) tras llegar al 100% y hacer fade-out. */}
         <RetroLoader progress={bootProgress} done={bootDone} />
+
+        {showSuelos && suelosStatus.kind === 'error' && (
+          <div
+            role="alert"
+            className="absolute bottom-8 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs leading-snug text-red-800 shadow-lg backdrop-blur dark:text-red-200"
+          >
+            <strong>Capa de suelos temporalmente no disponible.</strong>{' '}
+            No responde {suelosStatus.service || SUELOS_SERVICE_NAME} (operación{' '}
+            {suelosStatus.operation}). El resto del SIG continúa funcionando normalmente.
+          </div>
+        )}
 
         {/* Geocoder mobile: barra flotante sobre el mapa, a la derecha del zoom */}
         <div className="absolute left-14 right-3 top-3 z-[600] md:hidden">
@@ -678,6 +692,7 @@ export default function Home() {
             onToggleRedDrenaje={setShowRedDrenaje}
             showSuelos={showSuelos}
             onToggleSuelos={setShowSuelos}
+            suelosStatus={suelosStatus}
             showCatastroFruticola={showCatastroFruticola}
             onToggleCatastroFruticola={setShowCatastroFruticola}
             kmlLayers={kmlLayers}

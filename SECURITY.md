@@ -77,7 +77,12 @@ authenticated user. Threat surface is therefore narrow:
 2. **CORS / abuse via bot scraping**: `src/lib/security.ts` enforces an
    origin allowlist in production and a best-effort per-IP rate limit.
 3. **Layer hallucination via 3rd-party services**: soils CIREN and geocoder
-   are proxied server-side. Failures degrade the UX, not data integrity.
+   are proxied server-side. `/api/suelos/export` and `/api/suelos/identify`
+   only contact the fixed `ESTUDIO_AGROLOGICO_SUELOS` MapServer; they validate
+   every parameter, impose an upstream timeout and reject unexpected content
+   types or ArcGIS error envelopes. Public errors identify the affected service
+   and operation, but never expose upstream bodies, arbitrary URLs or internal
+   diagnostics. Failures degrade the UX, not data integrity.
 4. **Dependency CVEs**: covered by Dependabot (`.github/dependabot.yml`).
 
 If you find a way around any of these, that's a vulnerability — please

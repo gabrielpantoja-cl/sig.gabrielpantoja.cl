@@ -15,7 +15,12 @@ import {
   RED_DRENAJE_ATTRIBUTION,
   RED_DRENAJE_SOURCE_URL,
 } from '@/lib/red-drenaje';
-import { SUELOS_ATTRIBUTION, SUELOS_CLASSES, SUELOS_SOURCE_URL } from '@/lib/suelos';
+import {
+  SUELOS_ATTRIBUTION,
+  SUELOS_CLASSES,
+  SUELOS_SOURCE_URL,
+  type SuelosStatus,
+} from '@/lib/suelos';
 import {
   CATASTRO_FRUTICOLA_ATTRIBUTION,
   CATASTRO_FRUTICOLA_LEGEND,
@@ -97,6 +102,50 @@ function LayerRow({
           {children}
         </div>
       )}
+    </div>
+  );
+}
+
+function SuelosStatusNotice({ status }: { status: SuelosStatus }) {
+  if (status.kind === 'idle') return null;
+
+  const content = (() => {
+    switch (status.kind) {
+      case 'zoom-required':
+        return {
+          tone: 'border-sky-500/25 bg-sky-500/10 text-sky-800 dark:text-sky-200',
+          icon: '↗',
+          text: `Acerca el mapa hasta zoom ${status.minZoom} o superior para solicitar la cobertura.`,
+        };
+      case 'loading':
+        return {
+          tone: 'border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-100',
+          icon: '◌',
+          text: 'Consultando la cobertura oficial de CIREN…',
+        };
+      case 'ready':
+        return {
+          tone: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100',
+          icon: '✓',
+          text: 'Servicio CIREN operativo en esta vista.',
+        };
+      case 'error':
+        return {
+          tone: 'border-red-500/30 bg-red-500/10 text-red-800 dark:text-red-200',
+          icon: '!',
+          text: `Servicio sin respuesta: ${status.service} (operación ${status.operation}). Se reintentará al mover el mapa o al reactivar la capa.`,
+        };
+    }
+  })();
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={`ml-5 mt-1.5 rounded-md border px-2 py-1.5 text-[0.65rem] leading-snug ${content.tone}`}
+    >
+      <span className="mr-1 font-bold" aria-hidden="true">{content.icon}</span>
+      {content.text}
     </div>
   );
 }
@@ -228,6 +277,7 @@ export function LayersControl({
   onToggleRedDrenaje,
   showSuelos,
   onToggleSuelos,
+  suelosStatus,
   showCatastroFruticola,
   onToggleCatastroFruticola,
   kmlLayers,
@@ -255,6 +305,7 @@ export function LayersControl({
   onToggleRedDrenaje: (v: boolean) => void;
   showSuelos: boolean;
   onToggleSuelos: (v: boolean) => void;
+  suelosStatus: SuelosStatus;
   showCatastroFruticola: boolean;
   onToggleCatastroFruticola: (v: boolean) => void;
   kmlLayers: KmlLayer[];
@@ -475,45 +526,48 @@ export function LayersControl({
           </p>
         </LayerRow>
 
-        <LayerRow
-          checked={showSuelos}
-          onChange={onToggleSuelos}
-          label="Suelos agrológicos (CIREN)"
-          swatch={
-            <span
-              className="inline-block h-2.5 w-2.5 rounded-sm"
-              style={{ background: SUELOS_CLASSES[1].color }}
-            />
-          }
-        >
-          <ul className="space-y-1 text-xs">
-            {SUELOS_CLASSES.map((c) => (
-              <li key={c.label} className="flex items-center gap-1.5 leading-tight">
-                <span
-                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-black/20 dark:border-white/25"
-                  style={{ background: c.color }}
-                />
-                <span className="opacity-80">
-                  {c.label}
-                  <span className="opacity-60"> · {c.description}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
-            {SUELOS_ATTRIBUTION}. Capa servida en vivo por CIREN (12 regiones estudiadas,
-            Atacama a Aysén). <strong>Visible desde zoom regional: acerca el mapa</strong>.
-            Haz clic para consultar la clase de un punto.{' '}
-            <a
-              href={SUELOS_SOURCE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:opacity-100"
-            >
-              Ver fuente oficial →
-            </a>
-          </p>
-        </LayerRow>
+        <div>
+          <LayerRow
+            checked={showSuelos}
+            onChange={onToggleSuelos}
+            label="Suelos agrológicos (CIREN)"
+            swatch={
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-sm"
+                style={{ background: SUELOS_CLASSES[1].color }}
+              />
+            }
+          >
+            <ul className="space-y-1 text-xs">
+              {SUELOS_CLASSES.map((c) => (
+                <li key={c.label} className="flex items-center gap-1.5 leading-tight">
+                  <span
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-black/20 dark:border-white/25"
+                    style={{ background: c.color }}
+                  />
+                  <span className="opacity-80">
+                    {c.label}
+                    <span className="opacity-60"> · {c.description}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
+              {SUELOS_ATTRIBUTION}. Capa servida en vivo por CIREN (12 regiones estudiadas,
+              Atacama a Aysén). <strong>Visible desde zoom regional: acerca el mapa</strong>.
+              Haz clic para consultar la clase de un punto.{' '}
+              <a
+                href={SUELOS_SOURCE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:opacity-100"
+              >
+                Ver fuente oficial →
+              </a>
+            </p>
+          </LayerRow>
+          {showSuelos && <SuelosStatusNotice status={suelosStatus} />}
+        </div>
       </div>
 
       {/* Capas KML del usuario */}
