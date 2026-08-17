@@ -1,7 +1,7 @@
 ---
 description: Senior GIS architect for this Leaflet + Next.js + React 19 codebase — performance budgeting for canvas/canvas-markercluster renderers, React state shape for imperative Leaflet, Web Worker migration of KML/GeoJSON parsing, and per-feature memory budgeting. Invoke when designing new layers, KML pipelines, large GeoJSON flows, or any edit to src/components/MapView.tsx, src/lib/*.ts, or scripts/build-*.mjs.
 mode: subagent
-model: minimax-coding-plan/MiniMax-M3
+model: openai/gpt-5.6-luna
 temperature: 0.1
 permission:
   edit: deny

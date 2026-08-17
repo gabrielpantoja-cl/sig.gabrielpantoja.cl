@@ -174,7 +174,8 @@ convention.
 
 | Path | Purpose |
 |---|---|
-| `.opencode/agents/*.md` | Custom agents (markdown form) |
+| `.opencode/agents/orchestrator.md` | Primary GPT-5.6 Luna coordinator with a deny-by-default specialist allowlist |
+| `.opencode/agents/*-agent.md` | Read-only GIS, Next.js, Neon and ETL specialists invoked by the orchestrator |
 | `.opencode/commands/*.md` | Custom `/slash` commands (markdown form) |
 | `.opencode/skills/<name>/SKILL.md` | On-demand skills (one folder per skill) |
 
@@ -190,3 +191,10 @@ The `package.json` / `package-lock.json` / `node_modules/` under
 - `opencode.local.json` at the repo root — **no-op marker** (see Note above;
   opencode does not read this filename; per-machine overrides go in
   `~/.config/opencode/opencode.json`)
+
+The built-in `README` agent is a documentation subagent, not a third primary
+agent. The project primary coordinator is `orchestrator`; it delegates only to
+the read-only specialists listed in `.opencode/agents/README.md`. Keep those
+specialists read-only and preserve the deny-by-default delegation policy when
+adding a new one. Since this is a public repository, agent prompts must never
+contain credentials, private appraisal content or machine-specific secrets.
