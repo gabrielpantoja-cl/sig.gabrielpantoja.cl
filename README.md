@@ -30,6 +30,7 @@ consultan Neon con una whitelist de columnas (nunca PII):
 ```
 Browser → /api/{points,stats,export,facets} → Neon (web_readonly, SELECT)
 Browser → /api/geocode → Nominatim/OSM (address search, Chile only, cached proxy)
+Browser → /api/suelos/{export,identify} → CIREN (fixed, validated proxy)
 ```
 
 | Endpoint | Qué hace |
@@ -38,6 +39,8 @@ Browser → /api/geocode → Nominatim/OSM (address search, Chile only, cached p
 | `GET /api/stats` | count, avg, mediana, min/max, $/m² sobre el set filtrado |
 | `GET /api/export?format=csv\|geojson` | Descarga del set filtrado (CSV con BOM+`;`, o GeoJSON para QGIS) |
 | `GET /api/facets` | Comunas + rangos de año/monto para poblar los filtros |
+| `GET /api/suelos/export` | PNG de suelos CIREN por viewport; valida timeout y tipo de respuesta |
+| `GET /api/suelos/identify` | Clase agrológica puntual; devuelve solo resultado saneado |
 
 **Filtros compartidos** (`src/lib/filters.ts`, parametrizados $N, anti-inyección):
 `comuna`, `anio_min/max`, `monto_min/max`, `sup_min/max`, `predio` (ILIKE),
@@ -65,7 +68,7 @@ superficie, rol, destino, fechaEscritura, fojas, numero, conservador`.
 | Límites comunales (DPA) | SUBDERE — División Político-Administrativa 2023 (geoportal.cl) | Datos abiertos del Estado de Chile | `npm run data:build:comunas` |
 | Red caminera | MOP — Dirección de Vialidad (mapasvialidad.mop.gob.cl) | Verificar con MOP (uso referencial) | `npm run data:build:red-vial` |
 | Catastro Frutícola | CIREN-ODEPA, vía IDE Minagri | Atribución CIREN-ODEPA (ver `src/lib/catastro-fruticola.ts`) | `npm run data:build:catastro-fruticola` |
-| Suelos agrológicos | CIREN, ArcGIS público (esri.ciren.cl) | Atribución CIREN (ver `src/lib/suelos.ts`) | Dinámica remota (PNG por viewport) |
+| Suelos agrológicos | CIREN, ArcGIS público (esri.ciren.cl) | Atribución CIREN (ver `src/lib/suelos.ts`) | Dinámica remota mediante proxy seguro (PNG por viewport) |
 
 > Cada capa tiene un archivo `*.meta.json` adyacente que documenta la fecha de
 > corte (`vintage`), el organismo proveedor y la URL de la ficha SIMBIO o
