@@ -512,9 +512,11 @@ export function LayersControl({
           </ul>
           <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
             {CATASTRO_FRUTICOLA_ATTRIBUTION}. Cobertura: 14 regiones administrativas (Aysén
-            a Arica y Parinacota), vintages CIREN 2019–2025 según región (rotativos,
-            cada ~5 años). El ROL del popup coincide con el ROL SII de los puntos CBR.
-            Geometría referencial.{' '}
+            a Arica y Parinacota), levantamientos CIREN 2019–2025 según región (rotativos,
+            cada ~5 años). El año del popup es la fecha del levantamiento regional, no el
+            año de plantación del huerto: CIREN no publica atributos temporales por predio.
+            El ROL del popup coincide con el ROL SII de los puntos CBR. Geometría
+            referencial.{' '}
             <a
               href={CATASTRO_FRUTICOLA_SOURCE_URL}
               target="_blank"

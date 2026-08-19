@@ -283,7 +283,10 @@ async function writeMeta(featureCount) {
       'regidere/comudere/provdere son los códigos oficiales SUBDERE. rolpredi es el ROL del predio (pivote con CBR). ' +
       'especie_01 es la especie principal declarada por potrero; especie_02/03/04 existen sólo en algunas capas ' +
       'regionales (Atacama, La Araucanía, Los Ríos y Los Lagos sólo traen especie_01) y se omiten aquí para ' +
-      'mantener un esquema uniforme. vintage es el año CIREN del catastro regional.',
+      'mantener un esquema uniforme. vintage es el AÑO DEL LEVANTAMIENTO REGIONAL, NO el año de plantación del ' +
+      'huerto: el servicio CIREN no publica ningún atributo temporal por predio (el esquema de cada sublayer es ' +
+      'objectid, mslink, desccomu, rolpredi, especie_01..04 y los códigos SUBDERE), así que el ETL lo deriva del ' +
+      'nombre del sublayer con el regex (CIREN YYYY) y por construcción es constante para toda la región.',
     processing:
       `MapServer CIREN /query paginado con resultOffset (PAGE_SIZE=${PAGE_SIZE}) sobre los 14 sublayers ` +
       `del grupo PRODUCTORES FRUTÍCOLAS (parentLayerId 54); vintage extraído del nombre de cada layer con regex ` +
