@@ -257,7 +257,7 @@ function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEntry[] {
   if (input.showCatastroFruticola) {
     entries.push({
       title: 'Catastro frutícola (CIREN-ODEPA)',
-      details: 'Productores frutícolas por especie, vintages 2019–2025 según región\nFuente: CIREN-ODEPA · IDE Minagri',
+      details: 'Productores frutícolas por especie; levantamientos regionales CIREN 2019–2025 (el año es la fecha del catastro, no de plantación)\nFuente: CIREN-ODEPA · IDE Minagri',
       color: '#be185d', // magenta (especie por defecto)
       shape: 'square',
     });

@@ -39,7 +39,10 @@ import {
 } from '@/lib/red-drenaje';
 import {
   CATASTRO_FRUTICOLA_ATTRIBUTION,
+  VINTAGE_HINT,
+  VINTAGE_LABEL,
   especieColor,
+  regionLabel,
   speciesList,
   type CatastroFruticolaProps,
 } from '@/lib/catastro-fruticola';
@@ -388,26 +391,50 @@ function buildRedDrenajePopup(props: RedDrenajeProps): string {
  * comuna y el año del catastro regional que levantó el dato. Sin PII: el
  * nombre del productor que CIREN vende como atributo en el producto
  * empaquetado NO está en esta capa.
+ *
+ * El año se rotula "Levantamiento CIREN <año> · Región de X" con una nota al
+ * pie de la fila, porque el rótulo anterior ("Catastro CIREN: Año 2024") se
+ * leía como año de plantación del huerto. No lo es: CIREN no publica ningún
+ * atributo temporal por predio — el año sale del nombre del sublayer regional
+ * y es idéntico para toda la región (ver src/lib/catastro-fruticola.ts).
  */
 function buildCatastroFruticolaPopup(props: CatastroFruticolaProps): string {
   const especies = speciesList(props);
   const principal = (props.especie_01 ?? '').trim() || 'Productor frutícola';
   const color = especieColor(props.especie_01);
 
+  const region = regionLabel(props.regidere);
+
   const rows: [string, string][] = [];
   if (props.desccomu) rows.push(['Comuna', esc(props.desccomu)]);
   if (especies) rows.push(['Especies declaradas', esc(especies)]);
-  if (props.vintage != null) rows.push(['Catastro CIREN', `Año ${props.vintage}`]);
+  if (props.vintage != null) {
+    rows.push([
+      VINTAGE_LABEL,
+      `<span style="font-weight:600">${props.vintage}</span>` +
+        (region ? ` · ${esc(region)}` : ''),
+    ]);
+  }
 
-  const body = rows
-    .map(
-      ([k, v]) =>
-        `<tr>` +
-        `<td style="opacity:.55;padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top">${k}</td>` +
-        `<td style="vertical-align:top">${v}</td>` +
-        `</tr>`,
-    )
-    .join('');
+  // La nota del año va en una fila propia a ancho completo (colspan): dentro de
+  // la columna de valores quedaría en una tira de ~90 px y se leería peor que
+  // la ambigüedad que viene a resolver.
+  const vintageNote =
+    props.vintage != null
+      ? `<tr><td colspan="2" style="padding-top:.3rem;font-size:0.66rem;line-height:1.35;opacity:.6">` +
+        `${esc(VINTAGE_HINT)}</td></tr>`
+      : '';
+
+  const body =
+    rows
+      .map(
+        ([k, v]) =>
+          `<tr>` +
+          `<td style="opacity:.55;padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top">${k}</td>` +
+          `<td style="vertical-align:top">${v}</td>` +
+          `</tr>`,
+      )
+      .join('') + vintageNote;
 
   return (
     `<div style="font-size:0.8rem;line-height:1.45;min-width:210px">` +

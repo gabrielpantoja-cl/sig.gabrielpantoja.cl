@@ -13,6 +13,18 @@
  * según región). El vintage del levantamiento se conserva en cada feature
  * (`vintage`) y se muestra en el popup y en la leyenda del panel.
  *
+ * IMPORTANTE — qué significa el año (`vintage`): es el AÑO DEL LEVANTAMIENTO
+ * REGIONAL del catastro, NO el año de plantación del huerto ni la fecha de
+ * ninguna transacción. El servicio CIREN no expone NINGÚN atributo temporal:
+ * los campos de cada sublayer son `objectid`, `mslink`, `desccomu`,
+ * `rolpredi`, `especie_01…04` y los códigos SUBDERE — nada más. El ETL deriva
+ * el año del NOMBRE del sublayer regional con el regex `CIREN (YYYY)`, por lo
+ * que es constante para toda la región: los 23.732 polígonos de O'Higgins
+ * comparten 2024, los 13.438 de Valparaíso comparten 2025, etc. Léase como
+ * *vigencia del dato*: el huerto existía y tenía esa especie declarada cuando
+ * CIREN levantó esa región. El popup lo dice de forma explícita para que no
+ * se confunda con edad de plantación (ver `VINTAGE_LABEL` / `VINTAGE_HINT`).
+ *
  * Estilo: relleno translúcido por especie predominante (paleta categórica
  * cálida que no colisiona con carmesí=CBR, verdes/azules=RNAP, ámbar=PRL,
  * violeta=red vial, gris=comunas) + borde fino del mismo tono. En el panel
@@ -36,8 +48,57 @@ export interface CatastroFruticolaProps {
   regidere: string | null; // código región SUBDERE (15–13)
   comudere: string | null; // código comuna SUBDERE
   provdere: string | null; // código provincia SUBDERE
-  vintage: number | null; // año CIREN del catastro regional (p. ej. 2024)
+  /**
+   * Año del LEVANTAMIENTO regional del catastro (p. ej. 2024). NO es año de
+   * plantación: lo inyecta el ETL desde el nombre del sublayer CIREN y es
+   * idéntico para todos los predios de una misma región. Ver la nota del
+   * encabezado de este archivo.
+   */
+  vintage: number | null;
 }
+
+/**
+ * Rótulo de región por código SUBDERE (`regidere`), para poder decir en el
+ * popup *qué* levantamiento regional fija el año. Se guarda el rótulo ya
+ * formado (con su artículo: "del Maule", "Metropolitana") en vez del nombre
+ * suelto, porque concatenar "Región de " + nombre produce castellano roto en
+ * la Metropolitana, el Maule y el Biobío. Se incluyen Antofagasta y
+ * Magallanes por completitud del mapa de códigos aunque no tengan catastro
+ * frutícola.
+ */
+const REGION_LABELS: Record<string, string> = {
+  '15': 'Región de Arica y Parinacota',
+  '01': 'Región de Tarapacá',
+  '02': 'Región de Antofagasta',
+  '03': 'Región de Atacama',
+  '04': 'Región de Coquimbo',
+  '05': 'Región de Valparaíso',
+  '13': 'Región Metropolitana',
+  '06': "Región de O'Higgins",
+  '07': 'Región del Maule',
+  '16': 'Región de Ñuble',
+  '08': 'Región del Biobío',
+  '09': 'Región de La Araucanía',
+  '14': 'Región de Los Ríos',
+  '10': 'Región de Los Lagos',
+  '11': 'Región de Aysén',
+  '12': 'Región de Magallanes',
+};
+
+/** Rótulo de región desde el código SUBDERE, o `null` si no se reconoce. */
+export function regionLabel(regidere: string | null | undefined): string | null {
+  const k = (regidere ?? '').trim();
+  return REGION_LABELS[k] ?? null;
+}
+
+/**
+ * Etiqueta y nota de ayuda del año en la UI. Se centralizan aquí para que el
+ * popup y el panel de capas digan exactamente lo mismo y la ambigüedad
+ * "¿año de plantación?" no vuelva a aparecer.
+ */
+export const VINTAGE_LABEL = 'Levantamiento CIREN';
+export const VINTAGE_HINT =
+  'Año en que CIREN catastró esta región — no es el año de plantación del huerto.';
 
 /**
  * Paleta categórica para las especies más comunes del catastro frutícola
