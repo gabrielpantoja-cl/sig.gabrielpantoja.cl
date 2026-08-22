@@ -6,7 +6,13 @@ export interface VegetacionalProps {
   subuso: string | null;
   estructura: string | null;
   cobertura: string | null;
+  altura: string | null;
   tipo_fores: string | null;
+  subtipofor: string | null;
+  esp_c1: string | null;
+  esp_c2: string | null;
+  nom_snaspe: string | null;
+  tipo_snasp: string | null;
   nom_reg: string | null;
   nom_prov: string | null;
   nom_com: string | null;
@@ -14,6 +20,8 @@ export interface VegetacionalProps {
   codprov: string | null;
   codcom: string | null;
   superf_ha: number | null;
+  tc: string | null;
+  tipo_poli: string | null;
   vintage?: string;
   regionSlug?: string;
   especi1_ci: string | null;
@@ -35,7 +43,7 @@ export const VEGETACIONAL_ATTRIBUTION =
 export const VEGETACIONAL_SOURCE_URL =
   'https://ide.minagri.gob.cl/descarga-de-capas-shp/planificacion-catastral/';
 export const VEGETACIONAL_COLOR = '#15803d';
-export const VEGETACIONAL_MIN_ZOOM = 8;
+export const VEGETACIONAL_MIN_ZOOM = 10;
 export const VEGETACIONAL_OPACITY = 0.68;
 export const VEGETACIONAL_EXPORT_URL = '/api/vegetacional/export';
 export const VEGETACIONAL_IDENTIFY_URL = '/api/vegetacional/identify';

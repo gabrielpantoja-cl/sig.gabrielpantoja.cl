@@ -460,14 +460,25 @@ function buildCatastroFruticolaPopup(props: CatastroFruticolaProps): string {
 function buildVegetacionalPopup(props: VegetacionalProps, layerName = ''): string {
   const species = speciesPairs(props);
   const rows: [string, string][] = [];
-  if (props.uso || props.uso_tierra) rows.push(['Uso de la tierra', esc(props.uso || props.uso_tierra)]);
+  if (props.uso) rows.push(['Uso de la tierra', esc(props.uso)]);
   if (props.subuso) rows.push(['Subuso', esc(props.subuso)]);
+  if (props.uso_tierra && props.uso_tierra !== props.subuso) rows.push(['Descripción', esc(props.uso_tierra)]);
   if (props.estructura) rows.push(['Estructura', esc(props.estructura)]);
   if (props.cobertura) rows.push(['Cobertura', esc(props.cobertura)]);
+  if (props.altura) rows.push(['Altura', esc(props.altura)]);
   if (props.tipo_fores) rows.push(['Tipología forestal', esc(props.tipo_fores)]);
+  if (props.subtipofor) rows.push(['Subtipo forestal', esc(props.subtipofor)]);
   if (species.length) rows.push(['Especies dominantes', esc(species.join(' · '))]);
+  const conservationSpecies = [props.esp_c1, props.esp_c2].filter((value): value is string => Boolean(value));
+  if (conservationSpecies.length) rows.push(['Especies en conservación', esc(conservationSpecies.join(' · '))]);
+  if (props.nom_snaspe) rows.push(['Área silvestre protegida', esc(props.nom_snaspe)]);
+  if (props.tipo_snasp) rows.push(['Categoría de protección', esc(props.tipo_snasp)]);
+  if (props.nom_reg) rows.push(['Región', esc(props.nom_reg)]);
+  if (props.nom_prov) rows.push(['Provincia', esc(props.nom_prov)]);
   if (props.nom_com) rows.push(['Comuna', esc(props.nom_com)]);
   if (props.superf_ha != null) rows.push(['Superficie cartográfica', `${props.superf_ha.toLocaleString('es-CL')} ha`]);
+  if (props.tc) rows.push(['Código de cambio CONAF', esc(props.tc)]);
+  if (props.tipo_poli) rows.push(['Tipo de polígono CONAF', esc(props.tipo_poli)]);
   const vintage = props.vintage || /CONAF\s+(\d{4}(?:-\d{4})?)/i.exec(layerName)?.[1] || '';
   if (vintage || props.nom_reg) {
     rows.push(['Actualización regional', [esc(vintage), esc(props.nom_reg)].filter(Boolean).join(' · ')]);
