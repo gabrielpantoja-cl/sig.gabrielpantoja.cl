@@ -47,6 +47,15 @@ import {
   type CatastroFruticolaProps,
 } from '@/lib/catastro-fruticola';
 import {
+  VEGETACIONAL_ATTRIBUTION,
+  VEGETACIONAL_EXPORT_URL,
+  VEGETACIONAL_IDENTIFY_URL,
+  VEGETACIONAL_MIN_ZOOM,
+  VEGETACIONAL_OPACITY,
+  speciesPairs,
+  type VegetacionalProps,
+} from '@/lib/vegetacional';
+import {
   SUELOS_ATTRIBUTION,
   SUELOS_EXPORT_URL,
   SUELOS_IDENTIFY_URL,
@@ -448,6 +457,25 @@ function buildCatastroFruticolaPopup(props: CatastroFruticolaProps): string {
   );
 }
 
+function buildVegetacionalPopup(props: VegetacionalProps, layerName = ''): string {
+  const species = speciesPairs(props);
+  const rows: [string, string][] = [];
+  if (props.uso || props.uso_tierra) rows.push(['Uso de la tierra', esc(props.uso || props.uso_tierra)]);
+  if (props.subuso) rows.push(['Subuso', esc(props.subuso)]);
+  if (props.estructura) rows.push(['Estructura', esc(props.estructura)]);
+  if (props.cobertura) rows.push(['Cobertura', esc(props.cobertura)]);
+  if (props.tipo_fores) rows.push(['Tipología forestal', esc(props.tipo_fores)]);
+  if (species.length) rows.push(['Especies dominantes', esc(species.join(' · '))]);
+  if (props.nom_com) rows.push(['Comuna', esc(props.nom_com)]);
+  if (props.superf_ha != null) rows.push(['Superficie cartográfica', `${props.superf_ha.toLocaleString('es-CL')} ha`]);
+  const vintage = props.vintage || /CONAF\s+(\d{4}(?:-\d{4})?)/i.exec(layerName)?.[1] || '';
+  if (vintage || props.nom_reg) {
+    rows.push(['Actualización regional', [esc(vintage), esc(props.nom_reg)].filter(Boolean).join(' · ')]);
+  }
+  const body = rows.map(([key, value]) => `<tr><td style="opacity:.55;padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top">${key}</td><td style="vertical-align:top">${value}</td></tr>`).join('');
+  return `<div style="font-size:0.8rem;line-height:1.45;min-width:230px"><div style="font-weight:600;font-size:.92rem">Recursos vegetacionales</div><table style="border-collapse:collapse">${body}</table><div style="margin-top:.35rem;font-size:.62rem;opacity:.5">${VEGETACIONAL_ATTRIBUTION} · cartografía referencial</div></div>`;
+}
+
 /**
  * Popup de un feature dentro de una capa KML del usuario. Muestra el nombre
  * del Placemark y su descripción como texto plano: cualquier HTML embebido en
@@ -484,6 +512,7 @@ export default function MapView({
   showRedDrenaje = false,
   showSuelos = false,
   showCatastroFruticola = false,
+  showVegetacional = false,
   kmlLayers = [],
   focus = null,
   onRenderProgress,
@@ -502,6 +531,7 @@ export default function MapView({
   showRedDrenaje?: boolean;
   showSuelos?: boolean;
   showCatastroFruticola?: boolean;
+  showVegetacional?: boolean;
   kmlLayers?: KmlLayer[];
   /** Resultado del geocoder: el mapa vuela ahí y deja un marcador pulsante. */
   focus?: GeocodeResult | null;
@@ -530,6 +560,7 @@ export default function MapView({
   const redDrenajeRef = useRef<L.GeoJSON | null>(null);
   const suelosRef = useRef<L.ImageOverlay | null>(null);
   const catastroFruticolaRef = useRef<L.GeoJSON | null>(null);
+  const vegetacionalRef = useRef<L.ImageOverlay | null>(null);
   const kmlRef = useRef<Map<string, L.GeoJSON>>(new Map());
   const seenKmlIds = useRef<Set<string>>(new Set());
 
@@ -569,6 +600,7 @@ export default function MapView({
         showRedDrenaje,
         showSuelos,
         showCatastroFruticola,
+        showVegetacional,
         cluster: clusterRef.current,
         metadata: args?.metadata,
       });
@@ -587,6 +619,7 @@ export default function MapView({
     showRedDrenaje,
     showSuelos,
     showCatastroFruticola,
+    showVegetacional,
   ]);
 
   // Con varias capas asíncronas compartiendo el overlayPane (preferCanvas), el
@@ -601,6 +634,7 @@ export default function MapView({
     urbanLimitRef.current?.bringToFront();
     // Catastro frutícola sobre los polígonos administrativos (los huertos
     // son el dato sustantivo de la capa: deben quedar visibles).
+    vegetacionalRef.current?.bringToFront();
     catastroFruticolaRef.current?.bringToFront();
     // Red caminera sobre los polígonos (líneas finas, deben quedar visibles).
     redVialRef.current?.bringToFront();
@@ -1066,6 +1100,109 @@ export default function MapView({
       }
     };
   }, [showCatastroFruticola, reorderOverlays]);
+
+  // Catastro CONAF — raster dinámico por viewport contra el MapServer oficial.
+  // El dataset vectorial regional alcanza cientos de MB, por lo que se sirve
+  // un PNG same-origin y los atributos se consultan puntualmente con identify.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (vegetacionalRef.current) map.removeLayer(vegetacionalRef.current);
+    vegetacionalRef.current = null;
+    if (!showVegetacional) return;
+
+    const overlay = L.imageOverlay(TRANSPARENT_PIXEL, map.getBounds(), {
+      opacity: VEGETACIONAL_OPACITY,
+      interactive: false,
+      attribution: 'CONAF · Recursos vegetacionales',
+    }).addTo(map);
+    vegetacionalRef.current = overlay;
+    let exportSequence = 0;
+    let exportController: AbortController | null = null;
+    let identifyController: AbortController | null = null;
+    let activeBlobUrl: string | null = null;
+
+    const clearRaster = () => {
+      overlay.setUrl(TRANSPARENT_PIXEL);
+      if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
+      activeBlobUrl = null;
+    };
+
+    const refresh = async () => {
+      const sequence = ++exportSequence;
+      exportController?.abort();
+      if (map.getZoom() < VEGETACIONAL_MIN_ZOOM) {
+        clearRaster();
+        return;
+      }
+      const bounds = map.getBounds();
+      const size = map.getSize();
+      const controller = new AbortController();
+      exportController = controller;
+      const params = new URLSearchParams({
+        bbox: [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()].join(','),
+        size: [Math.max(1, Math.round(size.x)), Math.max(1, Math.round(size.y))].join(','),
+      });
+      try {
+        const response = await fetch(`${VEGETACIONAL_EXPORT_URL}?${params}`, { signal: controller.signal });
+        if (!response.ok || sequence !== exportSequence) return;
+        const blobUrl = URL.createObjectURL(await response.blob());
+        await waitForImage(blobUrl);
+        if (sequence !== exportSequence || !mapRef.current) {
+          URL.revokeObjectURL(blobUrl);
+          return;
+        }
+        if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
+        activeBlobUrl = blobUrl;
+        overlay.setBounds(bounds);
+        overlay.setUrl(blobUrl);
+        reorderOverlays();
+      } catch {
+        if (!controller.signal.aborted) clearRaster();
+      }
+    };
+
+    const identify = async (event: L.LeafletMouseEvent) => {
+      if (map.getZoom() < VEGETACIONAL_MIN_ZOOM) return;
+      identifyController?.abort();
+      const controller = new AbortController();
+      identifyController = controller;
+      const bounds = map.getBounds();
+      const size = map.getSize();
+      const params = new URLSearchParams({
+        geometry: [event.latlng.lng, event.latlng.lat].join(','),
+        mapExtent: [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()].join(','),
+        imageDisplay: [Math.max(1, Math.round(size.x)), Math.max(1, Math.round(size.y)), 96].join(','),
+        tolerance: '3',
+      });
+      try {
+        const response = await fetch(`${VEGETACIONAL_IDENTIFY_URL}?${params}`, { signal: controller.signal });
+        if (!response.ok) return;
+        const data = await response.json() as { results?: Array<{ layerName: string; attributes: VegetacionalProps }> };
+        const result = data.results?.[0];
+        if (result) {
+          L.popup({ maxWidth: 340 })
+            .setLatLng(event.latlng)
+            .setContent(buildVegetacionalPopup(result.attributes, result.layerName))
+            .openOn(map);
+        }
+      } catch {}
+    };
+
+    void refresh();
+    map.on('moveend', refresh);
+    map.on('click', identify);
+    return () => {
+      exportController?.abort();
+      identifyController?.abort();
+      map.off('moveend', refresh);
+      map.off('click', identify);
+      clearRaster();
+      if (map.hasLayer(overlay)) map.removeLayer(overlay);
+      if (vegetacionalRef.current === overlay) vegetacionalRef.current = null;
+    };
+  }, [showVegetacional, reorderOverlays]);
 
   // Suelos agrológicos (CIREN) — capa dinámica remota: el dataset completo
   // supera los 500 MB, así que el servidor de CIREN renderiza la imagen con

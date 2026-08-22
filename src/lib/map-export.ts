@@ -65,6 +65,7 @@ const ATTRIBUTION_RED_VIAL = 'MOP · Dirección de Vialidad';
 const ATTRIBUTION_RED_DRENAJE = 'DGA · Banco Nacional de Aguas';
 const ATTRIBUTION_SUELOS = 'CIREN · Estudios Agrológicos';
 const ATTRIBUTION_CATASTRO = 'CIREN-ODEPA · Catastro Frutícola';
+const ATTRIBUTION_VEGETACIONAL = 'CONAF · Catastro de Recursos Vegetacionales';
 
 /* ---------- Captura base (tiles + vectores), propia ---------- */
 
@@ -257,6 +258,33 @@ function drawPathRootToCanvas(
   }
 }
 
+/** Copia los ImageOverlay (suelos y recursos vegetacionales) antes de los
+ * vectores, respetando exactamente su rectángulo CSS visible. Sus imágenes se
+ * sirven como blob/same-origin, por lo que no contaminan el canvas. */
+async function drawImageOverlaysToCanvas(
+  map: L.Map,
+  ctx: CanvasRenderingContext2D,
+): Promise<void> {
+  const containerRect = map.getContainer().getBoundingClientRect();
+  const tasks: Promise<void>[] = [];
+  map.eachLayer((layer) => {
+    if (!(layer instanceof L.ImageOverlay)) return;
+    const image = layer.getElement();
+    if (!image || !image.complete || image.naturalWidth === 0) return;
+    tasks.push((async () => {
+      try {
+        if (typeof image.decode === 'function') await image.decode();
+        const rect = image.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        ctx.drawImage(image, rect.left - containerRect.left, rect.top - containerRect.top, rect.width, rect.height);
+      } catch (error) {
+        console.warn('[export] ImageOverlay omitido:', error);
+      }
+    })());
+  });
+  await Promise.allSettled(tasks);
+}
+
 /** Crea un canvas maestro del tamaño del map y le pinta tiles + vectores. */
 async function captureBaseCanvas(map: L.Map): Promise<HTMLCanvasElement> {
   const size = map.getSize();
@@ -267,6 +295,7 @@ async function captureBaseCanvas(map: L.Map): Promise<HTMLCanvasElement> {
   if (!ctx) throw new Error('No se pudo obtener contexto 2D del canvas de export.');
 
   await drawTileLayersToCanvas(map, ctx);
+  await drawImageOverlaysToCanvas(map, ctx);
   drawPathRootToCanvas(map, ctx);
   return canvas;
 }
@@ -747,6 +776,7 @@ function drawFrame(
   if (opts.showRedDrenaje) atts.push(ATTRIBUTION_RED_DRENAJE);
   if (opts.showSuelos) atts.push(ATTRIBUTION_SUELOS);
   if (opts.showCatastroFruticola) atts.push(ATTRIBUTION_CATASTRO);
+  if (opts.showVegetacional) atts.push(ATTRIBUTION_VEGETACIONAL);
   drawAttributionStrip(ctx, atts);
 }
 
@@ -761,6 +791,7 @@ export type LayerExportFlags = {
   showRedDrenaje: boolean;
   showSuelos: boolean;
   showCatastroFruticola: boolean;
+  showVegetacional: boolean;
 };
 
 /** Forma de la muestra (swatch) que precede al título en el cajetín. Cada
