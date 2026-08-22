@@ -30,6 +30,7 @@ import { CBR_POINT_COLOR } from '@/lib/cbr-points';
 import {
   VEGETACIONAL_ATTRIBUTION,
   VEGETACIONAL_COLOR,
+  VEGETACIONAL_MIN_ZOOM,
   VEGETACIONAL_REGIONS,
   VEGETACIONAL_SOURCE_URL,
 } from '@/lib/vegetacional';
@@ -547,7 +548,8 @@ export function LayersControl({
           <p className="text-[0.6rem] leading-snug opacity-50">
             {VEGETACIONAL_ATTRIBUTION}. Carga regional bajo demanda; años disponibles:{' '}
             {VEGETACIONAL_REGIONS.map((region) => `${region.label} ${region.vintage}`).join(' · ')}. Los
-            polígonos son referenciales y el año corresponde a la actualización regional.{' '}
+            polígonos son referenciales y el año corresponde a la actualización regional.
+            <strong> Visible desde zoom {VEGETACIONAL_MIN_ZOOM}: acerca el mapa para consultar usos y especies.</strong>{' '}
             <a href={VEGETACIONAL_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-100">
               Ver fuente oficial →
             </a>
