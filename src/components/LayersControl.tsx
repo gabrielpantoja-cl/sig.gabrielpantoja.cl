@@ -27,6 +27,12 @@ import {
   CATASTRO_FRUTICOLA_SOURCE_URL,
 } from '@/lib/catastro-fruticola';
 import { CBR_POINT_COLOR } from '@/lib/cbr-points';
+import {
+  VEGETACIONAL_ATTRIBUTION,
+  VEGETACIONAL_COLOR,
+  VEGETACIONAL_REGIONS,
+  VEGETACIONAL_SOURCE_URL,
+} from '@/lib/vegetacional';
 import { KML_MAX_FILE_MB, kmlDisplayName, type KmlLayer } from '@/lib/kml';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
 
@@ -280,6 +286,8 @@ export function LayersControl({
   suelosStatus,
   showCatastroFruticola,
   onToggleCatastroFruticola,
+  showVegetacional,
+  onToggleVegetacional,
   kmlLayers,
   kmlError,
   onAddKmlFiles,
@@ -308,6 +316,8 @@ export function LayersControl({
   suelosStatus: SuelosStatus;
   showCatastroFruticola: boolean;
   onToggleCatastroFruticola: (v: boolean) => void;
+  showVegetacional: boolean;
+  onToggleVegetacional: (v: boolean) => void;
   kmlLayers: KmlLayer[];
   kmlError: string | null;
   onAddKmlFiles: (files: FileList) => void;
@@ -523,6 +533,22 @@ export function LayersControl({
               rel="noopener noreferrer"
               className="underline hover:opacity-100"
             >
+              Ver fuente oficial →
+            </a>
+          </p>
+        </LayerRow>
+
+        <LayerRow
+          checked={showVegetacional}
+          onChange={onToggleVegetacional}
+          label="Recursos vegetacionales (CONAF)"
+          swatch={<span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: VEGETACIONAL_COLOR }} />}
+        >
+          <p className="text-[0.6rem] leading-snug opacity-50">
+            {VEGETACIONAL_ATTRIBUTION}. Carga regional bajo demanda; años disponibles:{' '}
+            {VEGETACIONAL_REGIONS.map((region) => `${region.label} ${region.vintage}`).join(' · ')}. Los
+            polígonos son referenciales y el año corresponde a la actualización regional.{' '}
+            <a href={VEGETACIONAL_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-100">
               Ver fuente oficial →
             </a>
           </p>

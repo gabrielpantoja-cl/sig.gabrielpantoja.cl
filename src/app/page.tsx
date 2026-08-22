@@ -135,6 +135,7 @@ type BuildMetadataInput = {
   showRedDrenaje: boolean;
   showSuelos: boolean;
   showCatastroFruticola: boolean;
+  showVegetacional: boolean;
   comuna: string;
   anioFrom: number | null;
   montoMin: string;
@@ -262,6 +263,14 @@ function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEntry[] {
       shape: 'square',
     });
   }
+  if (input.showVegetacional) {
+    entries.push({
+      title: 'Recursos vegetacionales (CONAF)',
+      details: 'Uso, subuso, estructura, cobertura y especies dominantes; actualización regional variable\nFuente: CONAF · IDE Minagri',
+      color: '#15803d',
+      shape: 'square',
+    });
+  }
 
   // Capas KML del operador: usamos el alias del perito (`kmlDisplayName`),
   // que es lo que aparece ya en el popup del feature tras renombrarlo.
@@ -343,6 +352,7 @@ export default function Home() {
   const [showSuelos, setShowSuelos] = useState(false);
   const [suelosStatus, setSuelosStatus] = useState<SuelosStatus>({ kind: 'idle' });
   const [showCatastroFruticola, setShowCatastroFruticola] = useState(false);
+  const [showVegetacional, setShowVegetacional] = useState(false);
 
   // Capas KML subidas por el usuario: parseo 100% en el navegador (lib/kml),
   // el archivo nunca sale del dispositivo. El contador de colores es un ref
@@ -401,6 +411,7 @@ export default function Home() {
         showRedDrenaje,
         showSuelos,
         showCatastroFruticola,
+        showVegetacional,
         comuna,
         anioFrom,
         montoMin,
@@ -419,7 +430,7 @@ export default function Home() {
   }, [
     exporting,
     showPoints, showProtected, showUrbanLimit, showComunas, showRedVial,
-    showRedDrenaje, showSuelos, showCatastroFruticola,
+    showRedDrenaje, showSuelos, showCatastroFruticola, showVegetacional,
     comuna, anioFrom, montoMin, montoMax, supMin, supMax, predio, rol,
     stats, kmlLayers,
   ]);
@@ -603,6 +614,7 @@ export default function Home() {
             showSuelos={showSuelos}
             onSuelosStatus={setSuelosStatus}
             showCatastroFruticola={showCatastroFruticola}
+            showVegetacional={showVegetacional}
             kmlLayers={kmlLayers}
             focus={focus}
             onRenderProgress={handleRenderProgress}
@@ -695,6 +707,8 @@ export default function Home() {
             suelosStatus={suelosStatus}
             showCatastroFruticola={showCatastroFruticola}
             onToggleCatastroFruticola={setShowCatastroFruticola}
+            showVegetacional={showVegetacional}
+            onToggleVegetacional={setShowVegetacional}
             kmlLayers={kmlLayers}
             kmlError={kmlError}
             onAddKmlFiles={addKmlFiles}

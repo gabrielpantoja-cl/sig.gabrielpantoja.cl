@@ -68,6 +68,7 @@ superficie, rol, destino, fechaEscritura, fojas, numero, conservador`.
 | Límites comunales (DPA) | SUBDERE — División Político-Administrativa 2023 (geoportal.cl) | Datos abiertos del Estado de Chile | `npm run data:build:comunas` |
 | Red caminera | MOP — Dirección de Vialidad (mapasvialidad.mop.gob.cl) | Verificar con MOP (uso referencial) | `npm run data:build:red-vial` |
 | Catastro Frutícola | CIREN-ODEPA, vía IDE Minagri | Atribución CIREN-ODEPA (ver `src/lib/catastro-fruticola.ts`) | `npm run data:build:catastro-fruticola` |
+| Recursos vegetacionales | CONAF, SIT CONAF e IDE Minagri | Copyright CONAF; información sin restricciones según metadato (ver `src/lib/vegetacional.ts`) | `npm run data:build:vegetacional` — GeoJSON regional bajo demanda |
 | Suelos agrológicos | CIREN, ArcGIS público (esri.ciren.cl) | Atribución CIREN (ver `src/lib/suelos.ts`) | Dinámica remota mediante proxy seguro (PNG por viewport) |
 
 > Cada capa tiene un archivo `*.meta.json` adyacente que documenta la fecha de
