@@ -1,10 +1,39 @@
 import { enforce, corsHeaders } from '@/lib/security';
-import { vegetacionalLayerIds } from '@/lib/vegetacional';
+import { vegetacionalLayerIds, type VegetacionalProps } from '@/lib/vegetacional';
 import { fetchCiren, parseNumberTuple, readExactParams, validGeographicExtent, validGeographicPoint, validIntegerTuple } from '@/lib/suelos-proxy';
 import { VEGETACIONAL_UPSTREAM_SERVICE, vegetacionalProxyError } from '@/lib/vegetacional-proxy';
 
 const OPERATION = 'identify' as const;
-const ALLOWED_FIELDS = new Set(['uso', 'uso_tierra', 'subuso', 'estructura', 'cobertura', 'tipo_fores', 'nom_reg', 'nom_prov', 'nom_com', 'codreg', 'codprov', 'codcom', 'superf_ha', ...[1, 2, 3, 4, 5, 6].flatMap((n) => [`especi${n}_ci`, `especi${n}_co`])]);
+const FIELD_ALIASES: Record<string, keyof VegetacionalProps> = {
+  'descripcion del uso subuso estructura y cobertura': 'uso_tierra',
+  'uso de la tierra': 'uso',
+  'subuso de la tierra': 'subuso',
+  'estructura del bosque nativo': 'estructura',
+  'cobertura de la vegetacion': 'cobertura',
+  'altura de la vegetacion': 'altura',
+  'tipo forestal': 'tipo_fores',
+  'descriptor subtipo forestal': 'subtipofor',
+  'especie en conservacion 1': 'esp_c1',
+  'especie en conservacion 2': 'esp_c2',
+  'area silvestre protegida': 'nom_snaspe',
+  'categoria de area silvestre protegida': 'tipo_snasp',
+  'nombre region': 'nom_reg',
+  'nombre provincia': 'nom_prov',
+  'nombre comuna': 'nom_com',
+  'tipo de cambio': 'tc',
+  'tipo de poligono': 'tipo_poli',
+  'superficie en hectareas': 'superf_ha',
+};
+for (const n of [1, 2, 3, 4, 5, 6]) {
+  FIELD_ALIASES[`especie ${n} nombre cientifico`] = `especi${n}_ci` as keyof VegetacionalProps;
+  FIELD_ALIASES[`especie ${n} nombre comun`] = `especi${n}_co` as keyof VegetacionalProps;
+}
+
+function normalizedFieldName(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+const CANONICAL_FIELDS = new Set(Object.values(FIELD_ALIASES));
 export const runtime = 'nodejs';
 
 export async function OPTIONS(req: Request) {
@@ -36,11 +65,20 @@ export async function GET(req: Request) {
     const attributes: Record<string, string | number | null> = {};
     if (result.attributes && typeof result.attributes === 'object') {
       for (const [rawKey, rawValue] of Object.entries(result.attributes as Record<string, unknown>)) {
-        const key = rawKey.trim().toLowerCase();
-        if (!ALLOWED_FIELDS.has(key)) continue;
-        if (typeof rawValue === 'number' && Number.isFinite(rawValue)) attributes[key] = rawValue;
-        else if (typeof rawValue === 'string') attributes[key] = rawValue.slice(0, 500);
-        else if (rawValue == null) attributes[key] = null;
+        const normalized = normalizedFieldName(rawKey);
+        const direct = rawKey as keyof VegetacionalProps;
+        const canonical = FIELD_ALIASES[normalized] ?? (CANONICAL_FIELDS.has(direct) ? direct : null);
+        if (!canonical) continue;
+        if (typeof rawValue === 'number' && Number.isFinite(rawValue)) attributes[canonical] = rawValue;
+        else if (typeof rawValue === 'string') {
+          const cleaned = rawValue.replace(/\s+/g, ' ').trim().slice(0, 500);
+          if (canonical === 'superf_ha') {
+            const number = Number(cleaned.replace(',', '.'));
+            attributes[canonical] = Number.isFinite(number) ? number : null;
+          } else {
+            attributes[canonical] = cleaned || null;
+          }
+        } else if (rawValue == null) attributes[canonical] = null;
       }
     }
     return { layerName: typeof result.layerName === 'string' ? result.layerName.slice(0, 160) : '', attributes };
