@@ -33,7 +33,7 @@ Primary agents:
 - `build` — OpenCode's default implementation agent.
 - `plan` — OpenCode's read-only planning agent.
 - `orchestrator` — project coordinator for multi-domain SIG work, configured
-  with GPT-5.6 Luna and a specialist allowlist.
+  with GPT-5.6 Sol and a specialist allowlist.
 
 Read-only project subagents:
 

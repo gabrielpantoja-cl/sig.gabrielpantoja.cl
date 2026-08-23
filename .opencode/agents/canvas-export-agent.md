@@ -1,7 +1,7 @@
 ---
 description: Canvas 2D capture specialist for Leaflet exports. Owns the tile-fetch + overlay extraction + frame painting pipeline in src/lib/map-export.ts. Invoke when adding new visuals to the PNG export (compass rose, scale bar, attribution strip, metadata card), optimizing capture latency, debugging TaintedCanvas / SecurityError, or designing typography/layout for peritaje (appraisal) annexes.
 mode: subagent
-model: openai/gpt-5.6-luna
+model: openai/gpt-5.6-sol
 temperature: 0.1
 permission:
   edit: deny

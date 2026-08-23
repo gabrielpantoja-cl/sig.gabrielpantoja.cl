@@ -52,14 +52,15 @@ npm run data:build
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | Dev server en `localhost:3000` |
-| `npm run lint` | ESLint + TypeScript check (corre también en CI en cada PR) |
+| `npm run lint` | ESLint (corre también en CI en cada PR) |
+| `npm run typecheck` | TypeScript strict check (`tsc --noEmit`, también en CI) |
 | `npm run build` | Build de producción |
 | `npm run data:build:protected` | Regenera `public/data/areas-protegidas.geojson` |
 | `npm run data:build:urban` | Regenera `public/data/limite-urbano.geojson` |
 | `npm run data:build:comunas` | Regenera `public/data/limites-comunales.geojson` |
 | `npm run data:build:red-vial` | Regenera `public/data/red-vial.geojson` |
 | `npm run data:build:catastro-fruticola` | Regenera `public/data/catastro-fruticola.geojson` |
-| `npm run data:build` | Regenera todo lo anterior |
+| `npm run data:build` | Regenera todas las capas estáticas con ETL |
 
 ## Convenciones de código
 

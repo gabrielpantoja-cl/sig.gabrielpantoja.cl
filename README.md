@@ -62,13 +62,13 @@ superficie, rol, destino, fechaEscritura, fojas, numero, conservador`.
 
 | Capa | Fuente | Licencia | Construcción |
 |---|---|---|---|
-| Transacciones CBR | Recopilación propia de inscripciones del CBR | Datos abiertos (anonimizado bajo Ley 19.628) | Neon (`verceldb`), rol read-only |
+| Transacciones CBR | Recopilación propia de inscripciones del CBR | Datos abiertos (anonimizado bajo Ley 19.628) | Neon Postgres, rol read-only |
 | Áreas protegidas (RNAP) | [Ministerio del Medio Ambiente — Registro Nacional de Áreas Protegidas](https://lineasdebasepublicas.mma.gob.cl/datos_abiertos/dataset/areas-protegidas), portal *Líneas de Base Públicas* | **CC0 1.0** (dominio público) | `npm run data:build:protected` (ETL con mapshaper) |
 | Límite urbano (PRC) | MINVU — planes reguladores comunales | Verificar con MINVU (uso referencial) | `npm run data:build:urban` |
 | Límites comunales (DPA) | SUBDERE — División Político-Administrativa 2023 (geoportal.cl) | Datos abiertos del Estado de Chile | `npm run data:build:comunas` |
 | Red caminera | MOP — Dirección de Vialidad (mapasvialidad.mop.gob.cl) | Verificar con MOP (uso referencial) | `npm run data:build:red-vial` |
 | Catastro Frutícola | CIREN-ODEPA, vía IDE Minagri | Atribución CIREN-ODEPA (ver `src/lib/catastro-fruticola.ts`) | `npm run data:build:catastro-fruticola` |
-| Recursos vegetacionales | CONAF, SIT CONAF e IDE Minagri | Copyright CONAF; información sin restricciones según metadato (ver `src/lib/vegetacional.ts`) | `npm run data:build:vegetacional` — GeoJSON regional bajo demanda |
+| Recursos vegetacionales | CONAF, SIT CONAF e IDE Minagri | Atribución CONAF; revisar condiciones de uso de la fuente oficial (ver `src/lib/vegetacional.ts`) | Dinámica remota: PNG por viewport + consulta puntual `identify` |
 | Suelos agrológicos | CIREN, ArcGIS público (esri.ciren.cl) | Atribución CIREN (ver `src/lib/suelos.ts`) | Dinámica remota mediante proxy seguro (PNG por viewport) |
 
 > Cada capa tiene un archivo `*.meta.json` adyacente que documenta la fecha de
@@ -98,11 +98,11 @@ npm run build
 ## Configuración de agentes AI
 
 Este repo es leído por Claude Code, OpenCode y Codex. El archivo canónico de
-instrucciones para agentes es **[AGENTS.md](./AGENTS.md)**. La configuración
-por-máquina vive en **[AGENTS.local.md](./AGENTS.local.md)** (gitignored).
+instrucciones para agentes es **[AGENTS.md](./AGENTS.md)**. Los overrides
+opcionales por máquina viven en `AGENTS.local.md` (gitignored y no distribuido).
 
 El `opencode.json` en la raíz está **commiteado con los defaults del maintainer**
-(`model: openai/gpt-5.6-luna` + `enabled_providers: ["openai"]`). El primary
+(`model: openai/gpt-5.6-sol` + `enabled_providers: ["openai"]`). El primary
 `orchestrator` usa el mismo modelo y coordina los subagentes especializados de
 `.opencode/agents/`.
 Aplica a toda sesión de opencode abierta en este directorio. Otros operadores
@@ -127,8 +127,7 @@ total, bajo el umbral de aviso de GitHub). Cada uno se regenera con
 
 > Migración planeada (Q4-2026): mover el output del ETL a un bucket externo
 > (R2 / S3 / Vercel Blob) para permitir capas más grandes (PMTiles / Vector
-> Tiles) sin inflar el repo. Detalle y ADR en `docs/roadmap.md` y en el
-> mirror privado.
+> Tiles) sin inflar el repo. El plan público se mantiene en `docs/roadmap.md`.
 
 ## Roadmap
 
