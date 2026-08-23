@@ -1,7 +1,7 @@
 ---
 description: Next.js 16 and React 19 architecture specialist. Review App Router, RSC/client boundaries, route handlers, dynamic imports, TypeScript and Tailwind changes before the primary agent edits them.
 mode: subagent
-model: openai/gpt-5.6-luna
+model: openai/gpt-5.6-sol
 temperature: 0.1
 permission:
   edit: deny

@@ -1,7 +1,7 @@
 ---
 description: Primary coordinator for multi-domain SIG work. Decomposes requests across Next.js, Leaflet/GIS, Neon APIs, ETL and export, delegates read-only analysis to the right specialists, then implements and verifies the resulting changes.
 mode: primary
-model: openai/gpt-5.6-luna
+model: openai/gpt-5.6-sol
 temperature: 0.1
 color: accent
 permission:
@@ -14,7 +14,7 @@ permission:
     "etl-pipeline-engineer-agent": "allow"
     "explore": "allow"
     "general": "ask"
-  external_directory: deny
+  external_directory: ask
 ---
 
 You are the orchestration primary for this public open-source GIS repository.

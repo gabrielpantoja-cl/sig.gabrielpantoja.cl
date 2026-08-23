@@ -13,7 +13,7 @@ import type { GeocodeResult } from '@/lib/types';
  */
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
-const USER_AGENT = 'sig.gabrielpantoja.cl (gabrielpantojarivera@gmail.com)';
+const USER_AGENT = 'sig.gabrielpantoja.cl/1.0 (+https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl)';
 const MAX_RESULTS = 6;
 
 const cache = new Map<string, { at: number; results: GeocodeResult[] }>();

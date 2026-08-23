@@ -26,7 +26,7 @@ atribución visible y cita en el popup.
 | Red de drenaje (DGA) | DGA · Banco Nacional de Aguas · ArcGIS REST (`Ríos` + `Esteros` FeatureServer, paginado 1.000/request) | 2022-08 | ~35.500 tramos (ríos + esteros, BNA COD_CUEN/COD_SUBC/COD_SSUBC) | ~25–35 MB | `scripts/build-red-drenaje.mjs` |
 | Suelos agrológicos (CIREN) | CIREN · Estudios Agrológicos · esri.ciren.cl (MapServer, 12 regiones) | 2010–2024 según región | Clases I–VIII + N.C. | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
 | Catastro frutícola (CIREN) | CIREN · IDE Minagri · esri.ciren.cl (MapServer `IDEMINAGRI/CATASTRO_FRUTICOLA`, 14 sublayers) | 2019–2025 según región | ~95k productores (especie_01 + ROL + códigos SUBDERE) | **~30 MB** ⚠ | `scripts/build-catastro-fruticola.mjs` |
-| Recursos vegetacionales (CONAF) | CONAF · SIT CONAF / IDE Minagri (descargas SHP regionales) | 2014–2024 según región | Polígonos regionales con uso, subuso, estructura, cobertura y especies dominantes | Regional bajo demanda | `scripts/build-vegetacional.mjs` |
+| Recursos vegetacionales (CONAF) | CONAF · IDE Minagri · ArcGIS MapServer | 2014–2024 según región | Render oficial + consulta puntual de uso, subuso, estructura, cobertura y especies dominantes | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
 
 Cada GeoJSON va acompañado de un `*.meta.json` (manifiesto de procedencia:
 fuente, URL, licencia, fecha de descarga, campos, cadena de procesamiento,
@@ -35,13 +35,12 @@ crudos (zips, shapefiles) quedan en `scripts/.cache/` (gitignoreado).
 
 ### Capas dinámicas remotas (tercera familia)
 
-El catastro CONAF se distribuye como **GeoJSON estático regional bajo demanda**.
-El ETL conserva únicamente atributos cartográficos públicos y genera un archivo
-por región en `public/data/vegetacional/`. `MapView` consulta solo los archivos
-cuyo rectángulo regional intersecta la ventana actual, evitando descargar los
-RAR nacionales (que pueden superar cientos de MB). El año es el de actualización
-regional y no representa vigencia legal ni fecha de observación de cada polígono.
-La fuente y los campos deben revisarse nuevamente cuando CONAF publique una
+El catastro CONAF se consume como **capa dinámica remota**. `MapView` solicita
+un PNG por viewport mediante el proxy validado `/api/vegetacional/export` y
+consulta atributos puntuales con `/api/vegetacional/identify`; no existe un
+GeoJSON local ni un ETL vegetacional. El año es el de actualización regional y
+no representa vigencia legal ni fecha de observación de cada polígono. La
+fuente y los campos deben revisarse nuevamente cuando CONAF publique una
 actualización; IDE Minagri no garantiza un vintage nacional homogéneo.
 
 La capa de suelos CIREN inaugura una tercera familia: cuando el dataset

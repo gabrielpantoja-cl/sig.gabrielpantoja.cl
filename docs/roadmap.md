@@ -5,9 +5,7 @@
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
 > públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
-> Las decisiones arquitecturales internas del operador viven en el mirror
-> privado (`infra/privado/sig.gabrielpantoja.cl/architecture/`); este repo
-> contiene solo lo publicable.
+> Este documento contiene exclusivamente decisiones y prioridades publicables.
 
 ## Visión
 
@@ -233,7 +231,8 @@ Reglas duras (heredadas de AGENTS.md y `arquitectura-capas.md`):
 - **Qué agrega**: clasificación de uso de suelo (bosque nativo,
   plantaciones, matorral, praderas, etc.) y contexto ecológico/
   incendios para predios rurales.
-- **Tipo**: **estática**.
+- **Tipo**: **dinámica remota**, implementada mediante PNG por viewport y
+  consulta puntual `identify` al servicio oficial.
 - **Esfuerzo**: **M**.
 
 ### 3.3 SHOA — Línea de costa oficial

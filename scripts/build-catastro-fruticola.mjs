@@ -200,7 +200,7 @@ async function fetchLayer(layerId, vintage, outFields) {
     }
     features.push(...batch.features);
     const got = batch.features.length;
-    if (got < PAGE_SIZE || !batch.exceededTransferLimit) break;
+    if (got === 0 || (!batch.exceededTransferLimit && got < PAGE_SIZE)) break;
     offset += got;
     log(`  capa ${layerId}: +${got} (acumulado ${features.length})…`);
     await sleep(150);
