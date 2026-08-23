@@ -1,7 +1,7 @@
 ---
 description: Official Chilean GIS ETL specialist. Review build scripts, ArcGIS REST pagination, reprojection, simplification, provenance manifests, licensing and runtime layer contracts before data-pipeline changes.
 mode: subagent
-model: openai/gpt-5.6-luna
+model: openai/gpt-5.6-sol
 temperature: 0.1
 permission:
   edit: deny

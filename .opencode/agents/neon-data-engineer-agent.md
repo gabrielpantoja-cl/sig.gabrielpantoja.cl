@@ -1,7 +1,7 @@
 ---
 description: Neon and public API security specialist. Review SQL, filters, route handlers, performance and data-shaping changes while enforcing the repository's PII and server-only database rules.
 mode: subagent
-model: openai/gpt-5.6-luna
+model: openai/gpt-5.6-sol
 temperature: 0.1
 permission:
   edit: deny
