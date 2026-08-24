@@ -6,6 +6,7 @@ import type { Facets, GeocodeResult, MapPoint, Stats } from '@/lib/types';
 import { kmlColorFor, kmlDisplayName, parseKmlFile, type KmlLayer } from '@/lib/kml';
 import type { LayerMetadataEntry } from '@/lib/map-export';
 import { SUELOS_SERVICE_NAME, type SuelosStatus } from '@/lib/suelos';
+import { LINEAS_TRANSMISION_COLOR } from '@/lib/lineas-transmision';
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
@@ -133,6 +134,7 @@ type BuildMetadataInput = {
   showComunas: boolean;
   showRedVial: boolean;
   showRedDrenaje: boolean;
+  showLineasTransmision: boolean;
   showSuelos: boolean;
   showCatastroFruticola: boolean;
   showVegetacional: boolean;
@@ -263,6 +265,16 @@ function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEntry[] {
       shape: 'square',
     });
   }
+  if (input.showLineasTransmision) {
+    entries.push({
+      title: 'Líneas de transmisión eléctrica',
+      details:
+        'Ejes referenciales por tensión; no representan servidumbres ni gravámenes prediales\n' +
+        'Fuente: Ministerio de Energía · IDE Energía · CEN',
+      color: LINEAS_TRANSMISION_COLOR,
+      shape: 'line',
+    });
+  }
   if (input.showVegetacional) {
     entries.push({
       title: 'Recursos vegetacionales (CONAF)',
@@ -349,6 +361,7 @@ export default function Home() {
   const [showComunas, setShowComunas] = useState(false);
   const [showRedVial, setShowRedVial] = useState(false);
   const [showRedDrenaje, setShowRedDrenaje] = useState(false);
+  const [showLineasTransmision, setShowLineasTransmision] = useState(false);
   const [showSuelos, setShowSuelos] = useState(false);
   const [suelosStatus, setSuelosStatus] = useState<SuelosStatus>({ kind: 'idle' });
   const [showCatastroFruticola, setShowCatastroFruticola] = useState(false);
@@ -409,6 +422,7 @@ export default function Home() {
         showComunas,
         showRedVial,
         showRedDrenaje,
+        showLineasTransmision,
         showSuelos,
         showCatastroFruticola,
         showVegetacional,
@@ -430,7 +444,7 @@ export default function Home() {
   }, [
     exporting,
     showPoints, showProtected, showUrbanLimit, showComunas, showRedVial,
-    showRedDrenaje, showSuelos, showCatastroFruticola, showVegetacional,
+    showRedDrenaje, showLineasTransmision, showSuelos, showCatastroFruticola, showVegetacional,
     comuna, anioFrom, montoMin, montoMax, supMin, supMax, predio, rol,
     stats, kmlLayers,
   ]);
@@ -611,6 +625,7 @@ export default function Home() {
             showComunas={showComunas}
             showRedVial={showRedVial}
             showRedDrenaje={showRedDrenaje}
+            showLineasTransmision={showLineasTransmision}
             showSuelos={showSuelos}
             onSuelosStatus={setSuelosStatus}
             showCatastroFruticola={showCatastroFruticola}
@@ -702,6 +717,8 @@ export default function Home() {
             onToggleRedVial={setShowRedVial}
             showRedDrenaje={showRedDrenaje}
             onToggleRedDrenaje={setShowRedDrenaje}
+            showLineasTransmision={showLineasTransmision}
+            onToggleLineasTransmision={setShowLineasTransmision}
             showSuelos={showSuelos}
             onToggleSuelos={setShowSuelos}
             suelosStatus={suelosStatus}

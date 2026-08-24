@@ -59,6 +59,7 @@ npm run data:build
 | `npm run data:build:urban` | Regenera `public/data/limite-urbano.geojson` |
 | `npm run data:build:comunas` | Regenera `public/data/limites-comunales.geojson` |
 | `npm run data:build:red-vial` | Regenera `public/data/red-vial.geojson` |
+| `npm run data:build:lineas-transmision` | Regenera `public/data/lineas-transmision.geojson` |
 | `npm run data:build:catastro-fruticola` | Regenera `public/data/catastro-fruticola.geojson` |
 | `npm run data:build` | Regenera todas las capas estáticas con ETL |
 

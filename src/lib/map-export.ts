@@ -63,6 +63,7 @@ const ATTRIBUTION_URBAN = 'MINVU · IPT · geoide.minvu.cl';
 const ATTRIBUTION_COMUNAS = 'SUBDERE · División Político-Administrativa 2023';
 const ATTRIBUTION_RED_VIAL = 'MOP · Dirección de Vialidad';
 const ATTRIBUTION_RED_DRENAJE = 'DGA · Banco Nacional de Aguas';
+const ATTRIBUTION_LINEAS_TRANSMISION = 'Ministerio de Energía · IDE Energía · CEN';
 const ATTRIBUTION_SUELOS = 'CIREN · Estudios Agrológicos';
 const ATTRIBUTION_CATASTRO = 'CIREN-ODEPA · Catastro Frutícola';
 const ATTRIBUTION_VEGETACIONAL = 'CONAF · Catastro de Recursos Vegetacionales';
@@ -204,8 +205,9 @@ function addCacheString(url: string): string {
 
 /** Localiza el `<canvas>` que Leaflet usa como renderer vectorial dentro del
  *  `overlayPane`. Con `preferCanvas: true` (configurado en MapView) todos los
- *  GeoJSON (áreas protegidas, PRC, DPA, red caminera, drenaje, catastro,
- *  polígonos KML subidos por el usuario) terminan dibujados ahí. La
+ *  GeoJSON (áreas protegidas, PRC, DPA, red caminera, drenaje, líneas de
+ *  transmisión, catastro y polígonos KML subidos por el usuario) terminan
+ *  dibujados ahí. La
  *  `_pathRoot` que existía en Leaflet 0.x ya no existe en 1.9.x.
  *
  *  Estrategia de copia:
@@ -774,6 +776,7 @@ function drawFrame(
   if (opts.showComunas) atts.push(ATTRIBUTION_COMUNAS);
   if (opts.showRedVial) atts.push(ATTRIBUTION_RED_VIAL);
   if (opts.showRedDrenaje) atts.push(ATTRIBUTION_RED_DRENAJE);
+  if (opts.showLineasTransmision) atts.push(ATTRIBUTION_LINEAS_TRANSMISION);
   if (opts.showSuelos) atts.push(ATTRIBUTION_SUELOS);
   if (opts.showCatastroFruticola) atts.push(ATTRIBUTION_CATASTRO);
   if (opts.showVegetacional) atts.push(ATTRIBUTION_VEGETACIONAL);
@@ -789,6 +792,7 @@ export type LayerExportFlags = {
   showComunas: boolean;
   showRedVial: boolean;
   showRedDrenaje: boolean;
+  showLineasTransmision: boolean;
   showSuelos: boolean;
   showCatastroFruticola: boolean;
   showVegetacional: boolean;

@@ -24,6 +24,7 @@ atribución visible y cita en el popup.
 | Límites comunales (DPA) | SUBDERE · DPA 2023 · geoportal.cl (Grupo DPA: SUBDERE/IGM/DIFROL/INE, 1:50.000) | 2023 | 345 comunas | 2,7 MB | `scripts/build-comunas.mjs` |
 | Red caminera (MOP) | Dirección de Vialidad · mapasvialidad.mop.gob.cl (UGIT-DV, shapefile oficial) | 2026-06-30 | 14.085 tramos (5 grupos de clasificación) | 5,9 MB | `scripts/build-red-vial.mjs` |
 | Red de drenaje (DGA) | DGA · Banco Nacional de Aguas · ArcGIS REST (`Ríos` + `Esteros` FeatureServer, paginado 1.000/request) | 2022-08 | ~35.500 tramos (ríos + esteros, BNA COD_CUEN/COD_SUBC/COD_SSUBC) | ~25–35 MB | `scripts/build-red-drenaje.mjs` |
+| Líneas de transmisión eléctrica | Ministerio de Energía · IDE Energía · geometría CEN (ArcGIS REST MapServer/10) | 2026-03-01 | 1.127 tramos dibujables (1 de 1.128 registros fuente sin coordenadas) | 3,0 MB | `scripts/build-lineas-transmision.mjs` |
 | Suelos agrológicos (CIREN) | CIREN · Estudios Agrológicos · esri.ciren.cl (MapServer, 12 regiones) | 2010–2024 según región | Clases I–VIII + N.C. | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
 | Catastro frutícola (CIREN) | CIREN · IDE Minagri · esri.ciren.cl (MapServer `IDEMINAGRI/CATASTRO_FRUTICOLA`, 14 sublayers) | 2019–2025 según región | ~95k productores (especie_01 + ROL + códigos SUBDERE) | **~30 MB** ⚠ | `scripts/build-catastro-fruticola.mjs` |
 | Recursos vegetacionales (CONAF) | CONAF · IDE Minagri · ArcGIS MapServer | 2014–2024 según región | Render oficial + consulta puntual de uso, subuso, estructura, cobertura y especies dominantes | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
@@ -32,6 +33,13 @@ Cada GeoJSON va acompañado de un `*.meta.json` (manifiesto de procedencia:
 fuente, URL, licencia, fecha de descarga, campos, cadena de procesamiento,
 versión de mapshaper). El manifiesto se versiona en git junto al GeoJSON; los
 crudos (zips, shapefiles) quedan en `scripts/.cache/` (gitignoreado).
+
+La capa de transmisión contiene **ejes cartográficos**, nombres oficiales de
+tramo, circuito, tensión, estado y propietario de la infraestructura. No es un
+catastro de servidumbres: IDE Energía y SEC no publican una cobertura vectorial
+nacional de fajas legales. Nunca se deben inferir servidumbres aplicando buffers
+por tensión; su geometría y vigencia dependen de los planos especiales, títulos
+y antecedentes de cada concesión o proyecto.
 
 ### Capas dinámicas remotas (tercera familia)
 

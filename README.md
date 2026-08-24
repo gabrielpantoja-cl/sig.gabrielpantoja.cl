@@ -67,6 +67,7 @@ superficie, rol, destino, fechaEscritura, fojas, numero, conservador`.
 | Límite urbano (PRC) | MINVU — planes reguladores comunales | Verificar con MINVU (uso referencial) | `npm run data:build:urban` |
 | Límites comunales (DPA) | SUBDERE — División Político-Administrativa 2023 (geoportal.cl) | Datos abiertos del Estado de Chile | `npm run data:build:comunas` |
 | Red caminera | MOP — Dirección de Vialidad (mapasvialidad.mop.gob.cl) | Verificar con MOP (uso referencial) | `npm run data:build:red-vial` |
+| Líneas de transmisión eléctrica | Ministerio de Energía — IDE Energía; geometría CEN | Cobertura institucional para uso público, sin licencia estándar declarada; atribución obligatoria | `npm run data:build:lineas-transmision` |
 | Catastro Frutícola | CIREN-ODEPA, vía IDE Minagri | Atribución CIREN-ODEPA (ver `src/lib/catastro-fruticola.ts`) | `npm run data:build:catastro-fruticola` |
 | Recursos vegetacionales | CONAF, SIT CONAF e IDE Minagri | Atribución CONAF; revisar condiciones de uso de la fuente oficial (ver `src/lib/vegetacional.ts`) | Dinámica remota: PNG por viewport + consulta puntual `identify` |
 | Suelos agrológicos | CIREN, ArcGIS público (esri.ciren.cl) | Atribución CIREN (ver `src/lib/suelos.ts`) | Dinámica remota mediante proxy seguro (PNG por viewport) |
@@ -80,6 +81,11 @@ superficie, rol, destino, fechaEscritura, fojas, numero, conservador`.
 > distintas (Parque Nacional, Reserva Nacional, Monumento Natural, Santuario de
 > la Naturaleza, etc.), cada una bajo jurisdicción y normativa propia. No
 > deben tratarse como una sola categoría.
+
+> Nota jurídica: la capa eléctrica representa ejes cartográficos referenciales
+> de líneas de transmisión. No representa fajas de seguridad, servidumbres
+> eléctricas ni gravámenes prediales; estos deben verificarse en los planos y
+> antecedentes de cada concesión o proyecto.
 
 ## Desarrollo
 
