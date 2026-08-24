@@ -22,7 +22,23 @@ siempre el **organismo productor** del dato (regla 1 de la receta en
 | **SUBDERE** vía geoportal.cl | División Político-Administrativa (comunas/provincias/regiones, 1:50.000, DPA 2023) | Zip shapefile (~311 MB) del catálogo geoportal.cl | Capa límites comunales |
 | **MOP — Dirección de Vialidad** — mapasvialidad.mop.gob.cl | Red Vial Nacional completa (toponimia oficial, ROL, clasificación, carpeta, concesiones) + Puentes | Zip Shp/Gdb/Kmz con vintage en el nombre (`Red_Vial_2026_06_30_shp.zip`) | Capa red caminera |
 | **DGA** (MOP) — ArcGIS REST `services3.arcgis.com/aSoEm9TBK2shtWjP` | Red hidrográfica nacional: ríos + esteros con nombre oficial BNA + jerarquía de cuencas | FeatureServer `Ríos` + `Esteros` (paginado `resultRecordCount=1000`). La Mapoteca Digital HTML (`dga.mop.gob.cl/.../mapoteca`) está caída (404) desde 2026-07 — el REST es la única vía estable | Capa red de drenaje |
+| **Ministerio de Energía — IDE Energía** (geometría CEN) | Líneas de transmisión: nombre, tramo, circuito, tensión, estado, propietario y fechas | ArcGIS REST `Visor_IDE_Energía/MapServer/10`, `f=geojson`, `outSR=4326`, paginado 1.000/request. 1.128 registros fuente al 2026-03-01; uno sin coordenadas se excluye | Capa líneas de transmisión eléctrica |
 | **CIREN** — esri.ciren.cl | Estudios Agrológicos: Capacidad de Uso de los Suelos (clases I–VIII), 12 regiones (Atacama–Aysén, vintages 2010–2024) | ArcGIS REST moderno (10.91: `f=geojson`, paginación, export, identify). Dataset >500 MB → se consume en vivo (capa dinámica) | Capa suelos agrológicos |
+
+### Energía: transmisión no equivale a servidumbre
+
+La fuente canónica para trazados nacionales es IDE Energía del Ministerio de
+Energía: `https://ide-energia.minenergia.cl/server/rest/services/IDE_Energia/Visor_IDE_Energ%C3%ADa/MapServer/10`.
+La geometría fue proporcionada principalmente por el Coordinador Eléctrico
+Nacional y el servicio publica nombres de línea y tramo, tensión y propietario.
+
+No se encontró una capa vectorial nacional oficial de polígonos o anchos de
+servidumbre en IDE Energía, SEC ni el Coordinador. La plataforma de concesiones
+SEC tramita listados de predios y planos especiales de servidumbre por expediente;
+esos documentos no constituyen una cobertura nacional interoperable. Por ello,
+los ejes nunca deben rotularse como servidumbres ni convertirse en fajas mediante
+buffers. Los metadatos oficiales permiten uso público, descarga e integración,
+pero no declaran una licencia estándar; se conserva atribución explícita.
 
 ## El ecosistema MOP (hallazgos 2026-07)
 

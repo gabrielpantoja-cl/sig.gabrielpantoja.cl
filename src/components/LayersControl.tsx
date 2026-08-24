@@ -16,6 +16,13 @@ import {
   RED_DRENAJE_SOURCE_URL,
 } from '@/lib/red-drenaje';
 import {
+  LINEAS_TRANSMISION_ATTRIBUTION,
+  LINEAS_TRANSMISION_COLOR,
+  LINEAS_TRANSMISION_DISCLAIMER,
+  LINEAS_TRANSMISION_SOURCE_URL,
+  TENSION_GROUPS,
+} from '@/lib/lineas-transmision';
+import {
   SUELOS_ATTRIBUTION,
   SUELOS_CLASSES,
   SUELOS_SOURCE_URL,
@@ -282,6 +289,8 @@ export function LayersControl({
   onToggleRedVial,
   showRedDrenaje,
   onToggleRedDrenaje,
+  showLineasTransmision,
+  onToggleLineasTransmision,
   showSuelos,
   onToggleSuelos,
   suelosStatus,
@@ -312,6 +321,8 @@ export function LayersControl({
   onToggleRedVial: (v: boolean) => void;
   showRedDrenaje: boolean;
   onToggleRedDrenaje: (v: boolean) => void;
+  showLineasTransmision: boolean;
+  onToggleLineasTransmision: (v: boolean) => void;
   showSuelos: boolean;
   onToggleSuelos: (v: boolean) => void;
   suelosStatus: SuelosStatus;
@@ -530,6 +541,45 @@ export function LayersControl({
             referencial.{' '}
             <a
               href={CATASTRO_FRUTICOLA_SOURCE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:opacity-100"
+            >
+              Ver fuente oficial →
+            </a>
+          </p>
+        </LayerRow>
+
+        <LayerRow
+          checked={showLineasTransmision}
+          onChange={onToggleLineasTransmision}
+          label="Líneas de transmisión eléctrica"
+          swatch={
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-sm"
+              style={{
+                background: `${LINEAS_TRANSMISION_COLOR}22`,
+                border: `1.5px solid ${LINEAS_TRANSMISION_COLOR}`,
+              }}
+            />
+          }
+        >
+          <ul className="space-y-1 text-xs">
+            {Object.entries(TENSION_GROUPS).map(([key, group]) => (
+              <li key={key} className="flex items-center gap-1.5 leading-tight">
+                <span
+                  className="inline-block w-4 shrink-0 rounded-full"
+                  style={{ background: group.color, height: `${Math.max(group.weight, 1.5)}px` }}
+                />
+                <span className="opacity-80">{group.label}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
+            {LINEAS_TRANSMISION_ATTRIBUTION}. Incluye nombre oficial del tramo, tensión,
+            circuito, estado y propietario de la línea. <strong>{LINEAS_TRANSMISION_DISCLAIMER}</strong>{' '}
+            <a
+              href={LINEAS_TRANSMISION_SOURCE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="underline hover:opacity-100"
