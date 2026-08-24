@@ -1,0 +1,40 @@
+{
+  "source": "Ministerio de Energía — IDE Energía — Línea de Transmisión",
+  "spatial_data_provider": "Coordinador Eléctrico Nacional (CEN); sistemas medianos según FUENTE_BAS",
+  "source_url": "https://ide-energia.minenergia.cl/server/rest/services/IDE_Energia/Visor_IDE_Energ%C3%ADa/MapServer/10",
+  "catalog_url": "https://geoportal.cl/geoportal/catalog/35012/L%C3%ADneas%20de%20transmisi%C3%B3n",
+  "terms": "Cobertura cartográfica institucional para uso público. El servicio oficial permite acceso, descarga, integración y procesamiento; no declara una licencia estándar en sus metadatos. Atribución obligatoria al Ministerio de Energía e IDE Energía.",
+  "downloaded_at": "2026-08-24",
+  "vintage": "2026-03-01",
+  "source_feature_count": 1128,
+  "feature_count": 1127,
+  "excluded_features_without_coordinates": 1,
+  "geometry_types": [
+    "LineString",
+    "MultiLineString"
+  ],
+  "source_crs": "EPSG:5360 / latestWkid 9184 (SIRGAS-Chile)",
+  "crs": "EPSG:4326 (reproyectado por ArcGIS REST con outSR=4326)",
+  "fields": [
+    "NOMBRE",
+    "TRAMO",
+    "CIRCUITO",
+    "TIPO",
+    "F_OPERACIO",
+    "LONG_KM",
+    "PROPIEDAD",
+    "TENSION_KV",
+    "RCA",
+    "SIST_ELECT",
+    "ESTADO",
+    "FUENTE_BAS",
+    "FECH_ACT"
+  ],
+  "tension_kv_range": [
+    6.6,
+    500
+  ],
+  "processing": "ArcGIS REST paginado (1000/request, orderByFields=OBJECTID, reintentos 2-5-10 s) → normalización de F_OPERACIO/FECH_ACT a YYYY-MM-DD → mapshaper -filter-fields NOMBRE,TRAMO,CIRCUITO,TIPO,F_OPERACIO,LONG_KM,PROPIEDAD,TENSION_KV,RCA,SIST_ELECT,ESTADO,FUENTE_BAS,FECH_ACT precision=1e-8. Sin simplificación geométrica: el archivo queda dentro del presupuesto web y conserva el trazado oficial.",
+  "mapshaper_version": "0.7.33",
+  "note": "Ejes cartográficos referenciales de líneas de transmisión. NO representan fajas de seguridad, polígonos de servidumbre ni gravámenes prediales; no permiten determinar su ancho, vigencia o afectación jurídica. Para uso normativo se deben consultar la concesión, los planos especiales de servidumbre y las inscripciones de cada proyecto."
+}

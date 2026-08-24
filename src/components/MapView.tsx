@@ -38,6 +38,13 @@ import {
   type RedDrenajeProps,
 } from '@/lib/red-drenaje';
 import {
+  LINEAS_TRANSMISION_ATTRIBUTION,
+  LINEAS_TRANSMISION_DISCLAIMER,
+  TENSION_GROUPS,
+  tensionGroup,
+  type LineaTransmisionProps,
+} from '@/lib/lineas-transmision';
+import {
   CATASTRO_FRUTICOLA_ATTRIBUTION,
   VINTAGE_HINT,
   VINTAGE_LABEL,
@@ -393,6 +400,50 @@ function buildRedDrenajePopup(props: RedDrenajeProps): string {
   );
 }
 
+/** Popup de un tramo eléctrico oficial. La geometría representa el eje
+ * cartográfico de la línea, nunca la faja jurídica de una servidumbre. */
+function buildLineaTransmisionPopup(props: LineaTransmisionProps): string {
+  const group = TENSION_GROUPS[tensionGroup(props.TENSION_KV)];
+  const rows: [string, string][] = [];
+  if (props.NOMBRE && props.NOMBRE !== props.TRAMO) rows.push(['Línea', esc(props.NOMBRE)]);
+  if (props.CIRCUITO) rows.push(['Circuito', esc(props.CIRCUITO)]);
+  if (props.TENSION_KV != null) {
+    rows.push(['Tensión nominal', `${Number(props.TENSION_KV).toLocaleString('es-CL')} kV`]);
+  }
+  if (props.ESTADO) rows.push(['Estado', esc(props.ESTADO)]);
+  if (props.PROPIEDAD) rows.push(['Propietario de la línea', esc(props.PROPIEDAD)]);
+  if (props.LONG_KM != null) {
+    rows.push(['Longitud informada', `${Number(props.LONG_KM).toLocaleString('es-CL', { maximumFractionDigits: 1 })} km`]);
+  }
+  const operacion = formatDateCL(props.F_OPERACIO);
+  if (operacion) rows.push(['Entrada en operación', operacion]);
+  if (props.SIST_ELECT) rows.push(['Sistema eléctrico', esc(props.SIST_ELECT)]);
+  if (props.RCA && !/^S\/?I$/i.test(props.RCA.trim())) rows.push(['RCA', esc(props.RCA)]);
+  const actualizacion = formatDateCL(props.FECH_ACT);
+  if (actualizacion) rows.push(['Actualización de la fuente', actualizacion]);
+
+  const body = rows
+    .map(
+      ([key, value]) =>
+        `<tr>` +
+        `<td style="opacity:.55;padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top">${key}</td>` +
+        `<td style="vertical-align:top">${value}</td>` +
+        `</tr>`,
+    )
+    .join('');
+
+  return (
+    `<div style="font-size:0.8rem;line-height:1.45;min-width:230px">` +
+    `<div style="font-weight:600;font-size:0.92rem">${esc(props.TRAMO || props.NOMBRE || 'Tramo sin nombre informado')}</div>` +
+    `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
+    `font-size:0.68rem;font-weight:600;color:#fff;background:${group.color}">${group.label}</div>` +
+    `<table style="border-collapse:collapse">${body}</table>` +
+    `<div style="margin-top:.4rem;font-size:0.62rem;opacity:.55">${LINEAS_TRANSMISION_ATTRIBUTION}.</div>` +
+    `<div style="margin-top:.2rem;font-size:0.62rem;font-weight:600;opacity:.7">${LINEAS_TRANSMISION_DISCLAIMER}</div>` +
+    `</div>`
+  );
+}
+
 /**
  * Popup de un productor frutícola (CIREN-ODEPA, IDE Minagri). Lidera con el
  * ROL del predio (el mismo campo con el que el perito busca una transacción
@@ -521,6 +572,7 @@ export default function MapView({
   showComunas = false,
   showRedVial = false,
   showRedDrenaje = false,
+  showLineasTransmision = false,
   showSuelos = false,
   showCatastroFruticola = false,
   showVegetacional = false,
@@ -540,6 +592,7 @@ export default function MapView({
   showComunas?: boolean;
   showRedVial?: boolean;
   showRedDrenaje?: boolean;
+  showLineasTransmision?: boolean;
   showSuelos?: boolean;
   showCatastroFruticola?: boolean;
   showVegetacional?: boolean;
@@ -569,6 +622,7 @@ export default function MapView({
   const comunasRef = useRef<L.GeoJSON | null>(null);
   const redVialRef = useRef<L.GeoJSON | null>(null);
   const redDrenajeRef = useRef<L.GeoJSON | null>(null);
+  const lineasTransmisionRef = useRef<L.GeoJSON | null>(null);
   const suelosRef = useRef<L.ImageOverlay | null>(null);
   const catastroFruticolaRef = useRef<L.GeoJSON | null>(null);
   const vegetacionalRef = useRef<L.ImageOverlay | null>(null);
@@ -609,6 +663,7 @@ export default function MapView({
         showComunas,
         showRedVial,
         showRedDrenaje,
+        showLineasTransmision,
         showSuelos,
         showCatastroFruticola,
         showVegetacional,
@@ -628,6 +683,7 @@ export default function MapView({
     showComunas,
     showRedVial,
     showRedDrenaje,
+    showLineasTransmision,
     showSuelos,
     showCatastroFruticola,
     showVegetacional,
@@ -652,6 +708,9 @@ export default function MapView({
     // Red de drenaje (ríos + esteros) sobre los polígonos; debajo de la red
     // caminera porque la vial suele tener jerarquía de trazo más visible.
     redDrenajeRef.current?.bringToFront();
+    // Infraestructura eléctrica sobre las redes de contexto; KML y CBR siguen
+    // al frente como capas operativas del perito.
+    lineasTransmisionRef.current?.bringToFront();
     for (const layer of kmlRef.current.values()) layer.bringToFront();
     clusterRef.current?.bringToFront();
   }, []);
@@ -682,6 +741,7 @@ export default function MapView({
       comunasRef.current = null;
       redVialRef.current = null;
       redDrenajeRef.current = null;
+      lineasTransmisionRef.current = null;
       suelosRef.current = null;
       catastroFruticolaRef.current = null;
       kmlById.clear();
@@ -1058,6 +1118,61 @@ export default function MapView({
       }
     };
   }, [showRedDrenaje, reorderOverlays]);
+
+  // Líneas de transmisión — ejes cartográficos oficiales de IDE Energía
+  // (Ministerio de Energía, geometría CEN). Color y grosor por tensión nominal.
+  // No se derivan buffers ni se presentan estas líneas como servidumbres.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (lineasTransmisionRef.current) {
+      map.removeLayer(lineasTransmisionRef.current);
+      lineasTransmisionRef.current = null;
+    }
+    if (!showLineasTransmision) return;
+
+    const controller = new AbortController();
+    let layer: L.GeoJSON | null = null;
+    fetch('/data/lineas-transmision.geojson', { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : Promise.reject()))
+      .then((geojson: FeatureCollection<Geometry, LineaTransmisionProps>) => {
+        if (controller.signal.aborted || !mapRef.current) return;
+        layer = L.geoJSON(geojson, {
+          style(feature?: Feature<Geometry, LineaTransmisionProps>) {
+            const group = TENSION_GROUPS[tensionGroup(feature?.properties?.TENSION_KV)];
+            const estado = feature?.properties?.ESTADO?.toUpperCase() ?? '';
+            return {
+              color: group.color,
+              weight: group.weight,
+              opacity: 0.88,
+              smoothFactor: 1,
+              dashArray: estado.includes('OPERACION') ? undefined : '6 4',
+            };
+          },
+          onEachFeature(feature, featureLayer) {
+            featureLayer.bindPopup(buildLineaTransmisionPopup(feature.properties), { maxWidth: 340 });
+            const name = feature.properties.TRAMO || feature.properties.NOMBRE || 'Línea de transmisión';
+            const tension = Number(feature.properties.TENSION_KV);
+            const tensionLabel = Number.isFinite(tension) && tension > 0 ? ` · ${tension.toLocaleString('es-CL')} kV` : '';
+            featureLayer.bindTooltip(`${esc(name)}${tensionLabel}`, {
+              sticky: true,
+              direction: 'top',
+              opacity: 0.92,
+            });
+          },
+        }).addTo(mapRef.current);
+        lineasTransmisionRef.current = layer;
+        reorderOverlays();
+      })
+      .catch(() => {});
+
+    return () => {
+      controller.abort();
+      if (layer && mapRef.current?.hasLayer(layer)) mapRef.current.removeLayer(layer);
+      if (lineasTransmisionRef.current === layer) lineasTransmisionRef.current = null;
+    };
+  }, [showLineasTransmision, reorderOverlays]);
 
   // Catastro Frutícola (CIREN-ODEPA, IDE Minagri) — polígonos de productores
   // frutícolas por región. ETL estático (scripts/build-catastro-fruticola.mjs):

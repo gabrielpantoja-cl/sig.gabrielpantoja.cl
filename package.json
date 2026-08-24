@@ -44,8 +44,9 @@
     "data:build:comunas": "node scripts/build-comunas.mjs",
     "data:build:red-vial": "node scripts/build-red-vial.mjs",
     "data:build:red-drenaje": "node scripts/build-red-drenaje.mjs",
+    "data:build:lineas-transmision": "node scripts/build-lineas-transmision.mjs",
     "data:build:catastro-fruticola": "node scripts/build-catastro-fruticola.mjs",
-    "data:build": "npm run data:build:protected && npm run data:build:urban && npm run data:build:comunas && npm run data:build:red-vial && npm run data:build:red-drenaje && npm run data:build:catastro-fruticola"
+    "data:build": "npm run data:build:protected && npm run data:build:urban && npm run data:build:comunas && npm run data:build:red-vial && npm run data:build:red-drenaje && npm run data:build:lineas-transmision && npm run data:build:catastro-fruticola"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
