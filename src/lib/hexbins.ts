@@ -231,7 +231,7 @@ export type HexbinStatus =
   | { kind: 'error' };
 
 export const HEXBINS_ATTRIBUTION =
-  'Elaboración propia sobre inscripciones del Servicio de Conservadores de Bienes Raíces (Ley 20.285)';
+  'Elaboración propia sobre inscripciones de los Conservadores de Bienes Raíces de Chile';
 
 /**
  * Advertencia obligatoria en la leyenda. Dos motivos, no uno: la mediana de un
