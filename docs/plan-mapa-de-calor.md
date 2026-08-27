@@ -1,6 +1,6 @@
 # Plan: mapa de calor de valores y cartografía para difusión
 
-> Redactado 2026-08-27. **Fase 1 implementada el 2026-08-27** (ver §6).
+> Redactado 2026-08-27. **Fases 1 y 1.5 implementadas el 2026-08-27** (ver §6).
 > Fases 2–4: pendientes.
 > Alcance: capa de superficie de valor (`$/m²`) sobre los puntos CBR, escala de
 > color, y un modo de exportación pensado para publicar en RRSS.
@@ -272,12 +272,92 @@ como vista aparte, no como reemplazo del mapa 2D.
 
 Verificado en navegador (Playwright, Chillán z13–14): 102 celdas de 500 m sobre
 1.999 transacciones habitacionales, cortes $48k–$527k, tooltip y popup con
-valores reales, en tema claro (viridis) y oscuro (plasma).
+valores reales, en tema claro y oscuro.
+
+### Fase 1.5 — De teselas a superficie continua — ✅ 2026-08-27
+
+La Fase 1 dibujaba un hexágono por celda. En producción se veía como un
+mosaico: teselas de color plano con costuras visibles y huecos allí donde
+ninguna celda alcanzaba el umbral. La retícula se leía como un artefacto del
+método, no como el dato — y no era lo que se espera de un heatmap en un SIG.
+
+**Lo que cambió.** La malla hexagonal dejó de dibujarse y pasó a ser la
+retícula de MUESTREO. `/api/hexbins` devuelve ahora los CENTROIDES de cada
+celda (Point, no Polygon: ~8× menos payload) y el cliente los interpola hacia
+un raster continuo que se monta como `L.ImageOverlay`.
+
+El pipeline queda en dos etapas, y el orden es lo que lo hace defendible:
+
+```
+puntos CBR  →  MEDIANA por celda (Postgres)  →  interpolación gaussiana (cliente)
+               ↑ robusta a outliers             ↑ continua, sin costuras
+```
+
+Interpolar las medianas y no los puntos crudos es la diferencia entre una
+superficie honesta y una donde una sola inscripción anómala tiñe un barrio: la
+mediana ya absorbió los montos extremos, y recién sobre ese dato robusto se
+aplica el suavizado.
+
+**Cómo se interpola** (`src/lib/heat-surface.ts`). Dos búferes acumulados por
+salpicado (splat) del kernel sobre la huella de cada muestra, no recorriendo
+todos los píxeles por cada muestra — el coste es `muestras × área_del_kernel`:
+
+```
+num[px] = Σ w(d)·valor_i      den[px] = Σ w(d)
+valor(px) = num/den           ← media ponderada del VALOR
+alfa(px)  = f(den)            ← cuánto dato sostiene ese píxel
+```
+
+El cociente es una interpolación tipo Shepard con kernel gaussiano. Que el
+color salga de un COCIENTE y no de una suma es lo que lo mantiene siendo un
+mapa de valor y no uno de densidad: la densidad se va al canal alfa, que es
+donde corresponde.
+
+**Calibración** (contra Valdivia y Chillán, iterando sobre capturas):
+
+| Parámetro | Primer intento | Final | Por qué |
+|---|---:|---:|---|
+| Radio del kernel (× espaciado de malla) | 1,9 | **1,45** | Con 1,9 cada píxel promediaba una docena de celdas y la ciudad quedaba en tres manchas gigantes sin estructura de barrio. Con 1,15 volvía el moteado: la mediana de 2–3 ventas es ruidosa y sin solape ese ruido se ve tal cual. |
+| Escala de color | cuantiles puros | **60 % cuantil + 40 % log** | Los cuantiles puros estiran cada tramo a 1/24 de la rampa: dos celdas vecinas que difieren 5 % salían morada y amarilla. Se veía psicodélico, no como un gradiente. El log respeta las distancias reales (el valor de suelo es multiplicativo). |
+| `DEN_MIN` (umbral de cobertura) | 0,06 | **0,14** | Con el umbral bajo, los píxeles del extremo del halo quedaban dominados por UNA celda lejana: manchas intensas sin nada que las sostuviera. |
+| Malla de muestreo | 500 m a z13–14 | **350 m / 250 m** | Más muestras resuelven mejor el gradiente; el suavizado hace el trabajo de robustez que antes tenía que hacer cada celda sola. |
+| `N_min` por celda | 3 | **2** | Cada píxel es una media ponderada de decenas de celdas, así que el tamaño de muestra efectivo por píxel es mucho mayor que el de una celda suelta. |
+
+**Rampa del tema claro: viridis → «tasación».** Viridis sobre fondo blanco y
+con transparencia dejaba el mapa lavado (su extremo bajo, `#440154`, se
+convierte en un gris violáceo sin fuerza). Se reemplazó por la convención
+habitual de los mapas de valor de suelo chilenos —amarillo el suelo barato,
+naranja, rojo, morado, azul marino el más caro— que además corre en el sentido
+correcto para un fondo claro: sobre blanco lo que destaca es lo OSCURO, así que
+el valor alto tiene que ser lo oscuro. En el tema oscuro sigue plasma, que
+corre al revés por la misma razón invertida. La leyenda rotula el sentido
+(«menor $/m²» / «mayor $/m²») para que el cambio no sea ambiguo.
+
+**Leyenda.** Pasó de seis muestras discretas a una barra de degradado continua
+—igual que el raster— con las marcas de cuantil posicionadas llamando a
+`rampPosition`, la MISMA función que colorea el mapa. Así el color bajo cada
+etiqueta es exactamente el que ese valor tiene en pantalla, sin depender de
+cómo esté ponderada la escala por dentro.
+
+**Consulta puntual.** El raster no es clicable, así que el clic se resuelve
+contra las muestras: se abre el popup de la celda más cercana, dentro de una
+celda y media de radio. Lo que se muestra es la mediana REAL de esa celda, no
+el valor interpolado del píxel — lo que se cita en un informe tiene que ser una
+mediana de transacciones reales, no el resultado del suavizado.
+
+**Advertencia actualizada.** El disclaimer de la leyenda ahora dice las dos
+cosas, no una: que la mediana de un puñado de ventas no es un valor de mercado,
+y que la superficie está INTERPOLADA — entre muestras el color es una
+estimación, no un dato medido.
+
+Verificado en navegador (Playwright, Valdivia z13–14) en ambos temas: 142
+celdas de 250 m sobre 553 transacciones habitacionales, marcas de leyenda
+$224k / $440k / $776k, popup con la celda real al hacer clic.
 
 ### Fase 2 — Honestidad estadística visible
 
 - [ ] Selector de rampa manual (hoy la rampa la elige el tema: plasma en
-      oscuro, viridis en claro; falta poder forzarla y añadir la divergente
+      oscuro, tasación en claro; falta poder forzarla y añadir la divergente
       contra la mediana comunal).
 - [ ] `N_min` ajustable en la UI con el efecto visible en el mapa.
 - [ ] Leyenda que declara: destino, año, `N_min`, cobertura (`count_precio_m2`
