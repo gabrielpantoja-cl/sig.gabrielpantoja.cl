@@ -1,6 +1,6 @@
 # Roadmap del SIG de suelo — `sig.gabrielpantoja.cl`
 
-> Documento vivo. Última actualización: 2026-07-22.
+> Documento vivo. Última actualización: 2026-08-27.
 > Próxima revisión sugerida: trimestral o cuando se cierre una fase.
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
@@ -21,6 +21,9 @@ por predios comparables. Esto implica tres direcciones:
    de riesgo, erosión, bosque nativo, planes reguladores.
 3. **Inteligencia de mercado**: comparador de transacciones, estadísticas
    con cuartiles (no solo promedio), series de tiempo, exportación a DXF.
+   — *Primer entregable en producción: el mapa de calor de valor ($/m² por
+   hexágono, `/api/hexbins`). Plan y fases pendientes en
+   [`plan-mapa-de-calor.md`](./plan-mapa-de-calor.md).*
 
 Las tres direcciones se sirven en la misma vista, con la misma UX ya probada
 (paneles flotantes, capas estáticas + dinámicas, atribución obligatoria).

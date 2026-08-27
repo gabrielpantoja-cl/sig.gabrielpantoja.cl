@@ -1,14 +1,16 @@
 # Arquitectura de capas del SIG: catálogo y receta para agregar una capa nueva
 
-> Documento vivo. Última actualización: 2026-07-22.
+> Documento vivo. Última actualización: 2026-08-27.
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
 > públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
 > Cualquier persona puede abrir un PR siguiendo la receta documentada aquí;
 > el ruleset `Protect main` exige pasar el check `ESLint + TypeScript`.
 
-Este SIG tiene dos familias de capas: los **puntos CBR** (dinámicos, desde Neon
-vía `/api/points`) y las **capas temáticas estáticas** (GeoJSON pre-construido
+Este SIG tiene tres familias de capas: los **puntos CBR** (dinámicos, desde Neon
+vía `/api/points`), las **capas derivadas de los propios puntos CBR** (agregadas
+en Neon por viewport — hoy solo el mapa de calor de valor, `/api/hexbins`) y las
+**capas temáticas estáticas** (GeoJSON pre-construido
 en `public/data/`, generado por scripts ETL reproducibles desde fuentes
 oficiales del Estado de Chile). Este documento cataloga las capas existentes y
 fija la receta para agregar la próxima, de modo que cada capa nueva salga con
@@ -28,6 +30,7 @@ atribución visible y cita en el popup.
 | Suelos agrológicos (CIREN) | CIREN · Estudios Agrológicos · esri.ciren.cl (MapServer, 12 regiones) | 2010–2024 según región | Clases I–VIII + N.C. | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
 | Catastro frutícola (CIREN) | CIREN · IDE Minagri · esri.ciren.cl (MapServer `IDEMINAGRI/CATASTRO_FRUTICOLA`, 14 sublayers) | 2019–2025 según región | ~95k productores (especie_01 + ROL + códigos SUBDERE) | **~30 MB** ⚠ | `scripts/build-catastro-fruticola.mjs` |
 | Recursos vegetacionales (CONAF) | CONAF · IDE Minagri · ArcGIS MapServer | 2014–2024 según región | Render oficial + consulta puntual de uso, subuso, estructura, cobertura y especies dominantes | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
+| Mapa de calor de valor ($/m²) | Elaboración propia sobre las inscripciones CBR (Ley 20.285) | igual que los puntos CBR (97 % de 2025) | Hexágonos `ST_HexagonGrid` de 100 m–10 km según zoom, máx. 4.000 por respuesta | **0 MB (agregada en Neon por viewport)** | — (sin ETL; `/api/hexbins`) |
 
 Cada GeoJSON va acompañado de un `*.meta.json` (manifiesto de procedencia:
 fuente, URL, licencia, fecha de descarga, campos, cadena de procesamiento,
