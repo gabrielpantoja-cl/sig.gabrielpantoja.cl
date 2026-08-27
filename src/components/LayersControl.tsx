@@ -43,6 +43,7 @@ import {
   hexEdgeLabel,
   type HexbinStatus,
 } from '@/lib/hexbins';
+import { rampPosition } from '@/lib/heat-surface';
 import {
   VEGETACIONAL_ATTRIBUTION,
   VEGETACIONAL_COLOR,
@@ -327,32 +328,53 @@ function HexbinLegend({ status }: { status: HexbinStatus }) {
   }
 
   const colors = HEXBIN_RAMPS[status.ramp];
-  const { meta, breaks } = status;
+  const { meta, breaks, scale } = status;
+  // La barra es un degradado continuo, igual que el raster. Cada marca se
+  // sitúa en la posición que `rampPosition` le da a ese valor — la MISMA
+  // función que colorea el mapa — así el color bajo la etiqueta es
+  // exactamente el que tiene ese valor en pantalla, sin depender de cómo esté
+  // ponderada la escala por dentro.
+  // Con cinco cortes las etiquetas se pisan en un panel de 224 px; se muestra
+  // una de cada dos.
+  const labelled = breaks.length > 3 ? breaks.filter((_, i) => i % 2 === 0) : breaks;
+  const marks = labelled.map((value) => ({
+    value,
+    left: `${(rampPosition(value, scale) * 100).toFixed(1)}%`,
+  }));
   return (
     <div className="space-y-1.5">
-      <div className="flex h-3 overflow-hidden rounded-sm">
-        {colors.map((color) => (
-          <span key={color} className="flex-1" style={{ background: color }} />
-        ))}
-      </div>
-      <div className="flex justify-between text-[0.55rem] tabular-nums opacity-70">
-        <span>menor</span>
-        {breaks.map((b) => (
-          <span key={b} title={`${Math.round(b).toLocaleString('es-CL')} $/m²`}>
-            {fmtPpm2Compact(b)}
+      <div
+        className="h-3 rounded-sm"
+        style={{ background: `linear-gradient(90deg, ${colors.join(', ')})` }}
+      />
+      <div className="relative h-3 text-[0.55rem] tabular-nums opacity-70">
+        {marks.map((mark) => (
+          <span
+            key={mark.value}
+            className="absolute -translate-x-1/2 whitespace-nowrap"
+            style={{ left: mark.left }}
+            title={`${Math.round(mark.value).toLocaleString('es-CL')} $/m²`}
+          >
+            {fmtPpm2Compact(mark.value)}
           </span>
         ))}
-        <span>mayor</span>
+      </div>
+      {/* El sentido de la rampa cambia con el tema (claro→oscuro sobre fondo
+          claro, oscuro→claro sobre fondo oscuro), así que hay que rotularlo. */}
+      <div className="flex justify-between text-[0.55rem] uppercase tracking-wide opacity-45">
+        <span>menor $/m²</span>
+        <span>mayor $/m²</span>
       </div>
       <p className="text-[0.6rem] leading-snug opacity-60">
-        Mediana de $/m² de terreno por hexágono de {hexEdgeLabel(meta.edge_m)} de arista.
-        Seis clases por cuantiles, recalculadas sobre las celdas visibles. La opacidad
-        indica confianza (nº de transacciones), no valor.
+        Superficie interpolada desde las medianas de $/m² de terreno de celdas de{' '}
+        {hexEdgeLabel(meta.edge_m)}. Los cortes de color son cuantiles recalculados sobre
+        lo visible. La opacidad indica cobertura de dato: donde no hay transacciones
+        cerca, la superficie se desvanece en vez de estimar.
       </p>
       <p className="text-[0.6rem] leading-snug opacity-60">
-        {meta.cells.toLocaleString('es-CL')} celdas ·{' '}
+        {meta.cells.toLocaleString('es-CL')} celdas de muestreo ·{' '}
         {meta.points.toLocaleString('es-CL')} transacciones agregadas · mínimo {meta.min_n} por
-        celda · destino {meta.destino}.
+        celda · destino {meta.destino}. Clic en el mapa para ver la celda más cercana.
       </p>
     </div>
   );
@@ -481,7 +503,7 @@ export function LayersControl({
             <span
               className="inline-block h-2.5 w-2.5 rounded-sm"
               style={{
-                background: `linear-gradient(90deg, ${HEXBIN_RAMPS.plasma[1]}, ${HEXBIN_RAMPS.plasma[5]})`,
+                background: `linear-gradient(90deg, ${HEXBIN_RAMPS.plasma[2]}, ${HEXBIN_RAMPS.plasma[5]})`,
               }}
             />
           }

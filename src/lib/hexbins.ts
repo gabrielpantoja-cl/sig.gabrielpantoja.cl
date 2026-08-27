@@ -1,24 +1,35 @@
 /**
- * Capa «Mapa de calor de valor» — hexbins de $/m² sobre las transacciones CBR.
+ * Capa «Mapa de calor de valor» — superficie continua de $/m² sobre las
+ * transacciones CBR.
  *
  * A diferencia de un heatmap clásico (kernel de densidad tipo Leaflet.heat),
- * que pinta DÓNDE HAY MÁS PUNTOS, esta capa pinta CUÁNTO VALE EL SUELO: el
- * servidor agrupa las transacciones del viewport en una malla hexagonal
- * (`ST_HexagonGrid`, PostGIS 3.1+) y devuelve la MEDIANA de `monto /
- * superficieTerreno` por celda. Ver `docs/plan-mapa-de-calor.md`.
+ * que pinta DÓNDE HAY MÁS PUNTOS, esta capa pinta CUÁNTO VALE EL SUELO.
  *
- * Tres decisiones que sostienen la lectura:
+ * El pipeline tiene dos etapas y el orden es lo que lo hace defendible:
  *
- *  1. **Mediana, no promedio.** La razón es la misma del panel de estadísticas
- *     (`docs/estadisticas.md`): promedio/mediana del monto es 5,06× en esta
- *     base, y un promedio de razones da el mismo peso a un sitio de 5 m² que a
- *     un fundo de 200 ha.
- *  2. **Escala por cuantiles, no lineal.** Los deciles de $/m² habitacional van
- *     de $68.837 (p10) a $1.194.774 (p98). Una rampa lineal deja el 90 % del
- *     mapa en el primer color.
- *  3. **La opacidad codifica confianza, no valor.** Una celda con 3 ventas se
- *     dibuja translúcida; una con 40, sólida. Nunca se pinta fuerte lo que no
- *     se sabe.
+ *   1. **Agregación robusta en Neon** (`/api/hexbins`): las transacciones del
+ *      viewport se agrupan en una malla hexagonal (`ST_HexagonGrid`, PostGIS
+ *      3.1+) y de cada celda sale la MEDIANA de `monto / superficieTerreno`.
+ *      La mediana absorbe los montos extremos — promedio/mediana del monto es
+ *      5,06× en esta base (`docs/estadisticas.md`).
+ *   2. **Interpolación continua en el cliente** (`lib/heat-surface.ts`): esas
+ *      medianas se suavizan con un kernel gaussiano hacia un raster sin
+ *      costuras ni huecos.
+ *
+ * Interpolar las medianas y no los puntos crudos es la diferencia entre una
+ * superficie honesta y una donde una sola inscripción anómala tiñe un barrio.
+ *
+ * Este módulo aporta la parte declarativa (escalera de muestreo, rampas,
+ * cortes de cuantiles para la leyenda, códigos de destino, advertencias); la
+ * rasterización vive en `lib/heat-surface.ts`.
+ *
+ * Dos reglas más que sostienen la lectura:
+ *
+ *  - **Escala por cuantiles, no lineal.** Los deciles de $/m² habitacional van
+ *    de $68.837 (p10) a $1.194.774 (p98). Una rampa lineal deja el 90 % del
+ *    mapa en el primer color.
+ *  - **La opacidad codifica cobertura, no valor.** Donde no hay transacciones
+ *    cerca, la superficie se desvanece en vez de inventar un valor.
  *
  * El `destino` es OBLIGATORIO en la consulta: medido el 2026-08-27, la mediana
  * de $/m² es $348.997 en habitacional (`H`) y $1.337 en agrícola (`A`) — 261×.
@@ -57,16 +68,25 @@ export interface HexbinMeta {
  *
  * Se resuelve en el SERVIDOR a partir del `z` que manda el cliente, no se
  * acepta un tamaño en metros arbitrario: así nadie pide celdas de 10 m sobre
- * todo Chile. Los tamaños se calibraron contra producción el 2026-08-27
- * (Santiago a 250 m: 606 celdas / 3.047 puntos en 224 ms).
+ * todo Chile.
+ *
+ * La malla NO se dibuja: es la retícula de MUESTREO que alimenta la
+ * interpolación de `lib/heat-surface.ts`. Por eso es más fina de lo que sería
+ * razonable para teselas visibles — una celda con 2 ó 3 transacciones sería un
+ * hexágono poco defendible, pero como muestra de una superficie que después
+ * promedia decenas de celdas vecinas es exactamente lo que se quiere: más
+ * muestras, mejor resuelto el gradiente.
  */
 export function hexEdgeForZoom(zoom: number): number {
-  if (zoom <= 8) return 10000;
-  if (zoom <= 10) return 5000;
-  if (zoom <= 12) return 2000;
-  if (zoom <= 14) return 500;
-  if (zoom <= 16) return 250;
-  return 100;
+  if (zoom <= 8) return 4000;
+  if (zoom <= 10) return 1500;
+  if (zoom <= 11) return 800;
+  if (zoom <= 12) return 500;
+  if (zoom <= 13) return 350;
+  if (zoom <= 14) return 250;
+  if (zoom <= 15) return 150;
+  if (zoom <= 16) return 100;
+  return 60;
 }
 
 /** Etiqueta humana de la resolución vigente, para la leyenda. */
@@ -76,20 +96,31 @@ export function hexEdgeLabel(edgeM: number): string {
 
 /* ---------- Rampas de color ---------- */
 
-export type HexbinRampId = 'plasma' | 'viridis';
+export type HexbinRampId = 'plasma' | 'tasacion';
 
 /**
- * Seis clases por rampa (una por cuantil). Ambas son perceptualmente
- * uniformes y legibles por daltónicos: ninguna usa el eje rojo↔verde, que es
- * el que se pierde en deuteranopia/protanopia.
+ * Las seis paradas de cada rampa son ANCLAS, no clases: `heat-surface.ts`
+ * interpola entre ellas para producir un degradado continuo. Ninguna usa el
+ * eje rojo↔verde, que es el que se pierde en deuteranopia/protanopia.
  *
- * `plasma` es la rampa por defecto sobre el mapa base oscuro (CARTO Dark
- * Matter) y `viridis` sobre el claro (CARTO Positron): el extremo bajo de
- * plasma (#0d0887) desaparece contra un fondo blanco.
+ * La rampa se elige por tema, y cada una corre en el sentido que le conviene a
+ * su fondo. La leyenda rotula el sentido, así que no hay ambigüedad:
+ *
+ * - `plasma` (oscuro → claro) sobre el mapa base oscuro. El valor alto es el
+ *   amarillo brillante, que es lo que destaca contra un fondo negro.
+ * - `tasacion` (claro → oscuro) sobre el mapa base claro, siguiendo la
+ *   convención habitual de los mapas de valor de suelo chilenos: amarillo el
+ *   suelo barato, pasando por naranja y rojo, hasta azul marino el más caro.
+ *   Invertir el sentido aquí es lo correcto: sobre fondo blanco lo que
+ *   destaca es lo OSCURO, y el valor alto debe ser lo que salta a la vista.
+ *
+ * Se descartó viridis para el tema claro: su extremo bajo (#440154) sobre
+ * fondo blanco y con transparencia queda en un gris violáceo sin fuerza, y el
+ * mapa entero se veía lavado.
  */
 export const HEXBIN_RAMPS: Record<HexbinRampId, readonly string[]> = {
   plasma: ['#0d0887', '#6a00a8', '#b12a90', '#e16462', '#fca636', '#f0f921'],
-  viridis: ['#440154', '#414487', '#2a788e', '#22a884', '#7ad151', '#fde725'],
+  tasacion: ['#ffeda0', '#feb24c', '#fd8d3c', '#e31a1c', '#7a0177', '#253494'],
 };
 
 export const HEXBIN_CLASSES = 6;
@@ -115,36 +146,6 @@ export function quantileBreaks(values: number[]): number[] {
     if (breaks.length === 0 || value > breaks[breaks.length - 1]) breaks.push(value);
   }
   return breaks;
-}
-
-/** Índice de clase (0…HEXBIN_CLASSES-1) de un valor según los cortes. */
-export function classIndex(value: number, breaks: number[]): number {
-  let i = 0;
-  while (i < breaks.length && value > breaks[i]) i++;
-  return i;
-}
-
-export function hexbinColor(value: number, breaks: number[], ramp: HexbinRampId): string {
-  const colors = HEXBIN_RAMPS[ramp];
-  const idx = classIndex(value, breaks);
-  // Con cortes deduplicados puede haber menos de 6 clases: repartimos los
-  // colores disponibles sobre las clases reales para no dejar la leyenda con
-  // dos tonos idénticos.
-  const classes = breaks.length + 1;
-  if (classes >= colors.length) return colors[Math.min(idx, colors.length - 1)];
-  const step = (colors.length - 1) / Math.max(1, classes - 1);
-  return colors[Math.round(idx * step)];
-}
-
-/**
- * Opacidad por confianza: log(n) normalizado contra el máximo visible.
- * Nunca baja de 0,25 (la celda debe verse) ni sube de 0,85 (el mapa base debe
- * seguir leyéndose debajo).
- */
-export function hexbinOpacity(n: number, nMax: number): number {
-  if (nMax <= 1) return 0.6;
-  const t = Math.log(Math.max(1, n)) / Math.log(nMax);
-  return Math.min(0.85, Math.max(0.25, 0.25 + 0.6 * t));
 }
 
 /* ---------- Destino (código SII) ---------- */
@@ -196,11 +197,16 @@ export function destinoLabel(code: string): string {
 /* ---------- Umbral de celdas ---------- */
 
 /**
- * Mínimo de transacciones para dibujar una celda. 3 es el mínimo defendible
- * para una mediana; con 5 el mapa queda más limpio y más honesto. Queda como
- * parámetro y se imprime en la leyenda.
+ * Mínimo de transacciones para que una celda entre como muestra.
+ *
+ * El default es 2 y no 3 porque estas celdas ya no se dibujan una a una: cada
+ * píxel de la superficie final es una media ponderada de DECENAS de celdas
+ * vecinas, así que el tamaño de muestra efectivo por píxel es mucho mayor que
+ * el de una celda suelta. Subirlo a 4–6 produce un mapa más conservador (menos
+ * superficie pintada, cada tramo sostenido por más ventas); el slider queda en
+ * la UI y el valor vigente se imprime en la leyenda.
  */
-export const HEXBIN_MIN_N_DEFAULT = 3;
+export const HEXBIN_MIN_N_DEFAULT = 2;
 export const HEXBIN_MIN_N_MAX = 50;
 
 /** Tope de celdas por respuesta — protege el payload y el render en canvas. */
@@ -212,19 +218,29 @@ export type HexbinStatus =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'empty'; meta: HexbinMeta }
-  | { kind: 'ready'; meta: HexbinMeta; breaks: number[]; ramp: HexbinRampId }
+  | {
+      kind: 'ready';
+      meta: HexbinMeta;
+      /** Cortes de cuantiles con los que se rotula la leyenda. */
+      breaks: number[];
+      /** Escala completa (de `quantileScale`) — la leyenda la necesita para
+       *  posicionar cada marca con la misma funcion que colorea el raster. */
+      scale: number[];
+      ramp: HexbinRampId;
+    }
   | { kind: 'error' };
 
 export const HEXBINS_ATTRIBUTION =
   'Elaboración propia sobre inscripciones del Servicio de Conservadores de Bienes Raíces (Ley 20.285)';
 
 /**
- * Advertencia obligatoria en la leyenda. La mediana de un puñado de ventas en
- * una celda de 250 m no es un valor de mercado: es una señal. Esto va en la
- * leyenda, no en el pie de página.
+ * Advertencia obligatoria en la leyenda. Dos motivos, no uno: la mediana de un
+ * puñado de ventas no es un valor de mercado, y además la superficie que se ve
+ * está INTERPOLADA — entre muestras el color es una estimación, no un dato
+ * medido. Esto va en la leyenda, no en el pie de página.
  */
 export const HEXBINS_DISCLAIMER =
-  'Mediana de $/m² de TERRENO por celda. Señal de mercado, no tasación: no reemplaza un informe pericial.';
+  'Superficie interpolada desde medianas de $/m² de TERRENO. Señal de mercado, no tasación: el color de un punto cualquiera es una estimación suavizada, no el precio de ese predio.';
 
 /** Color representativo de la capa (swatch del panel y cajetín del PNG). */
 export const HEXBINS_COLOR = '#b12a90';

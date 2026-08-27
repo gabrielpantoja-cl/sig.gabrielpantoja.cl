@@ -13,10 +13,19 @@ import {
 /**
  * GET /api/hexbins — agregación hexagonal de $/m² para el mapa de calor de valor.
  *
- * Devuelve un FeatureCollection de hexágonos (`ST_HexagonGrid`, PostGIS 3.3)
- * con la MEDIANA de `monto / superficieTerreno` por celda, más P25/P75 y el
- * conteo. La agregación corre en Neon: el navegador recibe cientos de
- * polígonos, no 85k puntos.
+ * Devuelve un FeatureCollection de PUNTOS — el centroide de cada celda de una
+ * malla hexagonal (`ST_HexagonGrid`, PostGIS 3.3) — con la MEDIANA de
+ * `monto / superficieTerreno` de la celda, más P25/P75 y el conteo.
+ *
+ * La malla hexagonal no se dibuja: es la retícula de MUESTREO. El cliente
+ * interpola esos centroides con un kernel gaussiano
+ * (`src/lib/heat-surface.ts`) para producir una superficie continua. La
+ * agregación corre en Neon: el navegador recibe cientos de muestras, no 85k
+ * puntos.
+ *
+ * El orden importa: primero la MEDIANA por celda (robusta a los montos
+ * extremos) y recién después el suavizado. Interpolar los puntos crudos
+ * dejaría que una sola inscripción anómala tiñera un barrio entero.
  *
  * El truco de rendimiento es el `JOIN LATERAL ST_HexagonGrid(edge, pts.g)`
  * **por punto**: la malla se genera únicamente sobre la envolvente de cada
@@ -113,7 +122,11 @@ export async function GET(req: Request) {
               percentile_cont(0.25) WITHIN GROUP (ORDER BY ppm2) AS p25,
               percentile_cont(0.75) WITHIN GROUP (ORDER BY ppm2) AS p75,
               percentile_cont(0.5)  WITHIN GROUP (ORDER BY monto) AS mediana_monto,
-              ST_AsGeoJSON(ST_Transform(h.geom, 4326), 6) AS geojson
+              -- Centroide, no el polígono: el cliente ya no dibuja teselas, usa
+              -- cada celda como MUESTRA de una superficie interpolada. Mandar
+              -- 7 vértices por celda que nadie va a dibujar era ~8× el payload.
+              ST_X(ST_Transform(ST_Centroid(h.geom), 4326)) AS cx,
+              ST_Y(ST_Transform(ST_Centroid(h.geom), 4326)) AS cy
        FROM pts
        JOIN LATERAL ST_HexagonGrid(${pEdge}, pts.g) h ON ST_Intersects(pts.g, h.geom)
        GROUP BY h.i, h.j, h.geom
@@ -136,7 +149,10 @@ export async function GET(req: Request) {
       };
       return {
         type: 'Feature' as const,
-        geometry: JSON.parse(String(r.geojson)),
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [Number(r.cx), Number(r.cy)],
+        },
         properties,
       };
     });
