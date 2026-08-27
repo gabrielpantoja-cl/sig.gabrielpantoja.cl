@@ -394,10 +394,16 @@ que amplían el uso diario del perito:
       comparables (misma comuna + rango de superficie + mismo destino)
       en una vista expandida del `InfoPanel.tsx`. Cubre "inteligencia
       de mercado" sin agregar capas nuevas.
-- [ ] **Estadísticas con distribución** (no solo promedio/suma):
-      mediana, percentiles 25/75, histograma por rango de precio
-      según filtros activos. Esto ya vive en la franja de stats;
-      bastaría con cambiar la agregación server-side.
+- [~] **Estadísticas con distribución** (no solo promedio/suma).
+      *Hecho (2026-08-26)*: denominadores reales por métrica, `$/m²`
+      como razón de totales + mediana de razones, y mediana promovida a
+      cifra principal con marca de asimetría. Ver
+      [`estadisticas.md`](./estadisticas.md).
+      *Pendiente*: percentiles 25/75 (o P10/P90 en lugar de mín/máx),
+      histograma de montos en escala logarítmica, rango temporal
+      cubierto en el encabezado, filtros activos espejados dentro del
+      panel, y notación compacta en `fmtCLP` con el valor exacto en
+      `title` (hoy `$998.642.878.800` desborda el panel de 288 px).
 - [ ] **Series de tiempo**: mini-chart de `monto` por `año` por
       comuna y por destino. Server-side barato, UI es lo caro.
 - [ ] **Búsqueda por coordenadas**: pegar lat/lng o click derecho para
@@ -471,4 +477,10 @@ próxima revisión:
 
 ## Hitos (a llenar al cerrar tareas)
 
-- *vacío — esperando primer cierre*
+- **2026-08-26 — Corrección de las estadísticas del panel CBR.**
+  `/api/stats` expone los tres denominadores reales (`count`,
+  `count_monto`, `count_precio_m2`); el `$/m²` pasa de promedio de
+  razones a razón de totales y suma una mediana de razones; la mediana
+  del monto reemplaza al promedio como cifra destacada. Documentado en
+  [`estadisticas.md`](./estadisticas.md). Cambio semántico incompatible
+  en el campo `precio_m2` del endpoint público.

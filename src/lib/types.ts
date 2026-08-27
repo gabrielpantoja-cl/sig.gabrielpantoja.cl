@@ -26,13 +26,26 @@ export interface MapPoint {
   conservador: string | null; // nombre del CBR (conservadores.nombre)
 }
 
+/**
+ * Estadísticas descriptivas de /api/stats. Cada métrica declara su propio
+ * denominador: `avg`/`mediana`/`min`/`max` se calculan sobre `count_monto` y
+ * los $/m² sobre `count_precio_m2`, ambos ≤ `count`. Ver docs/estadisticas.md.
+ */
 export interface Stats {
+  /** Filas de la selección (todas las que el mapa dibuja). */
   count: number;
+  /** Filas con `monto` informado — base de avg / mediana / min / max. */
+  count_monto: number;
+  /** Filas con `monto` y `superficieTerreno` > 0 — base de los dos $/m². */
+  count_precio_m2: number;
   avg: number | null;
   mediana: number | null;
   min: number | null;
   max: number | null;
+  /** $/m² del conjunto: sum(monto) / sum(superficie) (razón de totales). */
   precio_m2: number | null;
+  /** $/m² típico: mediana de las razones monto/superficie por transacción. */
+  precio_m2_mediana: number | null;
 }
 
 /**
