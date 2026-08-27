@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import L from 'leaflet';
 import 'leaflet.markercluster';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import type { GeocodeResult, MapPoint } from '@/lib/types';
+import { BASEMAP_ATTRIBUTION, BASEMAP_TILE_URL, prefersDark } from '@/lib/basemap';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import { downloadCanvas, exportFilename, exportMapToPng, type LayerMetadataEntry } from '@/lib/map-export';
 import { categoryColor, type ProtectedAreaProps } from '@/lib/protected-areas';
@@ -62,6 +63,20 @@ import {
   speciesPairs,
   type VegetacionalProps,
 } from '@/lib/vegetacional';
+import {
+  DESTINO_DEFAULT,
+  HEXBINS_ATTRIBUTION,
+  HEXBINS_URL,
+  HEXBIN_MIN_N_DEFAULT,
+  hexEdgeLabel,
+  hexbinColor,
+  hexbinOpacity,
+  quantileBreaks,
+  type HexbinMeta,
+  type HexbinProps,
+  type HexbinRampId,
+  type HexbinStatus,
+} from '@/lib/hexbins';
 import {
   SUELOS_ATTRIBUTION,
   SUELOS_EXPORT_URL,
@@ -564,6 +579,40 @@ function buildKmlPopup(props: KmlFeatureProps, layer: KmlLayer): string {
   );
 }
 
+/**
+ * Popup de una celda del mapa de calor de valor. Muestra la mediana como cifra
+ * principal, el rango intercuartil como medida de dispersión y el `n` como
+ * medida de confianza — el mismo criterio de jerarquía visual del panel de
+ * estadísticas (`docs/estadisticas.md` §4): el estadístico robusto al frente.
+ */
+function buildHexbinPopup(props: HexbinProps, meta: HexbinMeta): string {
+  const money = (v: number | null): string =>
+    v == null || !Number.isFinite(v) ? '—' : formatCLP(Math.round(v));
+  const rows: [string, string][] = [
+    ['Rango intercuartil', `${money(props.p25)} – ${money(props.p75)} /m²`],
+    ['Transacciones', `${props.n.toLocaleString('es-CL')} en la celda`],
+    ['Mediana del monto', money(props.mediana_monto)],
+    ['Resolución', `hexágono de ${hexEdgeLabel(meta.edge_m)} de arista`],
+    ['Destino SII', esc(meta.destino)],
+  ];
+  const body = rows
+    .map(
+      ([key, value]) =>
+        `<tr><td style="opacity:.55;padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top">${key}</td>` +
+        `<td style="vertical-align:top">${value}</td></tr>`,
+    )
+    .join('');
+  return (
+    `<div style="font-size:0.8rem;line-height:1.45;min-width:230px">` +
+    `<div style="font-weight:600;font-size:.92rem">$/m² típico de la celda</div>` +
+    `<div style="font-size:1.15rem;font-weight:700;margin:.15rem 0 .35rem">${money(props.mediana_ppm2)}</div>` +
+    `<table style="border-collapse:collapse">${body}</table>` +
+    `<div style="margin-top:.35rem;font-size:.62rem;opacity:.5">` +
+    `Mediana de $/m² de terreno. Señal de mercado, no tasación.</div>` +
+    `</div>`
+  );
+}
+
 export default function MapView({
   points,
   showPoints = true,
@@ -576,11 +625,16 @@ export default function MapView({
   showSuelos = false,
   showCatastroFruticola = false,
   showVegetacional = false,
+  showHexbins = false,
+  hexbinDestino,
+  hexbinMinN,
+  hexbinFiltersQs = '',
   kmlLayers = [],
   focus = null,
   onRenderProgress,
   onRenderComplete,
   onSuelosStatus,
+  onHexbinStatus,
   mapExportRef,
 }: {
   points: MapPoint[];
@@ -596,6 +650,17 @@ export default function MapView({
   showSuelos?: boolean;
   showCatastroFruticola?: boolean;
   showVegetacional?: boolean;
+  /** Mapa de calor de valor: hexbins de $/m² agregados en Neon por viewport. */
+  showHexbins?: boolean;
+  /** Código de destino SII sobre el que se agrega. Obligatorio: la mediana de
+   *  $/m² es 261× mayor en habitacional que en agrícola, así que una escala
+   *  mezclada no dice nada (ver `docs/plan-mapa-de-calor.md` §1.2). */
+  hexbinDestino?: string;
+  /** Mínimo de transacciones por celda para dibujarla. */
+  hexbinMinN?: number;
+  /** Query string de los filtros activos, para que la capa agregue exactamente
+   *  el mismo subconjunto que dibujan los puntos CBR. */
+  hexbinFiltersQs?: string;
   kmlLayers?: KmlLayer[];
   /** Resultado del geocoder: el mapa vuela ahí y deja un marcador pulsante. */
   focus?: GeocodeResult | null;
@@ -605,6 +670,9 @@ export default function MapView({
   onRenderComplete?: () => void;
   /** Disponibilidad operacional de la capa remota de suelos para el panel UI. */
   onSuelosStatus?: (status: SuelosStatus) => void;
+  /** Resolución, umbral y cortes de cuantiles vigentes — alimenta la leyenda,
+   *  que debe declarar sobre qué se calculó el color que se está viendo. */
+  onHexbinStatus?: (status: HexbinStatus) => void;
   /** Handle al que MapView publica el método imperativo de export. La página
    *  padre (page.tsx) lo conecta al botón "Exportar PNG" de LayersControl:
    *  cuando el usuario lo pulsa, `mapExportRef.current()` rasteriza y descarga
@@ -626,6 +694,15 @@ export default function MapView({
   const suelosRef = useRef<L.ImageOverlay | null>(null);
   const catastroFruticolaRef = useRef<L.GeoJSON | null>(null);
   const vegetacionalRef = useRef<L.ImageOverlay | null>(null);
+  const hexbinsRef = useRef<L.GeoJSON | null>(null);
+  const basemapRef = useRef<L.TileLayer | null>(null);
+
+  // Tema vigente. MapView se monta con `ssr: false`, así que leer matchMedia en
+  // el inicializador es seguro (no hay render de servidor con el que
+  // desincronizarse). Decide el mapa base y la rampa de la capa de calor: el
+  // extremo bajo de plasma (#0d0887) desaparece contra un fondo blanco.
+  const [isDark, setIsDark] = useState<boolean>(prefersDark);
+  const hexbinRamp: HexbinRampId = isDark ? 'plasma' : 'viridis';
   const kmlRef = useRef<Map<string, L.GeoJSON>>(new Map());
   const seenKmlIds = useRef<Set<string>>(new Set());
 
@@ -634,11 +711,13 @@ export default function MapView({
   const onRenderProgressRef = useRef(onRenderProgress);
   const onRenderCompleteRef = useRef(onRenderComplete);
   const onSuelosStatusRef = useRef(onSuelosStatus);
+  const onHexbinStatusRef = useRef(onHexbinStatus);
   useEffect(() => {
     onRenderProgressRef.current = onRenderProgress;
     onRenderCompleteRef.current = onRenderComplete;
     onSuelosStatusRef.current = onSuelosStatus;
-  }, [onRenderProgress, onRenderComplete, onSuelosStatus]);
+    onHexbinStatusRef.current = onHexbinStatus;
+  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onHexbinStatus]);
 
   // Publica el método de export en el ref entregado por la página. La closure
   // se re-bindea en cada cambio de flags para que la captura refleje siempre
@@ -667,6 +746,7 @@ export default function MapView({
         showSuelos,
         showCatastroFruticola,
         showVegetacional,
+        showHexbins,
         cluster: clusterRef.current,
         metadata: args?.metadata,
       });
@@ -687,6 +767,7 @@ export default function MapView({
     showSuelos,
     showCatastroFruticola,
     showVegetacional,
+    showHexbins,
   ]);
 
   // Con varias capas asíncronas compartiendo el overlayPane (preferCanvas), el
@@ -711,6 +792,10 @@ export default function MapView({
     // Infraestructura eléctrica sobre las redes de contexto; KML y CBR siguen
     // al frente como capas operativas del perito.
     lineasTransmisionRef.current?.bringToFront();
+    // El mapa de calor va sobre todas las capas de contexto (es la lectura
+    // principal cuando está encendido) pero debajo del KML del perito y de los
+    // puntos CBR, que deben seguir siendo clicables.
+    hexbinsRef.current?.bringToFront();
     for (const layer of kmlRef.current.values()) layer.bringToFront();
     clusterRef.current?.bringToFront();
   }, []);
@@ -724,9 +809,8 @@ export default function MapView({
       preferCanvas: true,
       scrollWheelZoom: true,
     });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    basemapRef.current = L.tileLayer(BASEMAP_TILE_URL, {
+      attribution: BASEMAP_ATTRIBUTION,
     }).addTo(map);
     L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
     mapRef.current = map;
@@ -744,9 +828,23 @@ export default function MapView({
       lineasTransmisionRef.current = null;
       suelosRef.current = null;
       catastroFruticolaRef.current = null;
+      hexbinsRef.current = null;
+      basemapRef.current = null;
       kmlById.clear();
       seenIds.clear();
     };
+  }, []);
+
+  // El tema del mapa base sigue al del sistema en vivo. No se recrea la capa
+  // de tiles: el look lo da un filtro CSS sobre `.leaflet-tile-pane` (ver
+  // `lib/basemap.ts` y globals.css), así que basta con reflejar el tema en el
+  // atributo `data-basemap` del contenedor y en la rampa de la capa de calor.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => setIsDark(media.matches);
+    media.addEventListener('change', apply);
+    return () => media.removeEventListener('change', apply);
   }, []);
 
   // Mount/unmount the already-built cluster layer based on visibility. El efecto
@@ -1227,6 +1325,142 @@ export default function MapView({
     };
   }, [showCatastroFruticola, reorderOverlays]);
 
+  // Mapa de calor de valor — hexbins de $/m² agregados en Neon por viewport.
+  //
+  // A diferencia de las capas estáticas, el dato depende de LO QUE SE VE: el
+  // tamaño de celda sale del zoom y los cortes de color se recalculan sobre
+  // las celdas visibles, así el contraste se re-normaliza al bajar a una
+  // comuna en vez de aplastarse contra la escala nacional. Cada `moveend`
+  // dispara un refetch con debounce; un contador de secuencia descarta las
+  // respuestas fuera de orden (paneos rápidos) y el `AbortController` corta la
+  // petición en vuelo.
+  //
+  // El bbox se redondea a 3 decimales (~100 m) antes de pedirlo: sin eso cada
+  // pixel de paneo genera una URL distinta y el `s-maxage` del CDN no sirve
+  // de nada.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (hexbinsRef.current) {
+      map.removeLayer(hexbinsRef.current);
+      hexbinsRef.current = null;
+    }
+
+    if (!showHexbins) {
+      onHexbinStatusRef.current?.({ kind: 'idle' });
+      return;
+    }
+
+    let sequence = 0;
+    let controller: AbortController | null = null;
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+
+    const refresh = async () => {
+      const id = ++sequence;
+      controller?.abort();
+      const ctrl = new AbortController();
+      controller = ctrl;
+      onHexbinStatusRef.current?.({ kind: 'loading' });
+
+      const bounds = map.getBounds();
+      const round = (n: number): string => n.toFixed(3);
+      const params = new URLSearchParams(hexbinFiltersQs);
+      params.set(
+        'bbox',
+        [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]
+          .map(round)
+          .join(','),
+      );
+      params.set('z', String(map.getZoom()));
+      params.set('destino', hexbinDestino ?? DESTINO_DEFAULT);
+      params.set('min_n', String(hexbinMinN ?? HEXBIN_MIN_N_DEFAULT));
+
+      try {
+        const response = await fetch(`${HEXBINS_URL}?${params}`, { signal: ctrl.signal });
+        if (!response.ok) throw new Error(String(response.status));
+        const data = (await response.json()) as FeatureCollection<Geometry, HexbinProps> &
+          HexbinMeta;
+        if (id !== sequence || !mapRef.current) return;
+
+        const meta: HexbinMeta = {
+          edge_m: data.edge_m,
+          destino: data.destino,
+          min_n: data.min_n,
+          cells: data.cells,
+          points: data.points,
+        };
+
+        if (hexbinsRef.current) {
+          mapRef.current.removeLayer(hexbinsRef.current);
+          hexbinsRef.current = null;
+        }
+
+        if (!data.features.length) {
+          onHexbinStatusRef.current?.({ kind: 'empty', meta });
+          return;
+        }
+
+        const values = data.features.map((f) => f.properties.mediana_ppm2);
+        const breaks = quantileBreaks(values);
+        const nMax = Math.max(...data.features.map((f) => f.properties.n));
+
+        const layer = L.geoJSON(data, {
+          style(feature?: Feature<Geometry, HexbinProps>) {
+            const props = feature?.properties;
+            if (!props) return {};
+            const color = hexbinColor(props.mediana_ppm2, breaks, hexbinRamp);
+            return {
+              color,
+              fillColor: color,
+              fillOpacity: hexbinOpacity(props.n, nMax),
+              // Un borde del mismo tono a peso bajo cierra la teselación sin
+              // dibujar una rejilla: con `weight: 0` el antialiasing del canvas
+              // deja costuras claras entre hexágonos contiguos.
+              weight: 0.5,
+              opacity: 0.9,
+            };
+          },
+          onEachFeature(feature, featureLayer) {
+            const props = feature.properties as HexbinProps;
+            featureLayer.bindTooltip(
+              `${formatCLP(Math.round(props.mediana_ppm2))}/m² · ${props.n} transacciones`,
+              { sticky: true, direction: 'top', opacity: 0.95 },
+            );
+            featureLayer.bindPopup(buildHexbinPopup(props, meta), { maxWidth: 300 });
+          },
+          attribution: HEXBINS_ATTRIBUTION,
+        }).addTo(mapRef.current);
+
+        hexbinsRef.current = layer;
+        reorderOverlays();
+        onHexbinStatusRef.current?.({ kind: 'ready', meta, breaks, ramp: hexbinRamp });
+      } catch (err) {
+        if (ctrl.signal.aborted || (err as Error)?.name === 'AbortError') return;
+        onHexbinStatusRef.current?.({ kind: 'error' });
+      }
+    };
+
+    const scheduleRefresh = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => void refresh(), 250);
+    };
+
+    void refresh();
+    map.on('moveend', scheduleRefresh);
+    return () => {
+      if (debounce) clearTimeout(debounce);
+      controller?.abort();
+      // Invalida cualquier respuesta en vuelo que ya no tenga dónde pintarse.
+      sequence++;
+      map.off('moveend', scheduleRefresh);
+      if (hexbinsRef.current) {
+        map.removeLayer(hexbinsRef.current);
+        hexbinsRef.current = null;
+      }
+    };
+  }, [showHexbins, hexbinDestino, hexbinMinN, hexbinFiltersQs, hexbinRamp, reorderOverlays]);
+
   // Catastro CONAF — raster dinámico por viewport contra el MapServer oficial.
   // El dataset vectorial regional alcanza cientos de MB, por lo que se sirve
   // un PNG same-origin y los atributos se consultan puntualmente con identify.
@@ -1646,5 +1880,8 @@ export default function MapView({
     };
   }, [focus]);
 
-  return <div ref={containerRef} className="h-full w-full" />;
+  // `data-basemap` selecciona el filtro CSS que neutraliza los tiles de OSM
+  // (globals.css). Va en el contenedor, no en :root, para que el filtro se
+  // limite al panel de tiles del mapa y nunca toque los overlays vectoriales.
+  return <div ref={containerRef} data-basemap={isDark ? 'dark' : 'light'} className="h-full w-full" />;
 }

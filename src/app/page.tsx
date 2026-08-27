@@ -7,6 +7,14 @@ import { kmlColorFor, kmlDisplayName, parseKmlFile, type KmlLayer } from '@/lib/
 import type { LayerMetadataEntry } from '@/lib/map-export';
 import { SUELOS_SERVICE_NAME, type SuelosStatus } from '@/lib/suelos';
 import { LINEAS_TRANSMISION_COLOR } from '@/lib/lineas-transmision';
+import {
+  DESTINO_DEFAULT,
+  HEXBINS_COLOR,
+  HEXBIN_MIN_N_DEFAULT,
+  destinoLabel,
+  hexEdgeLabel,
+  type HexbinStatus,
+} from '@/lib/hexbins';
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
@@ -138,6 +146,8 @@ type BuildMetadataInput = {
   showSuelos: boolean;
   showCatastroFruticola: boolean;
   showVegetacional: boolean;
+  showHexbins: boolean;
+  hexbinStatus: HexbinStatus;
   comuna: string;
   anioFrom: number | null;
   montoMin: string;
@@ -284,6 +294,31 @@ function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEntry[] {
     });
   }
 
+  if (input.showHexbins) {
+    // El cajetín debe declarar la resolución y el umbral REALES con los que se
+    // dibujó el mapa que se está exportando: el mismo viewport con otro
+    // `N_min` produce otro mapa, y un PNG sin esa nota es incitable a error en
+    // un informe pericial.
+    const st = input.hexbinStatus;
+    const detalle =
+      st.kind === 'ready'
+        ? [
+            `Hexágonos de ${hexEdgeLabel(st.meta.edge_m)} de arista · mínimo ${st.meta.min_n} transacciones por celda`,
+            `${st.meta.cells.toLocaleString('es-CL')} celdas · ${st.meta.points.toLocaleString('es-CL')} transacciones agregadas`,
+            `Destino SII: ${destinoLabel(st.meta.destino)}`,
+          ].join('\n')
+        : 'Sin celdas suficientes en la vista exportada';
+    entries.push({
+      title: 'Mapa de calor de valor ($/m² terreno)',
+      details:
+        `${detalle}\n` +
+        'Mediana de $/m² por celda, seis clases por cuantiles. Señal de mercado, no tasación.\n' +
+        'Fuente: elaboración propia sobre inscripciones CBR (Ley 20.285)',
+      color: HEXBINS_COLOR,
+      shape: 'square',
+    });
+  }
+
   // Capas KML del operador: usamos el alias del perito (`kmlDisplayName`),
   // que es lo que aparece ya en el popup del feature tras renombrarlo.
   // El color es el de la paleta asignada por `kmlColorFor` al subir la capa,
@@ -366,6 +401,12 @@ export default function Home() {
   const [suelosStatus, setSuelosStatus] = useState<SuelosStatus>({ kind: 'idle' });
   const [showCatastroFruticola, setShowCatastroFruticola] = useState(false);
   const [showVegetacional, setShowVegetacional] = useState(false);
+  // Mapa de calor de valor. El destino arranca en habitacional: es el 57 % de
+  // la base y el caso urbano que el usuario quiere ver primero.
+  const [showHexbins, setShowHexbins] = useState(false);
+  const [hexbinDestino, setHexbinDestino] = useState(DESTINO_DEFAULT);
+  const [hexbinMinN, setHexbinMinN] = useState(HEXBIN_MIN_N_DEFAULT);
+  const [hexbinStatus, setHexbinStatus] = useState<HexbinStatus>({ kind: 'idle' });
 
   // Capas KML subidas por el usuario: parseo 100% en el navegador (lib/kml),
   // el archivo nunca sale del dispositivo. El contador de colores es un ref
@@ -426,6 +467,8 @@ export default function Home() {
         showSuelos,
         showCatastroFruticola,
         showVegetacional,
+        showHexbins,
+        hexbinStatus,
         comuna,
         anioFrom,
         montoMin,
@@ -445,6 +488,7 @@ export default function Home() {
     exporting,
     showPoints, showProtected, showUrbanLimit, showComunas, showRedVial,
     showRedDrenaje, showLineasTransmision, showSuelos, showCatastroFruticola, showVegetacional,
+    showHexbins, hexbinStatus,
     comuna, anioFrom, montoMin, montoMax, supMin, supMax, predio, rol,
     stats, kmlLayers,
   ]);
@@ -630,6 +674,11 @@ export default function Home() {
             onSuelosStatus={setSuelosStatus}
             showCatastroFruticola={showCatastroFruticola}
             showVegetacional={showVegetacional}
+            showHexbins={showHexbins}
+            hexbinDestino={hexbinDestino}
+            hexbinMinN={hexbinMinN}
+            hexbinFiltersQs={debouncedQs}
+            onHexbinStatus={setHexbinStatus}
             kmlLayers={kmlLayers}
             focus={focus}
             onRenderProgress={handleRenderProgress}
@@ -707,6 +756,13 @@ export default function Home() {
             onActivate={togglePanel}
             showPoints={showPoints}
             onTogglePoints={setShowPoints}
+            showHexbins={showHexbins}
+            onToggleHexbins={setShowHexbins}
+            hexbinStatus={hexbinStatus}
+            hexbinDestino={hexbinDestino}
+            onHexbinDestino={setHexbinDestino}
+            hexbinMinN={hexbinMinN}
+            onHexbinMinN={setHexbinMinN}
             showProtected={showProtected}
             onToggleProtected={setShowProtected}
             showUrbanLimit={showUrbanLimit}

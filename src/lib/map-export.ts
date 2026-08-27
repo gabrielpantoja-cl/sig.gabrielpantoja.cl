@@ -47,6 +47,7 @@
 import L from 'leaflet';
 import 'leaflet.markercluster';
 import { cbrPinSvg } from '@/lib/cbr-points';
+import { BASEMAP_FILTER, prefersDark } from '@/lib/basemap';
 
 /** Tiempo máximo total para la captura del mapa antes de abortar y devolver
  *  un canvas parcial. Mantiene al usuario fuera del limbo si una red lenta,
@@ -57,6 +58,8 @@ const EXPORT_TIMEOUT_MS = 8000;
 
 // OpenStreetMap es la única fuente no-controlable por el usuario: el export
 // debe reconocerla siempre para cumplir la licencia ODbL.
+// CARTO Positron / Dark Matter son el mapa base (ver MapView): la licencia
+// obliga a acreditar a OpenStreetMap Y a CARTO en cualquier derivado.
 const ATTRIBUTION_OSM = '© OpenStreetMap contributors';
 const ATTRIBUTION_PROTECTED = 'MMA · Registro Nacional de Áreas Protegidas · CC0';
 const ATTRIBUTION_URBAN = 'MINVU · IPT · geoide.minvu.cl';
@@ -67,6 +70,8 @@ const ATTRIBUTION_LINEAS_TRANSMISION = 'Ministerio de Energía · IDE Energía �
 const ATTRIBUTION_SUELOS = 'CIREN · Estudios Agrológicos';
 const ATTRIBUTION_CATASTRO = 'CIREN-ODEPA · Catastro Frutícola';
 const ATTRIBUTION_VEGETACIONAL = 'CONAF · Catastro de Recursos Vegetacionales';
+const ATTRIBUTION_HEXBINS =
+  'Mapa de calor: elaboración propia sobre inscripciones CBR (Ley 20.285)';
 
 /* ---------- Captura base (tiles + vectores), propia ---------- */
 
@@ -156,8 +161,19 @@ async function drawTileLayersToCanvas(
     }
   });
 
-  // `allSettled` para que un fallo individual no cancele el resto.
-  await Promise.allSettled(tileTasks);
+  // El mapa en pantalla neutraliza los tiles con un filtro CSS sobre
+  // `.leaflet-tile-pane` (ver lib/basemap.ts). El canvas no hereda ese filtro,
+  // así que se replica con `ctx.filter` — misma gramática — durante el dibujo
+  // de los tiles y se resetea después, para que los vectores que se compositan
+  // encima conserven su color real.
+  const previousFilter = ctx.filter;
+  ctx.filter = BASEMAP_FILTER[prefersDark() ? 'dark' : 'light'];
+  try {
+    // `allSettled` para que un fallo individual no cancele el resto.
+    await Promise.allSettled(tileTasks);
+  } finally {
+    ctx.filter = previousFilter;
+  }
 }
 
 function loadAndDrawTile(
@@ -780,6 +796,7 @@ function drawFrame(
   if (opts.showSuelos) atts.push(ATTRIBUTION_SUELOS);
   if (opts.showCatastroFruticola) atts.push(ATTRIBUTION_CATASTRO);
   if (opts.showVegetacional) atts.push(ATTRIBUTION_VEGETACIONAL);
+  if (opts.showHexbins) atts.push(ATTRIBUTION_HEXBINS);
   drawAttributionStrip(ctx, atts);
 }
 
@@ -796,6 +813,10 @@ export type LayerExportFlags = {
   showSuelos: boolean;
   showCatastroFruticola: boolean;
   showVegetacional: boolean;
+  /** Mapa de calor de valor ($/m² por hexágono). Se rasteriza solo con la
+   *  captura de vectores (es un L.geoJSON sobre el canvas compartido); esta
+   *  bandera existe para la atribución obligatoria del PNG. */
+  showHexbins: boolean;
 };
 
 /** Forma de la muestra (swatch) que precede al título en el cajetín. Cada
