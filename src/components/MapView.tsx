@@ -8,7 +8,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import type { GeocodeResult, MapPoint } from '@/lib/types';
 import { BASEMAP_ATTRIBUTION, BASEMAP_TILE_URL, prefersDark } from '@/lib/basemap';
-import type { Feature, FeatureCollection, Geometry } from 'geojson';
+import type { Feature, FeatureCollection, Geometry, Point } from 'geojson';
 import { downloadCanvas, exportFilename, exportMapToPng, type LayerMetadataEntry } from '@/lib/map-export';
 import { categoryColor, type ProtectedAreaProps } from '@/lib/protected-areas';
 import {
@@ -69,14 +69,17 @@ import {
   HEXBINS_URL,
   HEXBIN_MIN_N_DEFAULT,
   hexEdgeLabel,
-  hexbinColor,
-  hexbinOpacity,
   quantileBreaks,
   type HexbinMeta,
   type HexbinProps,
   type HexbinRampId,
   type HexbinStatus,
 } from '@/lib/hexbins';
+import {
+  quantileScale,
+  renderHeatSurface,
+  type HeatSample,
+} from '@/lib/heat-surface';
 import {
   SUELOS_ATTRIBUTION,
   SUELOS_EXPORT_URL,
@@ -579,11 +582,22 @@ function buildKmlPopup(props: KmlFeatureProps, layer: KmlLayer): string {
   );
 }
 
+/** Una muestra de la superficie de calor, con su posición geográfica. */
+interface HexbinSample {
+  lat: number;
+  lng: number;
+  props: HexbinProps;
+}
+
 /**
  * Popup de una celda del mapa de calor de valor. Muestra la mediana como cifra
  * principal, el rango intercuartil como medida de dispersión y el `n` como
  * medida de confianza — el mismo criterio de jerarquía visual del panel de
  * estadísticas (`docs/estadisticas.md` §4): el estadístico robusto al frente.
+ *
+ * Es el dato de la CELDA más cercana al clic, no el valor interpolado del
+ * píxel: lo que se cita en un informe tiene que ser una mediana real de
+ * transacciones reales, no el resultado del suavizado.
  */
 function buildHexbinPopup(props: HexbinProps, meta: HexbinMeta): string {
   const money = (v: number | null): string =>
@@ -694,7 +708,10 @@ export default function MapView({
   const suelosRef = useRef<L.ImageOverlay | null>(null);
   const catastroFruticolaRef = useRef<L.GeoJSON | null>(null);
   const vegetacionalRef = useRef<L.ImageOverlay | null>(null);
-  const hexbinsRef = useRef<L.GeoJSON | null>(null);
+  const hexbinsRef = useRef<L.ImageOverlay | null>(null);
+  // Muestras de la superficie vigente. El raster no es clicable, así que el
+  // popup se resuelve buscando la celda más cercana al clic sobre esta lista.
+  const hexbinSamplesRef = useRef<{ samples: HexbinSample[]; meta: HexbinMeta } | null>(null);
   const basemapRef = useRef<L.TileLayer | null>(null);
 
   // Tema vigente. MapView se monta con `ssr: false`, así que leer matchMedia en
@@ -702,7 +719,7 @@ export default function MapView({
   // desincronizarse). Decide el mapa base y la rampa de la capa de calor: el
   // extremo bajo de plasma (#0d0887) desaparece contra un fondo blanco.
   const [isDark, setIsDark] = useState<boolean>(prefersDark);
-  const hexbinRamp: HexbinRampId = isDark ? 'plasma' : 'viridis';
+  const hexbinRamp: HexbinRampId = isDark ? 'plasma' : 'tasacion';
   const kmlRef = useRef<Map<string, L.GeoJSON>>(new Map());
   const seenKmlIds = useRef<Set<string>>(new Set());
 
@@ -1325,19 +1342,22 @@ export default function MapView({
     };
   }, [showCatastroFruticola, reorderOverlays]);
 
-  // Mapa de calor de valor — hexbins de $/m² agregados en Neon por viewport.
+  // Mapa de calor de valor — superficie continua interpolada por viewport.
   //
-  // A diferencia de las capas estáticas, el dato depende de LO QUE SE VE: el
-  // tamaño de celda sale del zoom y los cortes de color se recalculan sobre
-  // las celdas visibles, así el contraste se re-normaliza al bajar a una
-  // comuna en vez de aplastarse contra la escala nacional. Cada `moveend`
-  // dispara un refetch con debounce; un contador de secuencia descarta las
-  // respuestas fuera de orden (paneos rápidos) y el `AbortController` corta la
-  // petición en vuelo.
+  // El servidor devuelve los centroides de una malla hexagonal con la MEDIANA
+  // de $/m² por celda (`/api/hexbins`); aquí esas muestras se interpolan con un
+  // kernel gaussiano (`lib/heat-surface.ts`) hacia un raster continuo que se
+  // monta como `L.ImageOverlay`, igual que las capas remotas de suelos y CONAF.
   //
-  // El bbox se redondea a 3 decimales (~100 m) antes de pedirlo: sin eso cada
-  // pixel de paneo genera una URL distinta y el `s-maxage` del CDN no sirve
-  // de nada.
+  // Por qué un raster y no polígonos: dibujar un hexágono por celda producía un
+  // mosaico con huecos donde ninguna celda alcanzaba el umbral, y la retícula
+  // se leía como un artefacto del método en vez de como el dato. La superficie
+  // interpolada rellena el gradiente entre muestras y se desvanece donde no hay
+  // respaldo, que es lo que se espera de un heatmap en un SIG.
+  //
+  // El raster se calcula sobre un bbox con 25 % de margen sobre el viewport
+  // para que el borde de la pantalla no corte la interpolación; el overlay se
+  // ancla a ese bbox ampliado.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -1346,15 +1366,28 @@ export default function MapView({
       map.removeLayer(hexbinsRef.current);
       hexbinsRef.current = null;
     }
+    hexbinSamplesRef.current = null;
 
     if (!showHexbins) {
       onHexbinStatusRef.current?.({ kind: 'idle' });
       return;
     }
 
+    const overlay = L.imageOverlay(TRANSPARENT_PIXEL, map.getBounds(), {
+      opacity: 1,
+      interactive: false,
+      attribution: HEXBINS_ATTRIBUTION,
+    }).addTo(map);
+    hexbinsRef.current = overlay;
+
     let sequence = 0;
     let controller: AbortController | null = null;
     let debounce: ReturnType<typeof setTimeout> | null = null;
+
+    const clear = () => {
+      overlay.setUrl(TRANSPARENT_PIXEL);
+      hexbinSamplesRef.current = null;
+    };
 
     const refresh = async () => {
       const id = ++sequence;
@@ -1363,12 +1396,14 @@ export default function MapView({
       controller = ctrl;
       onHexbinStatusRef.current?.({ kind: 'loading' });
 
-      const bounds = map.getBounds();
+      // Margen del 25 %: sin él la gaussiana se trunca justo en el borde de la
+      // pantalla y la superficie aparece recortada en seco al panear.
+      const padded = map.getBounds().pad(0.25);
       const round = (n: number): string => n.toFixed(3);
       const params = new URLSearchParams(hexbinFiltersQs);
       params.set(
         'bbox',
-        [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]
+        [padded.getWest(), padded.getSouth(), padded.getEast(), padded.getNorth()]
           .map(round)
           .join(','),
       );
@@ -1379,7 +1414,7 @@ export default function MapView({
       try {
         const response = await fetch(`${HEXBINS_URL}?${params}`, { signal: ctrl.signal });
         if (!response.ok) throw new Error(String(response.status));
-        const data = (await response.json()) as FeatureCollection<Geometry, HexbinProps> &
+        const data = (await response.json()) as FeatureCollection<Point, HexbinProps> &
           HexbinMeta;
         if (id !== sequence || !mapRef.current) return;
 
@@ -1391,52 +1426,78 @@ export default function MapView({
           points: data.points,
         };
 
-        if (hexbinsRef.current) {
-          mapRef.current.removeLayer(hexbinsRef.current);
-          hexbinsRef.current = null;
-        }
-
         if (!data.features.length) {
+          clear();
           onHexbinStatusRef.current?.({ kind: 'empty', meta });
           return;
         }
 
+        const zoom = map.getZoom();
+        const nw = map.project(padded.getNorthWest(), zoom);
+        const se = map.project(padded.getSouthEast(), zoom);
+        const width = Math.round(se.x - nw.x);
+        const height = Math.round(se.y - nw.y);
+
+        const samples: HeatSample[] = [];
+        const located: HexbinSample[] = [];
+        for (const feature of data.features) {
+          const [lng, lat] = feature.geometry.coordinates;
+          const projected = map.project(L.latLng(lat, lng), zoom);
+          samples.push({
+            x: projected.x - nw.x,
+            y: projected.y - nw.y,
+            value: feature.properties.mediana_ppm2,
+            n: feature.properties.n,
+          });
+          located.push({ lat, lng, props: feature.properties });
+        }
+
+        // El radio del kernel se ata al espaciado real de la malla, no a un
+        // número fijo de píxeles: así el grado de suavizado es el mismo a
+        // cualquier zoom. En una malla hexagonal de arista `a` el paso
+        // centro-a-centro es 1,5·a en x y 1,73·a en y (~1,6·a de media).
+        //
+        // El factor 1,45 se calibró contra Valdivia y Chillán: con 1,9 cada
+        // píxel promediaba una docena de celdas y la ciudad se convertía en
+        // tres manchas gigantes sin estructura de barrio; con 1,15 volvía el
+        // moteado, porque la mediana de 2–3 ventas en una celda es ruidosa y
+        // sin solape suficiente ese ruido se ve tal cual. 1,45 promedia ~6–8
+        // celdas vecinas: filtra el ruido y conserva el gradiente de barrio.
+        const metersPerPixel =
+          (40075016.686 * Math.cos((map.getCenter().lat * Math.PI) / 180)) /
+          (256 * Math.pow(2, zoom));
+        const spacingPx = (meta.edge_m * 1.6) / metersPerPixel;
+        const radiusPx = Math.min(120, Math.max(14, spacingPx * 1.45));
+
         const values = data.features.map((f) => f.properties.mediana_ppm2);
-        const breaks = quantileBreaks(values);
-        const nMax = Math.max(...data.features.map((f) => f.properties.n));
+        const scale = quantileScale(values);
+        const canvas = renderHeatSurface({
+          width,
+          height,
+          samples,
+          radiusPx,
+          ramp: hexbinRamp,
+          scale,
+        });
+        if (id !== sequence || !mapRef.current || !canvas) {
+          if (!canvas) clear();
+          return;
+        }
 
-        const layer = L.geoJSON(data, {
-          style(feature?: Feature<Geometry, HexbinProps>) {
-            const props = feature?.properties;
-            if (!props) return {};
-            const color = hexbinColor(props.mediana_ppm2, breaks, hexbinRamp);
-            return {
-              color,
-              fillColor: color,
-              fillOpacity: hexbinOpacity(props.n, nMax),
-              // Un borde del mismo tono a peso bajo cierra la teselación sin
-              // dibujar una rejilla: con `weight: 0` el antialiasing del canvas
-              // deja costuras claras entre hexágonos contiguos.
-              weight: 0.5,
-              opacity: 0.9,
-            };
-          },
-          onEachFeature(feature, featureLayer) {
-            const props = feature.properties as HexbinProps;
-            featureLayer.bindTooltip(
-              `${formatCLP(Math.round(props.mediana_ppm2))}/m² · ${props.n} transacciones`,
-              { sticky: true, direction: 'top', opacity: 0.95 },
-            );
-            featureLayer.bindPopup(buildHexbinPopup(props, meta), { maxWidth: 300 });
-          },
-          attribution: HEXBINS_ATTRIBUTION,
-        }).addTo(mapRef.current);
-
-        hexbinsRef.current = layer;
+        overlay.setBounds(padded);
+        overlay.setUrl(canvas.toDataURL('image/png'));
+        hexbinSamplesRef.current = { samples: located, meta };
         reorderOverlays();
-        onHexbinStatusRef.current?.({ kind: 'ready', meta, breaks, ramp: hexbinRamp });
+        onHexbinStatusRef.current?.({
+          kind: 'ready',
+          meta,
+          breaks: quantileBreaks(values),
+          scale,
+          ramp: hexbinRamp,
+        });
       } catch (err) {
         if (ctrl.signal.aborted || (err as Error)?.name === 'AbortError') return;
+        clear();
         onHexbinStatusRef.current?.({ kind: 'error' });
       }
     };
@@ -1446,18 +1507,42 @@ export default function MapView({
       debounce = setTimeout(() => void refresh(), 250);
     };
 
+    // La superficie es un raster sin geometría clicable, así que la consulta
+    // puntual se resuelve contra las muestras: se abre el popup de la celda más
+    // cercana al clic, dentro de un radio de una celda y media. Fuera de eso el
+    // clic pertenece a otra capa (o al mapa) y no se intercepta.
+    const onClick = (event: L.LeafletMouseEvent) => {
+      const state = hexbinSamplesRef.current;
+      if (!state || !state.samples.length) return;
+      let best: HexbinSample | null = null;
+      let bestDistance = Infinity;
+      for (const sample of state.samples) {
+        const distance = map.distance(event.latlng, L.latLng(sample.lat, sample.lng));
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = sample;
+        }
+      }
+      if (!best || bestDistance > state.meta.edge_m * 1.5) return;
+      L.popup({ maxWidth: 300 })
+        .setLatLng(event.latlng)
+        .setContent(buildHexbinPopup(best.props, state.meta))
+        .openOn(map);
+    };
+
     void refresh();
     map.on('moveend', scheduleRefresh);
+    map.on('click', onClick);
     return () => {
       if (debounce) clearTimeout(debounce);
       controller?.abort();
       // Invalida cualquier respuesta en vuelo que ya no tenga dónde pintarse.
       sequence++;
       map.off('moveend', scheduleRefresh);
-      if (hexbinsRef.current) {
-        map.removeLayer(hexbinsRef.current);
-        hexbinsRef.current = null;
-      }
+      map.off('click', onClick);
+      hexbinSamplesRef.current = null;
+      if (map.hasLayer(overlay)) map.removeLayer(overlay);
+      if (hexbinsRef.current === overlay) hexbinsRef.current = null;
     };
   }, [showHexbins, hexbinDestino, hexbinMinN, hexbinFiltersQs, hexbinRamp, reorderOverlays]);
 
