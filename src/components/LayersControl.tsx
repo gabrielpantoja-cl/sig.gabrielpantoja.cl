@@ -35,6 +35,15 @@ import {
 } from '@/lib/catastro-fruticola';
 import { CBR_POINT_COLOR } from '@/lib/cbr-points';
 import {
+  DESTINO_OPTIONS,
+  HEXBINS_ATTRIBUTION,
+  HEXBINS_DISCLAIMER,
+  HEXBIN_RAMPS,
+  destinoLabel,
+  hexEdgeLabel,
+  type HexbinStatus,
+} from '@/lib/hexbins';
+import {
   VEGETACIONAL_ATTRIBUTION,
   VEGETACIONAL_COLOR,
   VEGETACIONAL_MIN_ZOOM,
@@ -274,11 +283,93 @@ function InlineEditableKmlName({
     </span>
   );
 }
+/**
+ * $/m² en notación compacta para la leyenda del mapa de calor. Los cortes de
+ * cuantiles llegan con decimales ($348.997,42) y en una tira de seis clases no
+ * cabe el número completo; el valor exacto queda en el `title`.
+ */
+function fmtPpm2Compact(value: number): string {
+  if (!Number.isFinite(value)) return '—';
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1).replace('.', ',')}M`;
+  if (value >= 1_000) return `$${Math.round(value / 1_000)}k`;
+  return `$${Math.round(value)}`;
+}
+
+/**
+ * Leyenda del mapa de calor de valor.
+ *
+ * Declara explícitamente sobre qué se calculó lo que se está viendo —
+ * resolución, destino, umbral y cobertura — porque el color de una celda no
+ * significa nada sin esos cuatro datos: la misma comuna se ve distinta con
+ * `N_min = 3` que con `N_min = 5`, y radicalmente distinta entre destinos
+ * (261× entre habitacional y agrícola). Ver `docs/plan-mapa-de-calor.md` §2.
+ */
+function HexbinLegend({ status }: { status: HexbinStatus }) {
+  if (status.kind === 'idle') return null;
+  if (status.kind === 'loading') {
+    return <p className="text-[0.6rem] opacity-50">Agregando transacciones del viewport…</p>;
+  }
+  if (status.kind === 'error') {
+    return (
+      <p className="text-[0.6rem] leading-snug text-red-700 dark:text-red-300">
+        No se pudo calcular la agregación para esta vista.
+      </p>
+    );
+  }
+  if (status.kind === 'empty') {
+    return (
+      <p className="text-[0.6rem] leading-snug opacity-60">
+        Ninguna celda de {hexEdgeLabel(status.meta.edge_m)} alcanza {status.meta.min_n}{' '}
+        transacciones de destino {status.meta.destino} en esta vista. Aleja el zoom o baja el
+        umbral.
+      </p>
+    );
+  }
+
+  const colors = HEXBIN_RAMPS[status.ramp];
+  const { meta, breaks } = status;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex h-3 overflow-hidden rounded-sm">
+        {colors.map((color) => (
+          <span key={color} className="flex-1" style={{ background: color }} />
+        ))}
+      </div>
+      <div className="flex justify-between text-[0.55rem] tabular-nums opacity-70">
+        <span>menor</span>
+        {breaks.map((b) => (
+          <span key={b} title={`${Math.round(b).toLocaleString('es-CL')} $/m²`}>
+            {fmtPpm2Compact(b)}
+          </span>
+        ))}
+        <span>mayor</span>
+      </div>
+      <p className="text-[0.6rem] leading-snug opacity-60">
+        Mediana de $/m² de terreno por hexágono de {hexEdgeLabel(meta.edge_m)} de arista.
+        Seis clases por cuantiles, recalculadas sobre las celdas visibles. La opacidad
+        indica confianza (nº de transacciones), no valor.
+      </p>
+      <p className="text-[0.6rem] leading-snug opacity-60">
+        {meta.cells.toLocaleString('es-CL')} celdas ·{' '}
+        {meta.points.toLocaleString('es-CL')} transacciones agregadas · mínimo {meta.min_n} por
+        celda · destino {meta.destino}.
+      </p>
+    </div>
+  );
+}
+
 export function LayersControl({
   activeId,
   onActivate,
   showPoints,
   onTogglePoints,
+  showHexbins,
+  onToggleHexbins,
+  hexbinStatus,
+  hexbinDestino,
+  onHexbinDestino,
+  hexbinMinN,
+  onHexbinMinN,
   showProtected,
   onToggleProtected,
   showUrbanLimit,
@@ -311,6 +402,13 @@ export function LayersControl({
   onActivate: (id: PanelId) => void;
   showPoints: boolean;
   onTogglePoints: (v: boolean) => void;
+  showHexbins: boolean;
+  onToggleHexbins: (v: boolean) => void;
+  hexbinStatus: HexbinStatus;
+  hexbinDestino: string;
+  onHexbinDestino: (code: string) => void;
+  hexbinMinN: number;
+  onHexbinMinN: (n: number) => void;
   showProtected: boolean;
   onToggleProtected: (v: boolean) => void;
   showUrbanLimit: boolean;
@@ -374,6 +472,67 @@ export function LayersControl({
             <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CBR_POINT_COLOR }} />
           }
         />
+
+        <LayerRow
+          checked={showHexbins}
+          onChange={onToggleHexbins}
+          label="Mapa de calor de valor ($/m²)"
+          swatch={
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-sm"
+              style={{
+                background: `linear-gradient(90deg, ${HEXBIN_RAMPS.plasma[1]}, ${HEXBIN_RAMPS.plasma[5]})`,
+              }}
+            />
+          }
+        >
+          <div className="space-y-2">
+            <label className="block">
+              <span className="text-[0.6rem] font-medium uppercase tracking-wide opacity-60">
+                Destino SII
+              </span>
+              <select
+                value={hexbinDestino}
+                onChange={(e) => onHexbinDestino(e.target.value)}
+                className="mt-0.5 w-full rounded border border-black/15 bg-transparent px-1.5 py-1 text-xs dark:border-white/20"
+              >
+                {DESTINO_OPTIONS.map((d) => (
+                  <option key={d.code} value={d.code}>
+                    {destinoLabel(d.code)} ({d.n.toLocaleString('es-CL')})
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-[0.6rem] font-medium uppercase tracking-wide opacity-60">
+                Mínimo por celda: {hexbinMinN}
+              </span>
+              <input
+                type="range"
+                min={1}
+                max={15}
+                step={1}
+                value={hexbinMinN}
+                onChange={(e) => onHexbinMinN(Number(e.target.value))}
+                className="mt-0.5 w-full accent-[#b12a90]"
+              />
+            </label>
+
+            <HexbinLegend status={hexbinStatus} />
+
+            <p className="text-[0.6rem] leading-snug opacity-50">
+              <strong className="font-semibold">{HEXBINS_DISCLAIMER}</strong>
+            </p>
+            <p className="text-[0.6rem] leading-snug opacity-50">
+              El destino no se puede mezclar: la mediana de $/m² es ~261× mayor en
+              habitacional que en agrícola, y una escala compartida no distingue nada.
+              La base no trae el diccionario oficial de destinos del SII, así que los
+              códigos sin rótulo se muestran con su mediana de superficie como referencia.
+            </p>
+            <p className="text-[0.6rem] leading-snug opacity-50">{HEXBINS_ATTRIBUTION}</p>
+          </div>
+        </LayerRow>
 
         <LayerRow
           checked={showProtected}
