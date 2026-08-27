@@ -71,7 +71,7 @@ const ATTRIBUTION_SUELOS = 'CIREN · Estudios Agrológicos';
 const ATTRIBUTION_CATASTRO = 'CIREN-ODEPA · Catastro Frutícola';
 const ATTRIBUTION_VEGETACIONAL = 'CONAF · Catastro de Recursos Vegetacionales';
 const ATTRIBUTION_HEXBINS =
-  'Mapa de calor: elaboración propia sobre inscripciones CBR (Ley 20.285)';
+  'Mapa de calor: elaboración propia sobre inscripciones de los Conservadores de Bienes Raíces';
 
 /* ---------- Captura base (tiles + vectores), propia ---------- */
 

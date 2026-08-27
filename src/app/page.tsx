@@ -206,7 +206,7 @@ function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEntry[] {
     const details = [
       `${fmtIntPlain(count)} inscripciones en la selección`,
       ...filtrosLineas,
-      'Fuente: Servicio de Conservadores de Bienes Raíces (Ley 20.285)',
+      'Fuente: Conservadores de Bienes Raíces de Chile',
     ].join('\n');
     entries.push({
       title: 'Transacciones CBR',
@@ -313,7 +313,7 @@ function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEntry[] {
       details:
         `${detalle}\n` +
         'Mediana de $/m² por celda, seis clases por cuantiles. Señal de mercado, no tasación.\n' +
-        'Fuente: elaboración propia sobre inscripciones CBR (Ley 20.285)',
+        'Fuente: elaboración propia sobre inscripciones de los Conservadores de Bienes Raíces',
       color: HEXBINS_COLOR,
       shape: 'square',
     });
