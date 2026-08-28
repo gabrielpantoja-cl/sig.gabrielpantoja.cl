@@ -218,6 +218,8 @@ Ver archivo completo en el PDF. Ejemplos clave para el SIG:
 
 4. **Material y calidad:** Potencial para futuras capas temáticas (calidad constructiva, material dominante por zona, etc.).
 
+5. **Diccionario de destinos en la UI (implementado 2026-08-28):** la tabla § 3.2 está transcrita en `DESTINO_SII_NAMES` (`src/lib/hexbins.ts`). Antes de tener este documento la interfaz mostraba la letra cruda (`Destino W`) con la mediana de superficie como desambiguador, porque la base en Neon guarda el código y no hay tabla de lookup. Ahora el selector, la leyenda, el popup de celda y el cajetín del PNG exportado rotulan con el nombre oficial y dejan el código entre paréntesis (`Sitio Eriazo (W)`), que es como aparece en un certificado de avalúo. Se cargaron los 20 códigos de la tabla, no solo los 11 presentes hoy en la base.
+
 ### 4.2 Para Catastro Frutícola y otras capas temáticas
 
 La estructura de líneas de construcción permite:

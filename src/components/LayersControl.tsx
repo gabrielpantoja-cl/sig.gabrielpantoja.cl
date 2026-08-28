@@ -321,8 +321,8 @@ function HexbinLegend({ status }: { status: HexbinStatus }) {
     return (
       <p className="text-[0.6rem] leading-snug opacity-60">
         Ninguna celda de {hexEdgeLabel(status.meta.edge_m)} alcanza {status.meta.min_n}{' '}
-        transacciones de destino {status.meta.destino} en esta vista. Aleja el zoom o baja el
-        umbral.
+        transacciones de destino {destinoLabel(status.meta.destino)} en esta vista. Aleja el zoom o
+        baja el umbral.
       </p>
     );
   }
@@ -374,7 +374,7 @@ function HexbinLegend({ status }: { status: HexbinStatus }) {
       <p className="text-[0.6rem] leading-snug opacity-60">
         {meta.cells.toLocaleString('es-CL')} celdas de muestreo ·{' '}
         {meta.points.toLocaleString('es-CL')} transacciones agregadas · mínimo {meta.min_n} por
-        celda · destino {meta.destino}. Clic en el mapa para ver la celda más cercana.
+        celda · destino {destinoLabel(meta.destino)}. Clic en el mapa para ver la celda más cercana.
       </p>
     </div>
   );
@@ -530,7 +530,7 @@ export function LayersControl({
                     value={d.code}
                     className="bg-[var(--background)] text-[var(--foreground)]"
                   >
-                    {destinoLabel(d.code)} ({d.n.toLocaleString('es-CL')})
+                    {destinoLabel(d.code)} · {d.n.toLocaleString('es-CL')}
                   </option>
                 ))}
               </select>
