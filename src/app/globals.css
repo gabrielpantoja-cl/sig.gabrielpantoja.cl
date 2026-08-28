@@ -25,17 +25,46 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Mapa base neutralizado.
-   Los tiles estándar de OSM se desaturan (claro) o se invierten (oscuro) para
-   servir de lienzo a las rampas de color de las capas temáticas — sobre todo
-   el mapa de calor de valor. El filtro se aplica SOLO al panel de tiles: los
-   overlays vectoriales viven en .leaflet-overlay-pane y deben conservar su
-   color real. Ver src/lib/basemap.ts para por qué no usamos CARTO/Stadia. */
+/* Mapa base: filtro del lienzo.
+   El atributo data-basemap del contenedor NO nombra el proveedor sino el
+   FILTRO vigente, que depende del mapa base elegido en el selector
+   (src/lib/basemap.ts → basemapFilterKey):
+
+     none   → el fondo se ve tal cual lo sirve el proveedor (OSM crudo,
+              satélite, topográfico).
+     light  → OSM desaturado, lienzo claro para el mapa de calor de valor.
+     dark   → OSM invertido, la variante nocturna del mismo lienzo.
+
+   El filtro se aplica SOLO al panel de tiles: los overlays vectoriales viven
+   en .leaflet-overlay-pane y deben conservar su color real. Ver
+   src/lib/basemap.ts para por qué el lienzo neutro se hace filtrando OSM en
+   vez de cambiar a CARTO/Stadia. */
+[data-basemap='none'] .leaflet-tile-pane {
+  filter: none;
+}
+
 [data-basemap='light'] .leaflet-tile-pane {
   filter: grayscale(0.92) brightness(1.06) contrast(0.9);
 }
 
 [data-basemap='dark'] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) grayscale(0.86) brightness(0.82) contrast(1.08);
+}
+
+/* «Sin fondo»: sin capa de tiles, el gris de fábrica de Leaflet (#ddd) se
+   vería como un error. Se reemplaza por el lienzo del tema. */
+.leaflet-container[data-basemap-blank='true'] {
+  background: var(--background);
+}
+
+/* Miniaturas del selector de mapa base: la del lienzo neutro es el MISMO tile
+   de OSM que la del callejero, así que debe llevar el mismo filtro para que
+   el usuario vea la diferencia antes de elegir. */
+[data-basemap-thumb='light'] {
+  filter: grayscale(0.92) brightness(1.06) contrast(0.9);
+}
+
+[data-basemap-thumb='dark'] {
   filter: invert(1) hue-rotate(180deg) grayscale(0.86) brightness(0.82) contrast(1.08);
 }
 
