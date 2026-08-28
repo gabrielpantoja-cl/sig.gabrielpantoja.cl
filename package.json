@@ -34,19 +34,20 @@
     "neon-postgres"
   ],
   "scripts": {
-    "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "typecheck": "tsc --noEmit",
-    "data:build:protected": "node scripts/build-protected-areas.mjs",
-    "data:build:urban": "node scripts/build-urban-limit.mjs",
-    "data:build:comunas": "node scripts/build-comunas.mjs",
-    "data:build:red-vial": "node scripts/build-red-vial.mjs",
-    "data:build:red-drenaje": "node scripts/build-red-drenaje.mjs",
-    "data:build:lineas-transmision": "node scripts/build-lineas-transmision.mjs",
+    "data:build": "npm run data:build:protected && npm run data:build:urban && npm run data:build:comunas && npm run data:build:red-vial && npm run data:build:red-drenaje && npm run data:build:lineas-transmision && npm run data:build:catastro-fruticola",
     "data:build:catastro-fruticola": "node scripts/build-catastro-fruticola.mjs",
-    "data:build": "npm run data:build:protected && npm run data:build:urban && npm run data:build:comunas && npm run data:build:red-vial && npm run data:build:red-drenaje && npm run data:build:lineas-transmision && npm run data:build:catastro-fruticola"
+    "data:build:comunas": "node scripts/build-comunas.mjs",
+    "data:build:derechos-agua": "node scripts/build-derechos-agua.mjs",
+    "data:build:lineas-transmision": "node scripts/build-lineas-transmision.mjs",
+    "data:build:protected": "node scripts/build-protected-areas.mjs",
+    "data:build:red-drenaje": "node scripts/build-red-drenaje.mjs",
+    "data:build:red-vial": "node scripts/build-red-vial.mjs",
+    "data:build:urban": "node scripts/build-urban-limit.mjs",
+    "dev": "next dev",
+    "lint": "eslint",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
