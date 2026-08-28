@@ -1,6 +1,6 @@
 # Roadmap del SIG de suelo — `sig.gabrielpantoja.cl`
 
-> Documento vivo. Última actualización: 2026-08-27.
+> Documento vivo. Última actualización: 2026-08-28.
 > Próxima revisión sugerida: trimestral o cuando se cierre una fase.
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
@@ -392,6 +392,67 @@ actualizado), no como tarea aislada.
 Estas se entrelazan con cualquier fase; el orden propuesto prioriza las
 que amplían el uso diario del perito:
 
+> **Auditoría de uso 2026-08-28** — una sesión de inspección del visor con
+> criterio de usuario avanzado de SIG levantó 14 hallazgos con evidencia,
+> desde un export PNG roto hasta la ausencia de lectura de coordenadas.
+> Detalle, causa raíz y prioridades en
+> [`auditoria-ux-2026-08.md`](./auditoria-ux-2026-08.md). Los ítems que
+> siguen incorporan sus conclusiones.
+
+### Bloqueante (de la auditoría 2026-08-28)
+
+- [ ] **P0 · El export a PNG está roto.** `drawCbrMarkers` llama
+      `cluster.getAllChildMarkers()` sobre el `MarkerClusterGroup`, método
+      que solo existe en `L.MarkerCluster`; el grupo expone `getLayers()`.
+      Los tipos de `@types/leaflet.markercluster` lo declaran igual, así que
+      `tsc` pasa en verde y el fallo aparece recién al pulsar el botón — que
+      además vuelve a su estado normal **sin mostrar error**. Arreglar la
+      llamada, informar el fallo en pantalla y cubrirlo con una prueba de
+      humo.
+
+### Herramientas mínimas de SIG que faltan (auditoría 2026-08-28)
+
+- [ ] **Lectura de coordenadas** del cursor en lat/lon y **UTM 19S**
+      (EPSG:32719, el huso de los deslindes y de las coordenadas del
+      Conservador), con copiar al portapapeles. Es la otra mitad de
+      «Búsqueda por coordenadas», más abajo.
+- [ ] **Escala numérica** (`1:25.000`) junto a la barra gráfica, en pantalla
+      y en el PNG: el informe de tasación la cita.
+- [ ] **Medición** de distancias y superficies (m/km, m²/ha), fijable para
+      que salga en el PNG exportado.
+- [ ] **Opacidad por capa** en `LayersControl`. Hoy suelos agrológicos +
+      límites comunales dejan el mapa base ilegible y no hay forma de
+      atenuarlos.
+- [ ] **Reordenar capas** (o al menos «traer al frente»): el apilado de
+      `reorderOverlays()` es fijo.
+
+### Leyendas (auditoría 2026-08-28)
+
+- [ ] **Leyenda flotante sobre el mapa**, colapsable, con **solo las capas
+      encendidas**. Hoy viven dentro del panel de capas: con cinco capas
+      activas quedan cortadas por el `max-h`, y la leyenda de una capa
+      apagada sigue mostrándose.
+- [ ] **El mapa de calor debe mostrar su leyenda por defecto.** Un mapa de
+      calor sin escala de color no significa nada, y la que tiene —cortes de
+      cuantiles, n, opacidad como cobertura, descargo de «señal de mercado,
+      no tasación»— es buena y está escondida tras un chevron.
+- [ ] **Señalar visualmente el n bajo**: con 2 celdas y 4 transacciones la
+      superficie se dibuja igual de suave que con miles. Degradar el render
+      o avisar sobre el mapa bajo cierto umbral.
+
+### Accesibilidad y mobile (auditoría 2026-08-28)
+
+- [ ] **Completar el patrón combobox del geocoder**: las sugerencias no
+      llevan `role="option"` ni hay `aria-activedescendant`, así que para un
+      lector de pantalla el listbox está vacío. Sacar también la atribución
+      de dentro del `<ul>`.
+- [ ] **Un solo geocoder en el DOM**: hoy se renderizan la variante mobile y
+      la desktop a la vez, con la misma etiqueta accesible.
+- [ ] **Panel de capas como drawer inferior en mobile**, igual que el de
+      filtros: hoy tapa ~80 % de la pantalla.
+- [ ] **Repartir el borde inferior en mobile**: atribución, escala, chip de
+      mapa base y FAB se superponen.
+
 - [ ] **Comparador de transacciones lado a lado**: cuando el usuario
       abre el popup de un CBR, permitir comparar hasta 3 transacciones
       comparables (misma comuna + rango de superficie + mismo destino)
@@ -428,6 +489,13 @@ que amplían el uso diario del perito:
 - [ ] **Soporte para capas raster del usuario**: hoy se aceptan KML
       (vectoriales). Aceptar GeoTIFF/PNG con georreferencia para
       facilitar overlays de anteproyectos del perito.
+- [ ] **Aligerar la carga** (auditoría 2026-08-28): `/api/points` devuelve
+      21,4 MB de JSON y las capas estáticas suman 5,6 MB cuando se encienden
+      cinco, todo descargado completo antes de pintar. El arranque medido
+      hoy es bueno (~1,0 s), así que es un techo, no una urgencia: se ataca
+      junto con la «Migración de almacenamiento de GeoJSON» de Q4-2026,
+      evaluando carga por viewport o teselado vectorial. Vía barata previa:
+      acortar los nombres de campo en el payload de `/api/points`.
 
 ## Riesgos transversales (revisar al cerrar cada fase)
 
