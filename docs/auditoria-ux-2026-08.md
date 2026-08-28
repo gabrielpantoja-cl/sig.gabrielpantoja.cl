@@ -29,7 +29,7 @@ red con el log del navegador, no con la Performance API.*
 
 ---
 
-## P0 — El export a PNG está roto
+## P0 — El export a PNG está roto — **CORREGIDO 2026-08-28**
 
 **Evidencia.** Con la capa CBR encendida, pulsar «Exportar PNG» no descarga
 nada. No hay evento `download` en 30 s, el botón vuelve a «Exportar PNG»
@@ -66,8 +66,23 @@ de tasación. Está caído y falla en silencio.
 añadir un `catch` que informe el fallo en pantalla en vez de dejar la
 excepción subir sin traza visible.
 
-- [ ] **P0** Arreglar `drawCbrMarkers` (`getLayers()`) y mostrar un error
-      visible si el export falla.
+- [x] **P0** Arreglar `drawCbrMarkers` (`getLayers()`) y mostrar un error
+      visible si el export falla. *Hecho el 2026-08-28.* Al arreglarlo
+      aparecieron **dos fallos más encadenados**, que el primero ocultaba y
+      que el banner de error recién añadido permitió encontrar:
+      (2) el sprite del pin no rasterizaba porque un
+      `.replace('<svg ', 'xmlns="…" ')` **sustituía** la etiqueta de apertura
+      en vez de insertar el namespace — que además ya venía en `cbrPinSvg()`;
+      (3) `getVisibleParent()` devuelve `null` cuando ningún ancestro tiene
+      icono en el DOM, que es la norma con ~85k puntos casi todos fuera del
+      viewport, y faltaba el guard. Verificado end-to-end: el PNG se descarga
+      con mapa base, clústeres, pines, brújula, escala, cajetín y atribución.
+      *Lección: el export nunca había funcionado; tres bugs distintos en la
+      misma ruta sin una sola prueba que la ejercitara.*
+- [ ] **Fidelidad del PNG**: las burbujas de clúster se exportan en azul plano
+      (`#5fb7e0`, `drawClusterBubble`) mientras la pantalla las colorea por
+      conteo (verde/amarillo/naranja, las clases por defecto de
+      markercluster). La lámina no refleja lo que se vio.
 - [ ] **P0** Cubrir el export con una prueba de humo (es la tercera vez que
       una API de terceros con tipos optimistas rompe esta ruta — ver el
       comentario sobre `leaflet-image` en la cabecera de `map-export.ts`).
@@ -261,7 +276,7 @@ resueltas mejor que en la mayoría de los visores públicos chilenos:
 
 | # | Hallazgo | Severidad | Costo |
 |---|---|---|---|
-| 1 | Export PNG roto (`getAllChildMarkers`), sin aviso al usuario | **P0** | S |
+| 1 | ~~Export PNG roto (`getAllChildMarkers`), sin aviso al usuario~~ **Corregido** — eran tres bugs encadenados | **P0** | S |
 | 2 | Sin lectura de coordenadas (lat/lon + UTM 19S) | P1 | S |
 | 3 | Sin escala numérica (`1:25.000`) | P1 | S |
 | 4 | Sin herramienta de medición | P1 | M |
@@ -275,8 +290,9 @@ resueltas mejor que en la mayoría de los visores públicos chilenos:
 | 12 | Panel de capas tapa el mapa en mobile | P4 | M |
 | 13 | Atribución choca con el FAB en mobile | P4 | S |
 | 14 | `/api/points` de 21 MB sin carga por viewport | P5 | L |
+| 15 | Burbujas de clúster del PNG en azul plano, no por conteo como en pantalla | P2 | S |
 
-Orden sugerido de ataque: **1** (está roto), luego **2 + 3 + 5 + 8** (cuatro
+Orden sugerido de ataque: ~~**1** (está roto)~~ *—hecho—*, luego **2 + 3 + 5 + 8** (cuatro
 cambios chicos que juntos cambian la categoría del visor), después **7 y 12**
 (rediseño de leyendas y del panel en mobile, que conviene hacer de una sola
 vez), y **14** cuando toque la migración de almacenamiento ya planeada.
