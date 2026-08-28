@@ -7,7 +7,15 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import type { GeocodeResult, MapPoint } from '@/lib/types';
-import { BASEMAP_ATTRIBUTION, BASEMAP_TILE_URL, prefersDark } from '@/lib/basemap';
+import {
+  basemapFilterKey,
+  getBasemap,
+  isDarkCanvas,
+  prefersDark,
+  DEFAULT_BASEMAP_ID,
+  MAP_MAX_ZOOM,
+  type BasemapId,
+} from '@/lib/basemap';
 import type { Feature, FeatureCollection, Geometry, Point } from 'geojson';
 import { downloadCanvas, exportFilename, exportMapToPng, type LayerMetadataEntry } from '@/lib/map-export';
 import { categoryColor, type ProtectedAreaProps } from '@/lib/protected-areas';
@@ -668,6 +676,7 @@ export default function MapView({
   hexbinMinN,
   hexbinFiltersQs = '',
   kmlLayers = [],
+  basemap = DEFAULT_BASEMAP_ID,
   focus = null,
   onRenderProgress,
   onRenderComplete,
@@ -703,6 +712,9 @@ export default function MapView({
    *  el mismo subconjunto que dibujan los puntos CBR. */
   hexbinFiltersQs?: string;
   kmlLayers?: KmlLayer[];
+  /** Mapa base elegido en el selector (`BasemapSwitcher`). El estado vive en
+   *  page.tsx para que el selector y el mapa no puedan desincronizarse. */
+  basemap?: BasemapId;
   /** Resultado del geocoder: el mapa vuela ahí y deja un marcador pulsante. */
   focus?: GeocodeResult | null;
   /** Avance del render de marcadores (procesados, total) — alimenta el loader. */
@@ -746,13 +758,20 @@ export default function MapView({
   // popup se resuelve buscando la celda más cercana al clic sobre esta lista.
   const hexbinSamplesRef = useRef<{ samples: HexbinSample[]; meta: HexbinMeta } | null>(null);
   const basemapRef = useRef<L.TileLayer | null>(null);
+  // Capa de referencia (etiquetas/límites) que va sobre la ortoimagen. Vive
+  // aparte del fondo porque no todos los mapas base la tienen.
+  const basemapLabelsRef = useRef<L.TileLayer | null>(null);
 
   // Tema vigente. MapView se monta con `ssr: false`, así que leer matchMedia en
   // el inicializador es seguro (no hay render de servidor con el que
-  // desincronizarse). Decide el mapa base y la rampa de la capa de calor: el
-  // extremo bajo de plasma (#0d0887) desaparece contra un fondo blanco.
+  // desincronizarse). Decide el filtro del lienzo y la rampa de la capa de
+  // calor: el extremo bajo de plasma (#0d0887) desaparece contra un fondo
+  // blanco, y la rampa clara de tasación se pierde sobre una ortoimagen — por
+  // eso `isDarkCanvas` cuenta el satélite como lienzo oscuro aunque el sistema
+  // esté en tema claro.
   const [isDark, setIsDark] = useState<boolean>(prefersDark);
-  const hexbinRamp: HexbinRampId = isDark ? 'plasma' : 'tasacion';
+  const darkCanvas = isDarkCanvas(basemap, isDark);
+  const hexbinRamp: HexbinRampId = darkCanvas ? 'plasma' : 'tasacion';
   const kmlRef = useRef<Map<string, L.GeoJSON>>(new Map());
   const seenKmlIds = useRef<Set<string>>(new Set());
 
@@ -800,6 +819,7 @@ export default function MapView({
          showVegetacional,
          showPropiedadesRurales,
         showHexbins,
+        basemap,
         cluster: clusterRef.current,
         metadata: args?.metadata,
       });
@@ -822,6 +842,7 @@ export default function MapView({
     showVegetacional,
     showPropiedadesRurales,
     showHexbins,
+    basemap,
   ]);
 
   // Con varias capas asíncronas compartiendo el overlayPane (preferCanvas), el
@@ -862,12 +883,12 @@ export default function MapView({
     const map = L.map(containerRef.current, {
       center: MAP_CENTER,
       zoom: 7,
+      maxZoom: MAP_MAX_ZOOM,
       preferCanvas: true,
       scrollWheelZoom: true,
     });
-    basemapRef.current = L.tileLayer(BASEMAP_TILE_URL, {
-      attribution: BASEMAP_ATTRIBUTION,
-    }).addTo(map);
+    // El mapa base lo monta el efecto de abajo, que también reacciona al
+    // selector: así hay una sola ruta de código que crea capas de tiles.
     L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
     mapRef.current = map;
     const kmlById = kmlRef.current;
@@ -889,10 +910,51 @@ export default function MapView({
       propiedadRuralHighlightRef.current = null;
       hexbinsRef.current = null;
       basemapRef.current = null;
+      basemapLabelsRef.current = null;
       kmlById.clear();
       seenIds.clear();
     };
   }, []);
+
+  // Mapa base seleccionado. Se reemplaza la capa de tiles completa (no basta
+  // con `setUrl`: cambian atribución, subdominios y zoom nativo). El fondo
+  // siempre vuelve al fondo del apilado — `reorderOverlays` no lo toca porque
+  // vive en el tilePane, bajo todos los overlays.
+  //
+  // `maxNativeZoom` por capa con un `maxZoom` común (MAP_MAX_ZOOM) es lo que
+  // evita el viewport en blanco al pasar de una base con z19 a OpenTopoMap,
+  // que se acaba en z17: Leaflet reescala el último nivel disponible.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const def = getBasemap(basemap);
+
+    if (basemapRef.current) {
+      map.removeLayer(basemapRef.current);
+      basemapRef.current = null;
+    }
+    if (basemapLabelsRef.current) {
+      map.removeLayer(basemapLabelsRef.current);
+      basemapLabelsRef.current = null;
+    }
+
+    if (def.url) {
+      basemapRef.current = L.tileLayer(def.url, {
+        attribution: def.attribution,
+        subdomains: def.subdomains ?? 'abc',
+        maxZoom: MAP_MAX_ZOOM,
+        maxNativeZoom: def.maxNativeZoom,
+        crossOrigin: 'anonymous',
+      }).addTo(map);
+    }
+    if (def.overlayUrl) {
+      basemapLabelsRef.current = L.tileLayer(def.overlayUrl, {
+        maxZoom: MAP_MAX_ZOOM,
+        maxNativeZoom: def.maxNativeZoom,
+        crossOrigin: 'anonymous',
+      }).addTo(map);
+    }
+  }, [basemap]);
 
   // El tema del mapa base sigue al del sistema en vivo. No se recrea la capa
   // de tiles: el look lo da un filtro CSS sobre `.leaflet-tile-pane` (ver
@@ -2153,8 +2215,18 @@ export default function MapView({
     };
   }, [focus]);
 
-  // `data-basemap` selecciona el filtro CSS que neutraliza los tiles de OSM
-  // (globals.css). Va en el contenedor, no en :root, para que el filtro se
-  // limite al panel de tiles del mapa y nunca toque los overlays vectoriales.
-  return <div ref={containerRef} data-basemap={isDark ? 'dark' : 'light'} className="h-full w-full" />;
+  // `data-basemap` selecciona el filtro CSS del lienzo (globals.css): `none`
+  // para los fondos que se muestran tal cual, `light`/`dark` para el lienzo
+  // neutro. Va en el contenedor, no en :root, para que el filtro se limite al
+  // panel de tiles del mapa y nunca toque los overlays vectoriales.
+  // `data-basemap-blank` reemplaza el gris de fábrica de Leaflet cuando no hay
+  // capa de tiles («Sin fondo»).
+  return (
+    <div
+      ref={containerRef}
+      data-basemap={basemapFilterKey(basemap, isDark)}
+      data-basemap-blank={getBasemap(basemap).url === null ? 'true' : undefined}
+      className="h-full w-full"
+    />
+  );
 }

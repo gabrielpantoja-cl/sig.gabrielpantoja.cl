@@ -47,7 +47,14 @@
 import L from 'leaflet';
 import 'leaflet.markercluster';
 import { cbrPinSvg } from '@/lib/cbr-points';
-import { BASEMAP_FILTER, prefersDark } from '@/lib/basemap';
+import {
+  BASEMAP_FILTER,
+  basemapFilterKey,
+  getBasemap,
+  prefersDark,
+  DEFAULT_BASEMAP_ID,
+  type BasemapId,
+} from '@/lib/basemap';
 
 /** Tiempo máximo total para la captura del mapa antes de abortar y devolver
  *  un canvas parcial. Mantiene al usuario fuera del limbo si una red lenta,
@@ -56,11 +63,11 @@ const EXPORT_TIMEOUT_MS = 8000;
 
 /* ---------- Atribuciones (resumen de cada capa activa + base OSM) ---------- */
 
-// OpenStreetMap es la única fuente no-controlable por el usuario: el export
-// debe reconocerla siempre para cumplir la licencia ODbL.
-// CARTO Positron / Dark Matter son el mapa base (ver MapView): la licencia
-// obliga a acreditar a OpenStreetMap Y a CARTO en cualquier derivado.
-const ATTRIBUTION_OSM = '© OpenStreetMap contributors';
+// La atribución del mapa base sale del catálogo (`lib/basemap.ts`): cambia
+// con el fondo elegido en el selector, y cada proveedor tiene su propia
+// exigencia de licencia (ODbL para OSM, CC-BY-SA para OpenTopoMap, la
+// fórmula de Esri para la ortoimagen). «Sin fondo» no acredita a nadie
+// porque no se dibuja ningún tile de terceros.
 const ATTRIBUTION_PROTECTED = 'MMA · Registro Nacional de Áreas Protegidas · CC0';
 const ATTRIBUTION_URBAN = 'MINVU · IPT · geoide.minvu.cl';
 const ATTRIBUTION_COMUNAS = 'SUBDERE · División Político-Administrativa 2023';
@@ -86,6 +93,7 @@ const ATTRIBUTION_HEXBINS =
 async function drawTileLayersToCanvas(
   map: L.Map,
   ctx: CanvasRenderingContext2D,
+  basemap: BasemapId,
 ): Promise<void> {
   const size = map.getSize();
   const pxBounds = map.getPixelBounds() as L.Bounds;
@@ -162,13 +170,15 @@ async function drawTileLayersToCanvas(
     }
   });
 
-  // El mapa en pantalla neutraliza los tiles con un filtro CSS sobre
+  // El mapa en pantalla puede neutralizar los tiles con un filtro CSS sobre
   // `.leaflet-tile-pane` (ver lib/basemap.ts). El canvas no hereda ese filtro,
   // así que se replica con `ctx.filter` — misma gramática — durante el dibujo
   // de los tiles y se resetea después, para que los vectores que se compositan
-  // encima conserven su color real.
+  // encima conserven su color real. El filtro depende del mapa base elegido:
+  // solo el lienzo neutro se filtra; el callejero, el satélite y el
+  // topográfico se exportan con sus colores reales.
   const previousFilter = ctx.filter;
-  ctx.filter = BASEMAP_FILTER[prefersDark() ? 'dark' : 'light'];
+  ctx.filter = BASEMAP_FILTER[basemapFilterKey(basemap, prefersDark())];
   try {
     // `allSettled` para que un fallo individual no cancele el resto.
     await Promise.allSettled(tileTasks);
@@ -305,7 +315,10 @@ async function drawImageOverlaysToCanvas(
 }
 
 /** Crea un canvas maestro del tamaño del map y le pinta tiles + vectores. */
-async function captureBaseCanvas(map: L.Map): Promise<HTMLCanvasElement> {
+async function captureBaseCanvas(
+  map: L.Map,
+  basemap: BasemapId,
+): Promise<HTMLCanvasElement> {
   const size = map.getSize();
   const canvas = document.createElement('canvas');
   canvas.width = size.x;
@@ -313,7 +326,7 @@ async function captureBaseCanvas(map: L.Map): Promise<HTMLCanvasElement> {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('No se pudo obtener contexto 2D del canvas de export.');
 
-  await drawTileLayersToCanvas(map, ctx);
+  await drawTileLayersToCanvas(map, ctx, basemap);
   await drawImageOverlaysToCanvas(map, ctx);
   drawPathRootToCanvas(map, ctx);
   return canvas;
@@ -787,7 +800,8 @@ function drawFrame(
 
   drawScaleBar(ctx, map, { x: margin, y: canvas.height - margin - 6 });
 
-  const atts: string[] = [ATTRIBUTION_OSM];
+  const baseAttribution = getBasemap(opts.basemap ?? DEFAULT_BASEMAP_ID).attributionText;
+  const atts: string[] = baseAttribution ? [baseAttribution] : [];
   if (opts.showProtected) atts.push(ATTRIBUTION_PROTECTED);
   if (opts.showUrbanLimit) atts.push(ATTRIBUTION_URBAN);
   if (opts.showComunas) atts.push(ATTRIBUTION_COMUNAS);
@@ -861,6 +875,9 @@ export type LayerMetadataEntry = {
 
 export type MapExportOptions = LayerExportFlags & {
   cluster: L.MarkerClusterGroup | null;
+  /** Mapa base vigente. Decide el filtro replicado sobre los tiles del canvas
+   *  y la atribución obligatoria del PNG (cada proveedor tiene la suya). */
+  basemap?: BasemapId;
   /** Trazabilidad legal del export — pintada como cajetín en la esquina
    *  inferior izquierda (sobre la escala). Si `undefined` o vacío, no se
    *  dibuja cajetín. */
@@ -884,7 +901,7 @@ export async function exportMapToPng(
   // atribuciones) y los pines CBR ya renderizados sí aparecerán — útil como
   // captura diagnóstica y mejor que nada.
   const capturePromise = (async () => {
-    const canvas = await captureBaseCanvas(map);
+    const canvas = await captureBaseCanvas(map, opts.basemap ?? DEFAULT_BASEMAP_ID);
     if (opts.showPoints && opts.cluster) {
       await drawCbrMarkers(canvas, map, opts.cluster);
     }
