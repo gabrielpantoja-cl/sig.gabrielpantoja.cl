@@ -106,6 +106,7 @@ import {
   type PropiedadesRuralesOperation,
   type PropiedadesRuralesProxyErrorBody,
   type PropiedadesRuralesStatus,
+  type PropiedadRuralFeatureResponse,
 } from '@/lib/propiedades-rurales';
 
 /**
@@ -672,6 +673,7 @@ export default function MapView({
   onRenderComplete,
   onSuelosStatus,
   onPropiedadesRuralesStatus,
+  selectedRuralFeature = null,
   onHexbinStatus,
   mapExportRef,
 }: {
@@ -710,6 +712,9 @@ export default function MapView({
   /** Disponibilidad operacional de la capa remota de suelos para el panel UI. */
   onSuelosStatus?: (status: SuelosStatus) => void;
   onPropiedadesRuralesStatus?: (status: PropiedadesRuralesStatus) => void;
+  /** Geometría exacta elegida desde el buscador de ROL CIREN. Se mantiene
+   * separada del raster remoto para resaltarla sin reconstruir la cobertura. */
+  selectedRuralFeature?: PropiedadRuralFeatureResponse | null;
   /** Resolución, umbral y cortes de cuantiles vigentes — alimenta la leyenda,
    *  que debe declarar sobre qué se calculó el color que se está viendo. */
   onHexbinStatus?: (status: HexbinStatus) => void;
@@ -735,6 +740,7 @@ export default function MapView({
   const catastroFruticolaRef = useRef<L.GeoJSON | null>(null);
   const vegetacionalRef = useRef<L.ImageOverlay | null>(null);
   const propiedadesRuralesRef = useRef<L.ImageOverlay | null>(null);
+  const propiedadRuralHighlightRef = useRef<L.GeoJSON | null>(null);
   const hexbinsRef = useRef<L.ImageOverlay | null>(null);
   // Muestras de la superficie vigente. El raster no es clicable, así que el
   // popup se resuelve buscando la celda más cercana al clic sobre esta lista.
@@ -833,6 +839,7 @@ export default function MapView({
     vegetacionalRef.current?.bringToFront();
     catastroFruticolaRef.current?.bringToFront();
     propiedadesRuralesRef.current?.bringToFront();
+    propiedadRuralHighlightRef.current?.bringToFront();
     // Red caminera sobre los polígonos (líneas finas, deben quedar visibles).
     redVialRef.current?.bringToFront();
     // Red de drenaje (ríos + esteros) sobre los polígonos; debajo de la red
@@ -877,6 +884,9 @@ export default function MapView({
       lineasTransmisionRef.current = null;
       suelosRef.current = null;
       catastroFruticolaRef.current = null;
+      vegetacionalRef.current = null;
+      propiedadesRuralesRef.current = null;
+      propiedadRuralHighlightRef.current = null;
       hexbinsRef.current = null;
       basemapRef.current = null;
       kmlById.clear();
@@ -1925,6 +1935,7 @@ export default function MapView({
       interactive: false,
     }).addTo(map);
     propiedadesRuralesRef.current = overlay;
+    reorderOverlays();
     let exportSequence = 0;
     let exportController: AbortController | null = null;
     let identifySequence = 0;
@@ -1985,10 +1996,10 @@ export default function MapView({
       try {
         const response = await fetch(`${PROPIEDADES_RURALES_IDENTIFY_URL}?${params}`, { signal: controller.signal });
         if (!response.ok) return;
-        const data = await response.json() as { results?: Array<{ layerName?: string | null; attributes?: { rol?: string | null; comuna?: string | null; region?: string | null; quality?: string } }> };
+        const data = await response.json() as { results?: Array<{ layerName?: string | null; attributes?: { rol?: string | null; comuna?: string | null; codRegion?: string | null; quality?: string } }> };
         if (id !== identifySequence || controller.signal.aborted || popupGeneration !== expectedPopupGeneration || !mapRef.current || !data.results?.length) return;
         const item = data.results[0]; const p = item.attributes ?? {};
-        const rows = [['ROL SII del predio', p.rol], ['Comuna', p.comuna], ['Región', p.region]].filter((row): row is [string, string] => Boolean(row[1]));
+        const rows = [['ROL SII del predio', p.rol], ['Comuna', p.comuna], ['Código de región', p.codRegion]].filter((row): row is [string, string] => Boolean(row[1]));
         const table = rows.map(([k, v]) => `<tr><td style="opacity:.55;padding:1px 8px 1px 0">${k}</td><td>${esc(v)}</td></tr>`).join('');
         L.popup({ maxWidth: 320 }).setLatLng(e.latlng).setContent(`<div style="font-size:.8rem;line-height:1.45;min-width:230px"><div style="font-weight:600;font-size:.92rem;color:${PROPIEDADES_RURALES_COLOR}">Propiedad rural CIREN</div><table style="border-collapse:collapse;margin-top:.3rem">${table}</table>${p.quality === 'rol-invalid' ? '<div style="margin-top:.3rem;color:#b91c1c">ROL no válido en la fuente.</div>' : ''}<div style="margin-top:.4rem;font-size:.62rem;opacity:.55">${PROPIEDADES_RURALES_DISCLAIMER}<br/>${PROPIEDADES_RURALES_ATTRIBUTION}</div></div>`).openOn(mapRef.current);
       } catch (error) { if (!controller.signal.aborted) console.error('No se pudo consultar la propiedad rural CIREN.', error); }
@@ -2001,7 +2012,56 @@ export default function MapView({
       if (map.hasLayer(overlay)) map.removeLayer(overlay);
       if (propiedadesRuralesRef.current === overlay) propiedadesRuralesRef.current = null;
     };
-  }, [showPropiedadesRurales]);
+  }, [showPropiedadesRurales, reorderOverlays]);
+
+  // Resultado seleccionado por ROL: una única geometría vectorial sobre el
+  // raster CIREN. No escucha moveend ni vive en estado Leaflet de React; al
+  // cambiar la selección se elimina por completo y se crea una sola capa.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (propiedadRuralHighlightRef.current) {
+      map.removeLayer(propiedadRuralHighlightRef.current);
+      propiedadRuralHighlightRef.current = null;
+    }
+    if (!showPropiedadesRurales || !selectedRuralFeature) return;
+
+    const { feature, extent } = selectedRuralFeature;
+    const layer = L.geoJSON(feature, {
+      style: {
+        color: PROPIEDADES_RURALES_COLOR,
+        weight: 3,
+        opacity: 1,
+        fillColor: PROPIEDADES_RURALES_COLOR,
+        fillOpacity: 0.12,
+      },
+      onEachFeature(item, featureLayer) {
+        const props = item.properties;
+        featureLayer.bindPopup(
+          `<div style="font-size:.8rem;line-height:1.45;min-width:230px">` +
+          `<div style="font-weight:600;font-size:.92rem;color:${PROPIEDADES_RURALES_COLOR}">ROL ${esc(props.rol)}</div>` +
+          `<div style="opacity:.7">${esc(props.comuna ?? 'Comuna no informada')} · ${esc(props.sourceRegion)}</div>` +
+          `<div style="margin-top:.35rem;font-size:.65rem;opacity:.55">CIREN ${esc(props.vintage)} · ${esc(props.disclaimer)}</div>` +
+          `</div>`,
+          { maxWidth: 320 },
+        );
+      },
+    }).addTo(map);
+    propiedadRuralHighlightRef.current = layer;
+    reorderOverlays();
+    const [west, south, east, north] = extent;
+    map.flyToBounds(L.latLngBounds([south, west], [north, east]), {
+      padding: [45, 45],
+      maxZoom: 17,
+      duration: 1.2,
+    });
+    layer.openPopup();
+
+    return () => {
+      if (map.hasLayer(layer)) map.removeLayer(layer);
+      if (propiedadRuralHighlightRef.current === layer) propiedadRuralHighlightRef.current = null;
+    };
+  }, [showPropiedadesRurales, selectedRuralFeature, reorderOverlays]);
 
   // Capas KML del usuario — ya parseadas a GeoJSON en el navegador (lib/kml).
   // Se sincronizan por id: se quitan las eliminadas u ocultas, se agregan las

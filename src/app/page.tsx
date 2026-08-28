@@ -6,7 +6,16 @@ import type { Facets, GeocodeResult, MapPoint, Stats } from '@/lib/types';
 import { kmlColorFor, kmlDisplayName, parseKmlFile, type KmlLayer } from '@/lib/kml';
 import type { LayerMetadataEntry } from '@/lib/map-export';
 import { SUELOS_SERVICE_NAME, type SuelosStatus } from '@/lib/suelos';
-import { PROPIEDADES_RURALES_SERVICE_NAME, type PropiedadesRuralesStatus } from '@/lib/propiedades-rurales';
+import {
+  PROPIEDADES_RURALES_FEATURE_URL,
+  PROPIEDADES_RURALES_SEARCH_URL,
+  PROPIEDADES_RURALES_SERVICE_NAME,
+  normalizePropiedadRuralRol,
+  type PropiedadRuralFeatureResponse,
+  type PropiedadRuralSearchMatch,
+  type PropiedadRuralSearchResponse,
+  type PropiedadesRuralesStatus,
+} from '@/lib/propiedades-rurales';
 import { LINEAS_TRANSMISION_COLOR } from '@/lib/lineas-transmision';
 import {
   DESTINO_DEFAULT,
@@ -19,7 +28,7 @@ import {
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
-import { SearchFields, FilterFields, StatsFields } from '@/components/FieldGroups';
+import { SearchFields, FilterFields, StatsFields, type RuralRolSearchState } from '@/components/FieldGroups';
 import { GeocoderSearch } from '@/components/GeocoderSearch';
 import { InfoPanel } from '@/components/InfoPanel';
 
@@ -352,6 +361,12 @@ export default function Home() {
   const [supMax, setSupMax] = useState('');
   const [predio, setPredio] = useState('');
   const [rol, setRol] = useState('');
+  const [ruralRolSearch, setRuralRolSearch] = useState<RuralRolSearchState>({ kind: 'idle' });
+  const [selectedRuralFeature, setSelectedRuralFeature] = useState<PropiedadRuralFeatureResponse | null>(null);
+  const [showPropiedadesRurales, setShowPropiedadesRurales] = useState(false);
+  const [propiedadesRuralesStatus, setPropiedadesRuralesStatus] = useState<PropiedadesRuralesStatus>({ kind: 'idle' });
+  const ruralSearchController = useRef<AbortController | null>(null);
+  const ruralFeatureController = useRef<AbortController | null>(null);
 
   const [points, setPoints] = useState<MapPoint[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -392,6 +407,89 @@ export default function Home() {
   // por defecto para que el mapa sea dueño de la pantalla.
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  const clearRuralSearch = useCallback(() => {
+    ruralSearchController.current?.abort();
+    ruralFeatureController.current?.abort();
+    setRuralRolSearch({ kind: 'idle' });
+    setSelectedRuralFeature(null);
+  }, []);
+
+  const handleRolChange = useCallback((value: string) => {
+    setRol(value);
+    clearRuralSearch();
+  }, [clearRuralSearch]);
+
+  const selectRuralMatch = useCallback(async (
+    match: PropiedadRuralSearchMatch,
+    results = ruralRolSearch.kind === 'results' || ruralRolSearch.kind === 'selecting'
+      ? ruralRolSearch.results
+      : [match],
+  ) => {
+    ruralFeatureController.current?.abort();
+    const controller = new AbortController();
+    ruralFeatureController.current = controller;
+    setRuralRolSearch({ kind: 'selecting', results, selectedId: match.id });
+    try {
+      const params = new URLSearchParams({
+        layer: String(match.layerId),
+        oid: String(match.objectId),
+        rol: match.rol,
+      });
+      const response = await fetch(`${PROPIEDADES_RURALES_FEATURE_URL}?${params}`, {
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error('feature');
+      const feature = await response.json() as PropiedadRuralFeatureResponse;
+      if (controller.signal.aborted) return;
+      setSelectedRuralFeature(feature);
+      setShowPropiedadesRurales(true);
+      setRuralRolSearch({ kind: 'results', results, truncated: false });
+      setDrawerOpen(false);
+    } catch {
+      if (controller.signal.aborted) return;
+      setRuralRolSearch({
+        kind: 'error',
+        message: 'No se pudo cargar la geometría del predio desde CIREN. Intenta nuevamente.',
+      });
+    }
+  }, [ruralRolSearch]);
+
+  const locateRuralRol = useCallback(async () => {
+    const normalizedRol = normalizePropiedadRuralRol(rol);
+    if (!normalizedRol) return;
+    ruralSearchController.current?.abort();
+    ruralFeatureController.current?.abort();
+    setSelectedRuralFeature(null);
+    const controller = new AbortController();
+    ruralSearchController.current = controller;
+    setRuralRolSearch({ kind: 'loading' });
+    try {
+      const params = new URLSearchParams({
+        rol: normalizedRol,
+        comuna: comuna === 'todas' ? '' : comuna,
+      });
+      const response = await fetch(`${PROPIEDADES_RURALES_SEARCH_URL}?${params}`, {
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error('search');
+      const data = await response.json() as PropiedadRuralSearchResponse;
+      if (controller.signal.aborted) return;
+      setRuralRolSearch({ kind: 'results', results: data.results, truncated: data.truncated });
+      if (data.results.length === 1) await selectRuralMatch(data.results[0], data.results);
+    } catch {
+      if (controller.signal.aborted) return;
+      setRuralRolSearch({
+        kind: 'error',
+        message: 'No se pudo consultar el servicio de propiedades rurales CIREN.',
+      });
+    }
+  }, [comuna, rol, selectRuralMatch]);
+
+  useEffect(() => () => {
+    ruralSearchController.current?.abort();
+    ruralFeatureController.current?.abort();
+  }, []);
+
   // Las transacciones CBR son la capa principal y vienen activadas por defecto,
   // pero el perito las puede ocultar para componer una vista limpia (por ej.
   // al exportar el mapa como anexo PNG de un informe de tasación).
@@ -406,8 +504,6 @@ export default function Home() {
   const [suelosStatus, setSuelosStatus] = useState<SuelosStatus>({ kind: 'idle' });
   const [showCatastroFruticola, setShowCatastroFruticola] = useState(false);
   const [showVegetacional, setShowVegetacional] = useState(false);
-  const [showPropiedadesRurales, setShowPropiedadesRurales] = useState(false);
-  const [propiedadesRuralesStatus, setPropiedadesRuralesStatus] = useState<PropiedadesRuralesStatus>({ kind: 'idle' });
   // Mapa de calor de valor. El destino arranca en habitacional: es el 57 % de
   // la base y el caso urbano que el usuario quiere ver primero.
   const [showHexbins, setShowHexbins] = useState(false);
@@ -576,7 +672,16 @@ export default function Home() {
     `/api/export?${debouncedQs ? `${debouncedQs}&` : ''}format=${format}`;
 
   const searchFields = (
-    <SearchFields predio={predio} setPredio={setPredio} rol={rol} setRol={setRol} />
+    <SearchFields
+      predio={predio}
+      setPredio={setPredio}
+      rol={rol}
+      setRol={handleRolChange}
+      ruralRolSearch={ruralRolSearch}
+      onLocateRuralRol={locateRuralRol}
+      onSelectRuralMatch={selectRuralMatch}
+      onClearRuralSearch={clearRuralSearch}
+    />
   );
 
   const filterFields = (
@@ -684,6 +789,7 @@ export default function Home() {
             showVegetacional={showVegetacional}
             showPropiedadesRurales={showPropiedadesRurales}
             onPropiedadesRuralesStatus={setPropiedadesRuralesStatus}
+            selectedRuralFeature={selectedRuralFeature}
             showHexbins={showHexbins}
             hexbinDestino={hexbinDestino}
             hexbinMinN={hexbinMinN}

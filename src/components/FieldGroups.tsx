@@ -1,6 +1,7 @@
 'use client';
 
 import type { Facets, Stats } from '@/lib/types';
+import { normalizePropiedadRuralRol, type PropiedadRuralSearchMatch } from '@/lib/propiedades-rurales';
 
 /**
  * Grupos de campos presentacionales, sin estado propio. El estado vive en
@@ -12,17 +13,37 @@ import type { Facets, Stats } from '@/lib/types';
 const inputClass =
   'h-9 rounded-md border border-black/15 bg-[var(--background)] px-2 text-[var(--foreground)] dark:border-white/20';
 
+export type RuralRolSearchState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'selecting'; results: PropiedadRuralSearchMatch[]; selectedId: string }
+  | { kind: 'results'; results: PropiedadRuralSearchMatch[]; truncated: boolean }
+  | { kind: 'error'; message: string };
+
 export function SearchFields({
   predio,
   setPredio,
   rol,
   setRol,
+  ruralRolSearch,
+  onLocateRuralRol,
+  onSelectRuralMatch,
+  onClearRuralSearch,
 }: {
   predio: string;
   setPredio: (v: string) => void;
   rol: string;
   setRol: (v: string) => void;
+  ruralRolSearch: RuralRolSearchState;
+  onLocateRuralRol: () => void;
+  onSelectRuralMatch: (match: PropiedadRuralSearchMatch) => void;
+  onClearRuralSearch: () => void;
 }) {
+  const normalizedRol = normalizePropiedadRuralRol(rol);
+  const busy = ruralRolSearch.kind === 'loading' || ruralRolSearch.kind === 'selecting';
+  const results = ruralRolSearch.kind === 'results' || ruralRolSearch.kind === 'selecting'
+    ? ruralRolSearch.results
+    : [];
   return (
     <div className="flex flex-col gap-3">
       <label className="flex flex-col gap-1 text-sm">
@@ -37,7 +58,7 @@ export function SearchFields({
       </label>
 
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">ROL</span>
+        <span className="font-medium">ROL en transacciones CBR</span>
         <input
           type="text"
           placeholder="ej. 123-45"
@@ -46,6 +67,62 @@ export function SearchFields({
           className={`${inputClass} w-full`}
         />
       </label>
+      <div className="-mt-2 space-y-2">
+        <p className="text-[0.68rem] leading-snug opacity-55">
+          El texto filtra las transacciones por coincidencia parcial. Con un ROL completo puedes
+          ubicar el polígono rural publicado por CIREN.
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onLocateRuralRol}
+            disabled={!normalizedRol || busy}
+            aria-busy={busy}
+            className="flex-1 rounded-md border border-[hsl(153_28%_35%)] px-2 py-1.5 text-xs font-medium text-[hsl(153_28%_28%)] hover:bg-[hsl(153_28%_35%)]/10 disabled:cursor-not-allowed disabled:opacity-40 dark:text-[hsl(153_35%_70%)]"
+          >
+            {ruralRolSearch.kind === 'loading' ? 'Buscando en CIREN…' : 'Ubicar predio CIREN'}
+          </button>
+          {ruralRolSearch.kind !== 'idle' && (
+            <button type="button" onClick={onClearRuralSearch} className="rounded-md border border-black/15 px-2 py-1.5 text-xs hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10">
+              Limpiar
+            </button>
+          )}
+        </div>
+        <div aria-live="polite">
+          {rol.trim() && !normalizedRol && (
+            <p className="text-[0.68rem] text-amber-700 dark:text-amber-300">Para CIREN usa un ROL completo, por ejemplo 123-45.</p>
+          )}
+          {ruralRolSearch.kind === 'error' && <p role="alert" className="text-[0.68rem] text-red-700 dark:text-red-300">{ruralRolSearch.message}</p>}
+          {ruralRolSearch.kind === 'results' && results.length === 0 && (
+            <p className="text-[0.68rem] opacity-60">Sin coincidencias exactas en la cobertura rural CIREN.</p>
+          )}
+          {results.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[0.68rem] opacity-60">
+                {results.length === 1 ? '1 coincidencia' : `${results.length} coincidencias`}. Selecciona el predio:
+              </p>
+              <ul className="max-h-40 space-y-1 overflow-y-auto">
+                {results.map((match) => (
+                  <li key={match.id}>
+                    <button
+                      type="button"
+                      onClick={() => onSelectRuralMatch(match)}
+                      disabled={busy}
+                      className="w-full rounded border border-black/10 px-2 py-1.5 text-left text-[0.68rem] hover:bg-black/5 disabled:opacity-50 dark:border-white/15 dark:hover:bg-white/10"
+                    >
+                      <span className="font-semibold">ROL {match.rol}</span>
+                      <span className="block opacity-65">{match.comuna ?? 'Comuna no informada'} · {match.sourceRegion} · CIREN {match.vintage}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {ruralRolSearch.kind === 'results' && ruralRolSearch.truncated && (
+                <p className="text-[0.65rem] text-amber-700 dark:text-amber-300">La fuente devolvió más coincidencias; usa también el filtro de comuna para priorizar la correcta.</p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
