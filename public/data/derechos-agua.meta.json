@@ -1,0 +1,14 @@
+{
+  "fuente": "SNIA / DGA — Catastro Público de Aguas",
+  "fecha_levantamiento": "Por determinar (glaciares)",
+  "licencia": "CC-BY o similar (SNIA)",
+  "url_fuente": "https://snia.mop.gob.cl/observatorio/",
+  "observaciones": [
+    "Primera entrega: contexto hídrico (glaciares)",
+    "Derechos individuales no tienen endpoint masivo — quedan como link-out",
+    "Acuíferos, cuencas y estaciones fluviométricas: investigar disponibilidad"
+  ],
+  "features_count": 0,
+  "boundsWgs84": null,
+  "estado": "INVESTIGACIÓN"
+}
