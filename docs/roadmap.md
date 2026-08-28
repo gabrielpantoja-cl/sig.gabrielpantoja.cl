@@ -168,7 +168,12 @@ Reglas duras (heredadas de AGENTS.md y `arquitectura-capas.md`):
   en el panel ("Cobertura: O'Higgins a Los Lagos") y deshabilitar el
   resto.
 
-### 2.2 Derechos de aprovechamiento de aguas (DGA)
+### 2.2 Derechos de aprovechamiento de aguas (DGA) — 🔍 INVESTIGACIÓN
+
+> **Status: 2026-08-28** — Se inició investigación de fuentes WFS públicas.
+> Ver `scripts/build-derechos-agua.mjs` para la estrategia: Fase 1 mapeará
+> **contexto hídrico** (glaciares SNIA + cuencas), dejando derechos
+> individuales como link-outs.
 
 - **Fuente**: Catastro Público de Aguas, 12 registros públicos
   disponibles en <https://dga.mop.gob.cl/servicios-de-informacion/catastro-publico-de-aguas/>,

@@ -1,0 +1,8 @@
+{
+  "type": "FeatureCollection",
+  "features": [],
+  "properties": {
+    "status": "INVESTIGACIÓN — endpoint WFS no confirmado aún",
+    "message": "Ver build-derechos-agua.mjs y docs/roadmap.md § 2.2"
+  }
+}
