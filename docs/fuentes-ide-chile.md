@@ -67,6 +67,10 @@ https://esri.ciren.cl/server/services/IDEMINAGRI/PROPIEDADES_RURALES/MapServer/W
 - `rol` es un identificador predial público según la política de este proyecto,
   pero no debe combinarse con propietarios, domicilios personales u otros
   datos no autorizados.
+- La búsqueda implementada en el SIG es exacta (`manzana-predio`) y puede
+  devolver varias coincidencias: el ROL debe interpretarse junto con la comuna.
+  Solo el resultado seleccionado descarga su geometría, que sigue siendo
+  referencial y no acredita dominio ni deslindes legales.
 
 ## Patrones técnicos reutilizables
 

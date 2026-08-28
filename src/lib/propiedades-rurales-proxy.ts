@@ -5,7 +5,7 @@ import { fetchCiren, parseNumberTuple, readExactParams, validGeographicExtent, v
 export const PROPIEDADES_RURALES_UPSTREAM_SERVICE =
   'https://esri.ciren.cl/server/rest/services/IDEMINAGRI/PROPIEDADES_RURALES/MapServer';
 export const PROPIEDADES_RURALES_PROXY_SERVICE_NAME = 'CIREN · PROPIEDADES_RURALES · ArcGIS MapServer';
-export type PropiedadesRuralesProxyOperation = 'export' | 'identify';
+export type PropiedadesRuralesProxyOperation = 'export' | 'identify' | 'search' | 'feature';
 
 export function propiedadesRuralesProxyError(req: Request, status: number, code: string, operation: PropiedadesRuralesProxyOperation) {
   return Response.json({ error: { code, message: code === 'INVALID_REQUEST' ? 'Los parámetros de la consulta de propiedades rurales no son válidos.' : 'El servicio oficial de propiedades rurales CIREN no está disponible temporalmente.', service: PROPIEDADES_RURALES_PROXY_SERVICE_NAME, operation } }, { status, headers: { ...corsHeaders(req), 'Cache-Control': 'no-store', Vary: 'Origin' } });

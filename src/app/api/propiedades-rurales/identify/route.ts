@@ -3,9 +3,12 @@ import { PROPIEDADES_RURALES_LAYER_IDS } from '@/lib/propiedades-rurales';
 import { PROPIEDADES_RURALES_UPSTREAM_SERVICE, fetchCiren, parseNumberTuple, readExactParams, propiedadesRuralesProxyError, ruralExtent, validGeographicPoint, validIntegerTuple } from '@/lib/propiedades-rurales-proxy';
 
 export const runtime = 'nodejs';
-const ROL = /^\d{1,6}-[\dkK]$/;
+const ROL = /^\d{1,7}-\d{1,6}$/;
 const text = (v: unknown) => typeof v === 'string' ? v.slice(0, 160) : null;
-const attr = (a: Record<string, unknown>, names: string[]) => { const key = Object.keys(a).find((k) => names.includes(k.toLowerCase()) || names.includes(String(a[k]).toLowerCase())); return key ? text(a[key]) : null; };
+const attr = (a: Record<string, unknown>, names: string[]) => {
+  const key = Object.keys(a).find((candidate) => names.includes(candidate.toLowerCase()));
+  return key ? text(a[key]) : null;
+};
 
 export async function OPTIONS(req: Request) { return new Response(null, { status: 204, headers: { ...corsHeaders(req), Vary: 'Origin' } }); }
 
@@ -28,7 +31,7 @@ export async function GET(req: Request) {
   const results = data.results.slice(0, 10).map(({ layerName, attributes }) => {
     const a = attributes && typeof attributes === 'object' ? attributes as Record<string, unknown> : {};
     const rol = attr(a, ['rol', 'rol sii del predio', 'rol propiedad']);
-    return { layerName: text(layerName), attributes: { rol: rol && ROL.test(rol) ? rol : null, comuna: attr(a, ['desccomu', 'nombre comuna propiedad']), provincia: attr(a, ['provdere']), region: attr(a, ['regidere']), codComuna: attr(a, ['codcomu', 'codigo comuna propiedad']), codProvincia: attr(a, ['codprov', 'codigo provincia propiedad']), codRegion: attr(a, ['codreg', 'codigo region propiedad']), ...(rol && !ROL.test(rol) ? { quality: 'rol-invalid' as const } : {}) } };
+    return { layerName: text(layerName), attributes: { rol: rol && ROL.test(rol) ? rol : null, comuna: attr(a, ['desccomu']), codComuna: attr(a, ['comudere']), codProvincia: attr(a, ['provdere']), codRegion: attr(a, ['regidere']), ...(rol && !ROL.test(rol) ? { quality: 'rol-invalid' as const } : {}) } };
   });
   return Response.json({ results }, { headers: { ...corsHeaders(req), 'Cache-Control': 'no-store', Vary: 'Origin' } });
 }
