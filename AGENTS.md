@@ -54,7 +54,8 @@ Browser → /api/geocode → Nominatim/OSM (address search, Chile only, cached p
 - **Recursos vegetacionales (CONAF)** is a REMOTE DYNAMIC layer (no static file): the map requests one rendered PNG per viewport through `/api/vegetacional/export` and queries attributes through `/api/vegetacional/identify`. The official ArcGIS service remains server-side behind validated proxies; regional vintages are heterogeneous and shown explicitly. License/attribution in `src/lib/vegetacional.ts`.
 - **Suelos agrológicos (CIREN)** is a REMOTE DYNAMIC layer (no static file): the CIREN dataset exceeds 500 MB, so the map fetches ONE rendered PNG per viewport through the validated `/api/suelos/export` proxy to the official ArcGIS service (esri.ciren.cl), displayed via `L.ImageOverlay` refreshed on `moveend`; point queries use `/api/suelos/identify`. Proxy failures identify the exact CIREN service and operation in the UI. NEVER switch it to tiled WMS — the ~40 simultaneous GetMap requests Leaflet fires collapse the state server. See `docs/arquitectura-capas.md` § Capas dinámicas remotas.
 - **Mapa de calor de valor ($/m²)** is a DERIVED layer with no static file and no ETL, rendered as a CONTINUOUS RASTER (not tiles). Two stages, and the order is what makes it defensible: (1) `/api/hexbins` aggregates the CBR points in Neon with PostGIS `ST_HexagonGrid` (3.3.3 installed) and returns the CENTROID of each cell carrying the **median** of `monto / superficieTerreno`, plus P25/P75 and `n`; (2) `src/lib/heat-surface.ts` interpolates those medians with a Gaussian kernel into an `L.ImageOverlay`. The hex grid is the SAMPLING lattice and is NEVER drawn — drawing it produced a mosaic with visible seams and holes. Interpolating the medians (not the raw points) is the whole point: the median already absorbed the extreme amounts (mean/median of `monto` is 5,06× in this base), and only then is the smoothing applied. The surface is a weighted MEAN of value (`num/den`, a Shepard interpolation), so colour tracks value and never density; density goes to the alpha channel, where a pixel far from any transaction fades out instead of inventing a value. Cell edge comes from the zoom SERVER-SIDE (60 m … 4 km); the `JOIN LATERAL ST_HexagonGrid(edge, pts.g)` runs **per point**, so cost is O(rows in bbox), not O(viewport area). Always filter by a single `destino` (median $/m² is ~261× higher for `H` than for `A`; a shared scale is meaningless). Colour position is 60 % quantile + 40 % log — pure quantiles made neighbouring cells jump from purple to yellow. The legend positions its ticks with the same `rampPosition` function that colours the raster, so they match by construction. Clicking returns the nearest REAL cell median, never the interpolated pixel. Calibration table and rationale in `docs/plan-mapa-de-calor.md` §6 Fase 1.5.
-- **Basemap**: OpenStreetMap tiles neutralised by a CSS `filter` on `.leaflet-tile-pane`, selected by `data-basemap="light|dark"` on the map container (`src/lib/basemap.ts` + `globals.css`). Do NOT switch to CARTO Positron/Dark Matter or Stadia/Stamen: verified 2026-08-27, CARTO stamps "API KEY REQUIRED" on every tile and Stadia returns 401 without a key. The same filter is replicated with `ctx.filter` in `map-export.ts` so the exported PNG matches the screen.
+- **Basemap selector**: the user picks the canvas from a Google-Maps-style thumbnail control in the bottom-left (`src/components/BasemapSwitcher.tsx`), backed by the catalog in `src/lib/basemap.ts`. Five options: **OpenStreetMap (default, raw colours)**, **Neutro** (the same OSM tiles desaturated/inverted by CSS — the correct canvas for the value heat map), **Satélite** (Esri World Imagery + the transparent World_Boundaries_and_Places label layer), **Topográfico** (OpenTopoMap, contours + SRTM hillshade), and **Sin fondo** (no tile layer at all, for clean PNG plates). Do NOT add CARTO Positron/Dark Matter or Stadia/Stamen: verified 2026-08-27, CARTO stamps "API KEY REQUIRED" on every tile and Stadia returns 401 without a key; all five current sources were re-verified 2026-08-28 for HTTP 200 + CORS `*`. The `data-basemap` attribute on the map container names the FILTER in force (`none|light|dark`), not the provider, and the same filter is replicated with `ctx.filter` in `map-export.ts` so the exported PNG matches the screen — along with the per-provider attribution, which is a licence obligation and differs per basemap (ODbL, CC-BY-SA, the Esri formula). Per-layer `maxNativeZoom` under a shared `MAP_MAX_ZOOM` is what keeps the viewport from going blank when switching from a z19 base to OpenTopoMap (z17). The preference persists in `localStorage` and is read through `useSyncExternalStore` (`src/lib/basemap-store.ts`) so SSR and hydration agree — do NOT move it back to `useState` + `useEffect`.
+- **Update monitor**: `src/components/UpdateNotice.tsx` (mounted in the root layout) polls `GET /api/version` every 5 minutes while the tab is visible and shows a dismissible banner with an **Actualizar** button when the served `build` differs from the one the tab loaded. It compares the build, not the version, so a fix-only deploy still notifies. `/api/version` is the one route that skips `enforce()` (polling must not eat the rate-limit budget of real map queries) and must stay `no-store`.
 - **Communal limits styling**: each comuna gets a distinct translucent pastel fill assigned by `CUT_COM % palette` (`comunaFillColor` in `src/lib/comunas.ts`) over the dashed slate border.
 
 ## Key files
@@ -79,7 +80,12 @@ Browser → /api/geocode → Nominatim/OSM (address search, Chile only, cached p
 | `src/lib/suelos.ts` | Suelos agrológicos CIREN: export/identify endpoints, class colors & attribution |
 | `src/lib/hexbins.ts` | Mapa de calor de valor: zoom→sampling-edge ladder, colour ramps, quantile breaks, destino codes, disclaimer |
 | `src/lib/heat-surface.ts` | Gaussian interpolation of the cell medians into a continuous raster (splat accumulation, quantile+log colour scale, coverage-driven alpha) |
-| `src/lib/basemap.ts` | Basemap theme: OSM tile URL + per-theme CSS filter (and why not CARTO/Stadia) |
+| `src/lib/basemap.ts` | Basemap catalog: the five backgrounds, their tile URLs, licences, native zooms and CSS filters (and why not CARTO/Stadia) |
+| `src/lib/basemap-store.ts` | Basemap preference as an external store for `useSyncExternalStore` (localStorage without hydration mismatch) |
+| `src/components/BasemapSwitcher.tsx` | Thumbnail basemap picker, bottom-left, Google-Maps style |
+| `src/lib/version.ts` | `APP_VERSION`, `BUILD_ID`, and the SemVer policy for this project |
+| `src/app/api/version/route.ts` | Deployment identity for the update monitor (no auth gate, `no-store`) |
+| `src/components/UpdateNotice.tsx` | Update monitor: polls `/api/version`, offers «Actualizar» |
 | `src/app/api/hexbins/route.ts` | PostGIS `ST_HexagonGrid` aggregation of $/m² per viewport |
 | `src/lib/kml.ts` | User-uploaded KML layers: browser-side parse (@tmcw/togeojson) + validation |
 | `src/lib/protected-areas.ts` | Protected area category colors & config |
@@ -109,6 +115,26 @@ Exposed per point: `lat, lng, monto, anio, comuna, predio, superficie, rol, dest
 - NEVER expose: `comprador, vendedor, rut, user_id, observaciones`.
 
 Protected areas layer has 12 legal categories with distinct colors (see `src/lib/protected-areas.ts`).
+
+## Versioning
+
+SemVer `MAYOR.MENOR.PARCHE`, currently **0.5.0** (`package.json` and
+`src/lib/version.ts` must agree — the API route reports the latter).
+
+The leading `0` is a factual claim, not modesty: **the public `/api/*`
+contract is not frozen yet**. `1.0.0` is the moment that contract is
+documented and we commit to not breaking it without notice.
+
+| Number | Bumps when |
+|---|---|
+| **MAYOR** | `1.0.0` on the frozen, documented `/api/*` contract; afterwards, any incompatible change to those responses |
+| **MENOR** | A user-visible capability ships: a thematic layer, the heat map, the PNG export, the basemap selector |
+| **PARCHE** | Fixes, styling, and regenerating an existing layer's data via `npm run data:build:*` |
+
+Tag each release (`v0.5.0`) and record it in `CHANGELOG.md`. Bumping the
+version is what makes the update monitor's banner name a number the user can
+recognise — but the monitor triggers on `BUILD_ID` (the Vercel commit SHA), so
+a fix deployed without a bump still notifies.
 
 ## Conventions
 
