@@ -30,6 +30,7 @@ atribución visible y cita en el popup.
 | Suelos agrológicos (CIREN) | CIREN · Estudios Agrológicos · esri.ciren.cl (MapServer, 12 regiones) | 2010–2024 según región | Clases I–VIII + N.C. | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
 | Catastro frutícola (CIREN) | CIREN · IDE Minagri · esri.ciren.cl (MapServer `IDEMINAGRI/CATASTRO_FRUTICOLA`, 14 sublayers) | 2019–2025 según región | ~95k productores (especie_01 + ROL + códigos SUBDERE) | **~30 MB** ⚠ | `scripts/build-catastro-fruticola.mjs` |
 | Recursos vegetacionales (CONAF) | CONAF · IDE Minagri · ArcGIS MapServer | 2014–2024 según región | Render oficial + consulta puntual de uso, subuso, estructura, cobertura y especies dominantes | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
+| Propiedades rurales (CIREN) | CIREN · IDE Minagri · `IDEMINAGRI/PROPIEDADES_RURALES` (14 sublayers regionales) | 2004–2023 según región | Polígonos prediales referenciales + ROL SII publicado por la fuente | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
 | Mapa de calor de valor ($/m²) | Elaboración propia sobre inscripciones de los Conservadores de Bienes Raíces | igual que los puntos CBR (97 % de 2025) | Raster continuo interpolado desde centroides `ST_HexagonGrid` de 60 m–4 km según zoom (máx. 4.000 muestras por respuesta) | **0 MB (agregada en Neon + rasterizada en el cliente)** | — (sin ETL; `/api/hexbins` + `lib/heat-surface.ts`) |
 
 Cada GeoJSON va acompañado de un `*.meta.json` (manifiesto de procedencia:
@@ -91,6 +92,19 @@ vivo. Patrón implementado en `MapView.tsx` (efecto de suelos) +
   afectada (`export` o `identify`). Una caída nunca debe presentarse como
   «sin clase de suelo»; ese mensaje queda reservado a respuestas válidas sin
   cobertura puntual.
+
+La capa de **propiedades rurales CIREN** usa el mismo patrón, mediante
+`/api/propiedades-rurales/export` e `/api/propiedades-rurales/identify`. Se
+mantiene remota porque la consulta pública no confirma permiso para
+redistribuir un GeoJSON completo. El mapa solo solicita un PNG por viewport
+desde zoom 11 y el proxy devuelve únicamente `rol`, comuna, región y códigos
+territoriales permitidos. La cobertura incluye 14 regiones, desde Arica y
+Parinacota hasta Aysén; no incluye Antofagasta ni Magallanes y sus vintages no
+son homogéneos (Aysén: 2004; Metropolitana y Araucanía: 2023). El ROL es un
+identificador predial referencial: no acredita dominio, propietario actual,
+deslinde legal, mensura, gravamen ni vigencia registral. Nunca se debe
+enriquecer con propietarios, RUT, domicilios personales u otros datos
+restringidos.
 
 Además existen las **capas KML del usuario** (subidas en el panel Capas,
 parseadas 100 % en el navegador — `src/lib/kml.ts` — nunca suben a un

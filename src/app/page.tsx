@@ -6,6 +6,7 @@ import type { Facets, GeocodeResult, MapPoint, Stats } from '@/lib/types';
 import { kmlColorFor, kmlDisplayName, parseKmlFile, type KmlLayer } from '@/lib/kml';
 import type { LayerMetadataEntry } from '@/lib/map-export';
 import { SUELOS_SERVICE_NAME, type SuelosStatus } from '@/lib/suelos';
+import { PROPIEDADES_RURALES_SERVICE_NAME, type PropiedadesRuralesStatus } from '@/lib/propiedades-rurales';
 import { LINEAS_TRANSMISION_COLOR } from '@/lib/lineas-transmision';
 import {
   DESTINO_DEFAULT,
@@ -146,6 +147,7 @@ type BuildMetadataInput = {
   showSuelos: boolean;
   showCatastroFruticola: boolean;
   showVegetacional: boolean;
+  showPropiedadesRurales: boolean;
   showHexbins: boolean;
   hexbinStatus: HexbinStatus;
   comuna: string;
@@ -293,6 +295,9 @@ function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEntry[] {
       shape: 'square',
     });
   }
+  if (input.showPropiedadesRurales) {
+    entries.push({ title: 'Propiedades rurales (CIREN)', details: 'Polígonos prediales y ROL referenciales; cobertura y vintage regionales heterogéneos. No acredita dominio ni deslindes legales.\nFuente: CIREN · IDE Minagri', color: '#dc2626', shape: 'square' });
+  }
 
   if (input.showHexbins) {
     // El cajetín debe declarar la resolución y el umbral REALES con los que se
@@ -401,6 +406,8 @@ export default function Home() {
   const [suelosStatus, setSuelosStatus] = useState<SuelosStatus>({ kind: 'idle' });
   const [showCatastroFruticola, setShowCatastroFruticola] = useState(false);
   const [showVegetacional, setShowVegetacional] = useState(false);
+  const [showPropiedadesRurales, setShowPropiedadesRurales] = useState(false);
+  const [propiedadesRuralesStatus, setPropiedadesRuralesStatus] = useState<PropiedadesRuralesStatus>({ kind: 'idle' });
   // Mapa de calor de valor. El destino arranca en habitacional: es el 57 % de
   // la base y el caso urbano que el usuario quiere ver primero.
   const [showHexbins, setShowHexbins] = useState(false);
@@ -467,6 +474,7 @@ export default function Home() {
         showSuelos,
         showCatastroFruticola,
         showVegetacional,
+        showPropiedadesRurales,
         showHexbins,
         hexbinStatus,
         comuna,
@@ -487,7 +495,7 @@ export default function Home() {
   }, [
     exporting,
     showPoints, showProtected, showUrbanLimit, showComunas, showRedVial,
-    showRedDrenaje, showLineasTransmision, showSuelos, showCatastroFruticola, showVegetacional,
+    showRedDrenaje, showLineasTransmision, showSuelos, showCatastroFruticola, showVegetacional, showPropiedadesRurales,
     showHexbins, hexbinStatus,
     comuna, anioFrom, montoMin, montoMax, supMin, supMax, predio, rol,
     stats, kmlLayers,
@@ -674,6 +682,8 @@ export default function Home() {
             onSuelosStatus={setSuelosStatus}
             showCatastroFruticola={showCatastroFruticola}
             showVegetacional={showVegetacional}
+            showPropiedadesRurales={showPropiedadesRurales}
+            onPropiedadesRuralesStatus={setPropiedadesRuralesStatus}
             showHexbins={showHexbins}
             hexbinDestino={hexbinDestino}
             hexbinMinN={hexbinMinN}
@@ -697,6 +707,12 @@ export default function Home() {
             <strong>Capa de suelos temporalmente no disponible.</strong>{' '}
             No responde {suelosStatus.service || SUELOS_SERVICE_NAME} (operación{' '}
             {suelosStatus.operation}). El resto del SIG continúa funcionando normalmente.
+          </div>
+        )}
+        {showPropiedadesRurales && propiedadesRuralesStatus.kind === 'error' && (
+          <div role="alert" className="absolute bottom-20 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs text-red-800 shadow-lg dark:text-red-200">
+            <strong>Capa de propiedades rurales temporalmente no disponible.</strong>{' '}
+            No responde {propiedadesRuralesStatus.service || PROPIEDADES_RURALES_SERVICE_NAME}.
           </div>
         )}
 
@@ -782,6 +798,9 @@ export default function Home() {
             onToggleCatastroFruticola={setShowCatastroFruticola}
             showVegetacional={showVegetacional}
             onToggleVegetacional={setShowVegetacional}
+            showPropiedadesRurales={showPropiedadesRurales}
+            onTogglePropiedadesRurales={setShowPropiedadesRurales}
+            propiedadesRuralesStatus={propiedadesRuralesStatus}
             kmlLayers={kmlLayers}
             kmlError={kmlError}
             onAddKmlFiles={addKmlFiles}
