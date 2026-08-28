@@ -118,7 +118,7 @@ Protected areas layer has 12 legal categories with distinct colors (see `src/lib
 
 ## Versioning
 
-SemVer `MAYOR.MENOR.PARCHE`, currently **0.5.0** (`package.json` and
+SemVer `MAYOR.MENOR.PARCHE`, currently **0.1.0** (`package.json` and
 `src/lib/version.ts` must agree — the API route reports the latter).
 
 The leading `0` is a factual claim, not modesty: **the public `/api/*`
@@ -131,7 +131,7 @@ documented and we commit to not breaking it without notice.
 | **MENOR** | A user-visible capability ships: a thematic layer, the heat map, the PNG export, the basemap selector |
 | **PARCHE** | Fixes, styling, and regenerating an existing layer's data via `npm run data:build:*` |
 
-Tag each release (`v0.5.0`) and record it in `CHANGELOG.md`. Bumping the
+Tag each release (`v0.1.0`) and record it in `CHANGELOG.md`. Bumping the
 version is what makes the update monitor's banner name a number the user can
 recognise — but the monitor triggers on `BUILD_ID` (the Vercel commit SHA), so
 a fix deployed without a bump still notifies.

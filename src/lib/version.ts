@@ -19,15 +19,21 @@
  * | **MENOR** | Una capacidad nueva visible para el usuario: una capa temática, el mapa de calor, el export PNG, el selector de mapa base. |
  * | **PARCHE** | Correcciones, ajustes de estilo, y regeneración de datos de una capa existente vía `npm run data:build:*`. |
  *
- * Cada release se etiqueta en git (`v0.5.0`) y se anota en `CHANGELOG.md`.
+ * Cada release se etiqueta en git (`v0.1.0`) y se anota en `CHANGELOG.md`.
  *
- * ## Por qué `0.5.0` y no `0.1.0`
+ * ## Por qué `0.1.0` y no un número más alto
  *
- * `0.1.0` era el valor que dejó `create-next-app` y nunca se tocó: describía
- * el día 1, no las ~12 capas temáticas, el mapa de calor con PostGIS, el
- * export PNG con cajetín legal y el geocoder que hay hoy. Mantenerlo sería
- * tan poco honesto como saltar a `1.0.0`. `0.5.0` dice lo que es: producto
- * en uso y a mitad de camino de su propio `1.0`.
+ * Decisión del mantenedor (2026-08-28): empezar por lo más bajo. `v0.1.0` es
+ * el **primer release etiquetado** del proyecto — todo lo anterior es
+ * prehistoria sin versionar, que vive en los commits. El número no intenta
+ * resumir cuánto se ha construido; eso lo cuenta el CHANGELOG. Lo que declara
+ * es dónde empieza la disciplina de versionado.
+ *
+ * Nota para quien venga después: entre este archivo y el tag `v0.1.0` hubo un
+ * `0.5.0` que existió durante una hora en `main` y **nunca se etiquetó ni se
+ * desplegó como release**. Por eso volver a `0.1.0` no es una regresión de
+ * versión (que SemVer no admite entre releases): no había release del cual
+ * regresar. A partir de `v0.1.0` los números solo suben.
  *
  * ## BUILD_ID
  *
@@ -38,7 +44,7 @@
  * queda fijo en `dev` y el aviso nunca aparece.
  */
 
-export const APP_VERSION = '0.5.0';
+export const APP_VERSION = '0.1.0';
 
 /** SHA del commit desplegado (Vercel) o `dev` fuera de él. Se congela en el
  *  bundle al construir, que es justo lo que necesita el comparador. */

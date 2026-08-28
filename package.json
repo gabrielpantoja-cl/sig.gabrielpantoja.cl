@@ -1,6 +1,6 @@
 {
   "name": "sig-suelo",
-  "version": "0.5.0",
+  "version": "0.1.0",
   "description": "Single-page Next.js 16 SIG: mapa interactivo de transacciones CBR de suelo rural (centro-sur de Chile) sobre capas temáticas oficiales (áreas protegidas, límite urbano, DPA, red caminera MOP, catastro frutícola CIREN, suelos agrológicos). Stack: React 19, Leaflet + MarkerCluster, Neon Postgres read-only, Tailwind v4. Deploy: Vercel.",
   "private": true,
   "license": "MIT",

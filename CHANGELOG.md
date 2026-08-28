@@ -12,9 +12,16 @@ público de `/api/*` todavía no está documentado ni congelado**. `1.0.0` llega
 el día que lo esté y se asuma el compromiso de no romperlo sin aviso. Ver
 `src/lib/version.ts` para la política completa de qué mueve cada número.
 
+`v0.1.0` es el **primer release etiquetado**. Todo lo construido antes es
+prehistoria sin versionar (ver más abajo): el número no resume cuánto hay
+hecho — para eso está este archivo — sino dónde empieza la disciplina de
+versionado.
+
 ---
 
-## [0.5.0] — 2026-08-28
+## [0.1.0] — 2026-08-28
+
+Primer release etiquetado.
 
 ### Añadido
 
@@ -50,10 +57,25 @@ el día que lo esté y se asuma el compromiso de no romperlo sin aviso. Ver
 - `MAP_MAX_ZOOM` (19) con `maxNativeZoom` por proveedor: cambiar de un fondo
   con z19 a OpenTopoMap (z17) reescala el último nivel en vez de dejar el
   viewport en blanco.
-- La versión de `package.json` sube de `0.1.0` (el valor que dejó
-  `create-next-app` y que nunca se tocó) a `0.5.0`, que es lo que describe el
-  producto real: ~12 capas temáticas, mapa de calor con PostGIS, export PNG
-  con cajetín legal y geocoder.
+- Se adopta versionado explícito. `package.json` conserva el `0.1.0` que dejó
+  `create-next-app`, pero ahora el número significa algo: es el primer punto
+  etiquetado y a partir de aquí se mueve según la política de
+  `src/lib/version.ts`.
+
+### Problemas conocidos
+
+Se etiqueta declarándolos, no ocultándolos. Detalle, evidencia y causa raíz en
+[`docs/auditoria-ux-2026-08.md`](./docs/auditoria-ux-2026-08.md).
+
+- **El export a PNG está roto.** `drawCbrMarkers` llama
+  `cluster.getAllChildMarkers()` sobre el `MarkerClusterGroup`, método que solo
+  existe en `L.MarkerCluster`. Pulsar «Exportar PNG» no descarga nada y no
+  muestra error. Los tipos de `@types/leaflet.markercluster` lo declaran en el
+  grupo, así que `tsc` no lo detecta.
+- Faltan herramientas básicas de visor SIG: lectura de coordenadas (lat/lon y
+  UTM 19S), escala numérica, medición y opacidad por capa.
+- Las leyendas viven dentro del panel de capas y quedan cortadas con varias
+  capas activas; el mapa de calor se dibuja sin su escala de color visible.
 
 ### Notas de proveedores
 
@@ -65,10 +87,11 @@ Reference/World_Boundaries_and_Places). Siguen descartados CARTO
 
 ---
 
-## [0.1.0] … [0.4.x] — 2026-06-26 … 2026-08-27
+## Prehistoria sin versionar — 2026-06-26 … 2026-08-27
 
-Sin changelog: el proyecto se desarrolló contra `package.json` en `0.1.0` y el
-historial vive en los commits. A grandes rasgos, en ese tramo se construyó el
+Sin changelog ni tags: el proyecto se desarrolló entero contra el `0.1.0` por
+defecto de `create-next-app`, y el historial de ese tramo vive en los commits
+(68 al momento de etiquetar `v0.1.0`). A grandes rasgos, ahí se construyó el
 mapa de transacciones CBR sobre Neon, el panel de filtros y estadísticas, el
 buscador de direcciones, las capas de áreas protegidas (RNAP), límite urbano
 (PRC), límites comunales (DPA), red caminera (MOP), red de drenaje (DGA),
