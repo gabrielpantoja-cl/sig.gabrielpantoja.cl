@@ -401,7 +401,11 @@ que amplían el uso diario del perito:
 
 ### Bloqueante (de la auditoría 2026-08-28)
 
-- [ ] **P0 · El export a PNG está roto.** `drawCbrMarkers` llama
+- [x] **P0 · El export a PNG está roto.** *Corregido el 2026-08-28.* Al
+      arreglar la llamada aparecieron dos fallos más encadenados que el
+      primero ocultaba (sprite del pin con XML inválido por un `replace` que
+      sustituía en vez de insertar, y `getVisibleParent()` devolviendo `null`
+      sin guard). Verificado end-to-end. Descripción original abajo: `drawCbrMarkers` llama
       `cluster.getAllChildMarkers()` sobre el `MarkerClusterGroup`, método
       que solo existe en `L.MarkerCluster`; el grupo expone `getLayers()`.
       Los tipos de `@types/leaflet.markercluster` lo declaran igual, así que
@@ -409,6 +413,10 @@ que amplían el uso diario del perito:
       además vuelve a su estado normal **sin mostrar error**. Arreglar la
       llamada, informar el fallo en pantalla y cubrirlo con una prueba de
       humo.
+- [ ] **Fidelidad del PNG**: las burbujas de clúster se exportan en azul plano
+      mientras en pantalla se colorean por conteo (verde/amarillo/naranja).
+- [ ] **Prueba de humo del export**: tres bugs distintos convivieron en esa
+      ruta sin que nada los ejercitara.
 
 ### Herramientas mínimas de SIG que faltan (auditoría 2026-08-28)
 

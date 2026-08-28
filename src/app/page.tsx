@@ -572,9 +572,15 @@ export default function Home() {
   // se entrega por args para no inflar el deps array del useEffect en MapView.
   const mapExportRef = useRef<MapExportFn | null>(null);
   const [exporting, setExporting] = useState(false);
+  // Fallo del export. El PNG es el anexo del informe de tasación: si la
+  // captura revienta, el usuario tiene que enterarse. Hasta la auditoría del
+  // 2026-08-28 el botón volvía a su estado normal sin decir nada y la
+  // excepción moría en la consola (ver docs/auditoria-ux-2026-08.md).
+  const [exportError, setExportError] = useState<string | null>(null);
   const handleExportClick = useCallback(async () => {
     if (exporting || !mapExportRef.current) return;
     setExporting(true);
+    setExportError(null);
     try {
       const metadata = buildExportMetadata({
         showPoints,
@@ -602,6 +608,10 @@ export default function Home() {
         kmlLayers,
       });
       await mapExportRef.current({ metadata });
+    } catch (err) {
+      // El mensaje del error va al detalle porque identifica la pista que
+      // falló (tiles, vectores, pines CBR) y ahorra abrir la consola.
+      setExportError(err instanceof Error ? err.message : String(err));
     } finally {
       setExporting(false);
     }
@@ -831,6 +841,29 @@ export default function Home() {
             <strong>Capa de suelos temporalmente no disponible.</strong>{' '}
             No responde {suelosStatus.service || SUELOS_SERVICE_NAME} (operación{' '}
             {suelosStatus.operation}). El resto del SIG continúa funcionando normalmente.
+          </div>
+        )}
+        {exportError && (
+          <div
+            role="alert"
+            className="absolute bottom-32 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs leading-snug text-red-800 shadow-lg backdrop-blur dark:text-red-200"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <p>
+                <strong>No se pudo generar el PNG.</strong>{' '}
+                La vista del mapa sigue intacta; puedes reintentar o apagar
+                alguna capa antes de exportar.
+                <span className="mt-1 block opacity-70">Detalle: {exportError}</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => setExportError(null)}
+                aria-label="Descartar el aviso de error de exportación"
+                className="-mr-1 -mt-1 rounded px-1.5 text-base leading-none opacity-60 hover:opacity-100"
+              >
+                ×
+              </button>
+            </div>
           </div>
         )}
         {showPropiedadesRurales && propiedadesRuralesStatus.kind === 'error' && (

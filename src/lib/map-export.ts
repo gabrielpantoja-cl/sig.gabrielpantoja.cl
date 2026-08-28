@@ -344,10 +344,17 @@ let _pinSpritePromise: Promise<HTMLImageElement> | null = null;
 function loadCbrPinSprite(): Promise<HTMLImageElement> {
   if (_pinSpritePromise) return _pinSpritePromise;
   _pinSpritePromise = new Promise((resolve, reject) => {
-    const svg = cbrPinSvg().replace(
-      '<svg ',
-      'xmlns="http://www.w3.org/2000/svg" ',
-    );
+    // `cbrPinSvg()` ya emite el `xmlns` (ver lib/cbr-points.ts), que es lo
+    // único que un `data:image/svg+xml` necesita para rasterizar.
+    //
+    // NO reintroducir aquí un `.replace('<svg ', 'xmlns="…" ')`: `replace`
+    // SUSTITUYE la cadena buscada, así que ese intento de "insertar" el
+    // namespace se comía el nombre del elemento y dejaba
+    // `xmlns="…" width="24" …>` — XML inválido, `img.onerror`, y el export
+    // caía con «No se pudo rasterizar el sprite del pin CBR». Segundo fallo
+    // del export detectado en la auditoría del 2026-08-28, oculto tras el
+    // primero (`getAllChildMarkers`) hasta que se arregló aquel.
+    const svg = cbrPinSvg();
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('No se pudo rasterizar el sprite del pin CBR'));
@@ -365,6 +372,25 @@ function loadCbrPinSprite(): Promise<HTMLImageElement> {
  * deduplica por identidad y dibuja lo que efectivamente el usuario ve en
  * pantalla. La bounding box se infla un 10 % para no perder nada en el borde
  * durante un paneo brusco justo antes del export.
+ *
+ * ## NO cambiar `getLayers()` por `getAllChildMarkers()`
+ *
+ * Los tipos invitan a hacerlo y el resultado es una excepción en tiempo de
+ * ejecución que rompe el export entero:
+ *
+ * > `TypeError: cluster.getAllChildMarkers is not a function`
+ *
+ * `getAllChildMarkers()` es un método de **`L.MarkerCluster`** — un nodo del
+ * árbol de clústeres — y no del **`MarkerClusterGroup`**, que es lo que
+ * recibe esta función. En `leaflet.markercluster@1.5.3` el grupo implementa
+ * `getLayers()` (`leaflet.markercluster-src.js:513`) y solo la clase de
+ * clúster implementa `getAllChildMarkers` (`:1440`).
+ *
+ * La trampa es que `@types/leaflet.markercluster` **declara**
+ * `getAllChildMarkers(): Marker[]` también en la interfaz del grupo
+ * (`index.d.ts:250`), así que `tsc --noEmit` pasa en verde y el fallo solo
+ * aparece cuando alguien pulsa el botón. Estuvo roto y sin detectar hasta la
+ * auditoría del 2026-08-28 (`docs/auditoria-ux-2026-08.md`).
  */
 async function drawCbrMarkers(
   canvas: HTMLCanvasElement,
@@ -374,13 +400,25 @@ async function drawCbrMarkers(
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  const allMarkers = cluster.getAllChildMarkers();
+  // `getLayers()` devuelve `Layer[]` en los tipos; en este grupo son siempre
+  // los marcadores CBR que MapView le añadió, así que el cast es seguro.
+  const allMarkers = cluster.getLayers() as L.Marker[];
   const sprite = await loadCbrPinSprite();
   const visibleBounds = map.getBounds().pad(0.1);
 
   const seen = new Set<unknown>();
   for (const child of allMarkers) {
-    const visible = cluster.getVisibleParent(child);
+    // `getVisibleParent` sube por `__parent` hasta encontrar un nodo con
+    // `_icon` — o sea, algo realmente pintado en el DOM — y devuelve **null**
+    // si no hay ninguno (`leaflet.markercluster-src.js:675`). Con ~85k
+    // marcadores eso es la norma, no la excepción: casi todos quedan fuera
+    // del viewport y ni ellos ni sus clústeres tienen icono. Sin este guard,
+    // el primer marcador fuera de pantalla tiraba
+    // `Cannot read properties of null (reading 'getLatLng')` y se llevaba el
+    // export entero por delante. Que no haya padre visible ES el caso a
+    // saltar: significa que el usuario no lo está viendo.
+    const visible = cluster.getVisibleParent(child) as L.Marker | null;
+    if (!visible) continue;
     if (seen.has(visible)) continue;
     seen.add(visible);
 
