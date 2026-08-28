@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { UpdateNotice } from "@/components/UpdateNotice";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,7 +30,12 @@ export default function RootLayout({
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        {/* Monitor de despliegues: vive en el layout, no en la página, para
+            que siga vigilando en cualquier ruta que se agregue después. */}
+        <UpdateNotice />
+      </body>
     </html>
   );
 }

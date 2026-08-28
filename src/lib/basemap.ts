@@ -61,9 +61,8 @@ export type BasemapDef = {
   /** `'theme'` = se desatura/invierte según `prefers-color-scheme`.
    *  `'none'` = se muestra con sus colores reales. */
   filter: 'theme' | 'none';
-  /** Tile de muestra sobre Valparaíso (z12) para la miniatura del selector:
-   *  costa + trama urbana + relieve, así las cuatro opciones se distinguen
-   *  de un vistazo. */
+  /** Tile de muestra para la miniatura del selector. `null` cuando el fondo
+   *  no tiene tiles. */
   thumb: string | null;
 };
 
@@ -71,10 +70,19 @@ export type BasemapDef = {
  *  reescala: mejor un tile borroso que un viewport vacío al cambiar de base. */
 export const MAP_MAX_ZOOM = 19;
 
-/** Tile de muestra: Valparaíso / Viña del Mar, z12. */
-const THUMB_Z = 12;
-const THUMB_X = 1233;
-const THUMB_Y = 2445;
+/**
+ * Tile de muestra de las miniaturas: Santiago nororiente, z11 — trama urbana
+ * densa contra el piedemonte andino. Se eligió comparando los tres
+ * proveedores sobre el mismo punto: es el encuadre donde callejero, ortoimagen
+ * y topográfico se distinguen de un vistazo (una miniatura de costa salía
+ * casi vacía en los tres).
+ *
+ * OJO con el orden de los ejes: OSM y OpenTopoMap sirven `/{z}/{x}/{y}`,
+ * ArcGIS sirve `/{z}/{y}/{x}`.
+ */
+const THUMB_Z = 11;
+const THUMB_X = 622;
+const THUMB_Y = 1225;
 
 const ESRI_IMAGERY =
   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
