@@ -516,10 +516,20 @@ export function LayersControl({
               <select
                 value={hexbinDestino}
                 onChange={(e) => onHexbinDestino(e.target.value)}
-                className="mt-0.5 w-full rounded border border-black/15 bg-transparent px-1.5 py-1 text-xs dark:border-white/20"
+                className="mt-0.5 w-full rounded border border-black/15 bg-[var(--background)] px-1.5 py-1 text-xs text-[var(--foreground)] dark:border-white/20"
               >
+                {/* El popup nativo del <select> lo pinta el sistema operativo y
+                    NO hereda el fondo del panel: con `bg-transparent` el UA
+                    caía a blanco mientras el texto seguía heredando el
+                    `--foreground` claro del tema oscuro, dejando la lista
+                    ilegible. Por eso fondo y color van explícitos aquí y
+                    también en cada <option>. */}
                 {DESTINO_OPTIONS.map((d) => (
-                  <option key={d.code} value={d.code}>
+                  <option
+                    key={d.code}
+                    value={d.code}
+                    className="bg-[var(--background)] text-[var(--foreground)]"
+                  >
                     {destinoLabel(d.code)} ({d.n.toLocaleString('es-CL')})
                   </option>
                 ))}
