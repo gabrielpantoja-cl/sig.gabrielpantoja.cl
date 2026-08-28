@@ -19,6 +19,46 @@ versionado.
 
 ---
 
+## No publicado
+
+### Corregido
+
+- **El export a PNG vuelve a funcionar.** Estaba roto por **tres** fallos
+  encadenados, cada uno oculto tras el anterior — el segundo y el tercero solo
+  aparecieron al arreglar el que tenían delante:
+  1. `drawCbrMarkers` llamaba `cluster.getAllChildMarkers()` sobre el
+     `MarkerClusterGroup`; ese método solo existe en `L.MarkerCluster`. Se usa
+     `getLayers()`, que es el equivalente del grupo. Los tipos de
+     `@types/leaflet.markercluster` declaran el método en el grupo, así que
+     `tsc` nunca lo detectó.
+  2. El sprite del pin no rasterizaba: un `.replace('<svg ', 'xmlns="…" ')`
+     pensado para *insertar* el namespace en realidad **sustituía** la etiqueta
+     de apertura y dejaba XML inválido. El `xmlns` ya venía en `cbrPinSvg()`,
+     así que el `replace` sobraba entero.
+  3. `getVisibleParent()` devuelve `null` cuando ningún ancestro del marcador
+     tiene icono en el DOM — la norma con ~85k puntos, casi todos fuera del
+     viewport. Faltaba el guard y el primer marcador fuera de pantalla tiraba
+     `Cannot read properties of null (reading 'getLatLng')`.
+
+  Los tres puntos quedan documentados en el código con la razón de ser del
+  arreglo, para que nadie los revierta «simplificando».
+
+### Añadido
+
+- **Aviso visible cuando el export falla.** Antes el botón volvía a su estado
+  normal y la excepción moría en la consola: el usuario pulsaba y no pasaba
+  nada. Ahora aparece un banner descartable con el detalle del error, que es
+  además lo que permitió encontrar los fallos 2 y 3.
+
+### Problemas conocidos (nuevos)
+
+- Las burbujas de clúster del PNG se pintan de un azul plano (`#5fb7e0`),
+  mientras que en pantalla la librería las colorea por conteo (verde <10,
+  amarillo <100, naranja ≥100). La lámina exportada no refleja la codificación
+  visual de la pantalla.
+
+---
+
 ## [0.1.0] — 2026-08-28
 
 Primer release etiquetado.
