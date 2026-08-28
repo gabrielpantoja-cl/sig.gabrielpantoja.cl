@@ -106,6 +106,19 @@ deslinde legal, mensura, gravamen ni vigencia registral. Nunca se debe
 enriquecer con propietarios, RUT, domicilios personales u otros datos
 restringidos.
 
+El buscador de ROL conserva dos semánticas explícitamente separadas: el campo
+continúa filtrando las transacciones CBR por coincidencia parcial, mientras el
+botón **«Ubicar predio CIREN»** ejecuta una consulta exacta y voluntaria contra
+`/api/propiedades-rurales/search`. El proxy construye internamente una igualdad
+sobre `rol`, consulta las 14 subcapas con concurrencia limitada y devuelve solo
+identidad de capa, comuna, códigos territoriales y vintage. Si existe más de
+una coincidencia, el usuario debe elegir una; nunca se toma el primer registro
+silenciosamente. La geometría se solicita recién entonces mediante
+`/api/propiedades-rurales/feature`, con capa/OID/ROL validados, límite de 1 MB y
+presupuesto máximo de 50.000 coordenadas. `MapView` la mantiene como un
+`L.GeoJSON` independiente del raster para poder resaltarla y limpiarla sin
+reconstruir la cobertura remota.
+
 Además existen las **capas KML del usuario** (subidas en el panel Capas,
 parseadas 100 % en el navegador — `src/lib/kml.ts` — nunca suben a un
 servidor) y el **geocoder** (`/api/geocode`, proxy cacheado de Nominatim/OSM

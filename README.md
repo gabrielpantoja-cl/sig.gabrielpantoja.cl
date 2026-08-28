@@ -1,151 +1,184 @@
-# sig.gabrielpantoja.cl — SIG de suelo
+# sig.gabrielpantoja.cl — Land GIS
 
-Mapa interactivo de **datos abiertos** de transacciones de suelo rural inscritas
-en el Conservador de Bienes Raíces (CBR) del centro-sur de Chile, con capas
-temáticas oficiales (áreas protegidas, límite urbano, límites comunales, red
-caminera, catastro frutícola, suelos agrológicos). Pensado como instrumento de
-investigación en ecoinformática y, de paso, como herramienta de consulta para
-peritos en tasaciones judiciales y expropiaciones.
+An interactive **open-data** map of rural land transactions recorded by Chilean
+Real Estate Registries (*Conservadores de Bienes Raíces*, CBR) across
+south-central Chile. It combines transaction records with official thematic
+layers such as protected areas, urban boundaries, administrative boundaries,
+the national road network, fruit-growing cadastres, and agricultural soils.
 
-![Vista principal del SIG: clusters de transacciones CBR sobre el centro-sur de Chile con panel de capas abierto](./docs/screenshot-sig-suelo-capas.png)
+The project is designed as an ecoinformatics research tool and as a practical
+reference for professionals working on court-ordered appraisals and
+expropriations.
 
-(Vista inicial con panel "Capas" desplegado; ver
-[./docs/screenshot-sig-suelo-home.png](./docs/screenshot-sig-suelo-home.png) para
-la versión sin el panel.)
+![Main GIS view showing clustered CBR transactions across south-central Chile with the layer panel open](./docs/screenshot-sig-suelo-capas.png)
 
-## Stack
+(Initial view with the **Layers** panel open. See
+[the home screenshot](./docs/screenshot-sig-suelo-home.png) for the same view
+with the panel closed.)
 
-- **Next.js 16** (App Router) + **React 19** + **TypeScript**
+## Technology stack
+
+- **Next.js 16** (App Router), **React 19**, and **TypeScript**
 - **Tailwind CSS v4**
-- **Leaflet** + **leaflet.markercluster** (clustering imperativo de ~74k puntos)
-- **Neon** (`@neondatabase/serverless`) — única fuente de verdad para las
-  transacciones CBR, rol `web_readonly` (SELECT unicamente)
-- **Deploy**: Vercel · dominio `sig.gabrielpantoja.cl`
+- **Leaflet** and **leaflet.markercluster** for imperative clustering of
+  approximately 74,000 points
+- **Neon** (`@neondatabase/serverless`) as the source of truth for CBR
+  transactions, accessed through a SELECT-only `web_readonly` role
+- **Vercel** deployment at `sig.gabrielpantoja.cl`
 
-## Arquitectura
+## Architecture
 
-El navegador no habla con Postgres; todo pasa por route handlers serverless que
-consultan Neon con una whitelist de columnas (nunca PII):
+The browser never connects directly to PostgreSQL. All database access goes
+through server-side route handlers that query an explicit allowlist of
+privacy-safe columns:
 
-```
+```text
 Browser → /api/{points,stats,export,facets} → Neon (web_readonly, SELECT)
-Browser → /api/geocode → Nominatim/OSM (address search, Chile only, cached proxy)
+Browser → /api/geocode → Nominatim/OSM (Chile-only address search, cached proxy)
 Browser → /api/suelos/{export,identify} → CIREN (fixed, validated proxy)
 ```
 
-| Endpoint | Qué hace |
+| Endpoint | Purpose |
 |---|---|
-| `GET /api/points` | Puntos geolocalizados filtrados (slice privacy-safe) |
-| `GET /api/stats` | count, avg, mediana, min/max, $/m² sobre el set filtrado |
-| `GET /api/export?format=csv\|geojson` | Descarga del set filtrado (CSV con BOM+`;`, o GeoJSON para QGIS) |
-| `GET /api/facets` | Comunas + rangos de año/monto para poblar los filtros |
-| `GET /api/suelos/export` | PNG de suelos CIREN por viewport; valida timeout y tipo de respuesta |
-| `GET /api/suelos/identify` | Clase agrológica puntual; devuelve solo resultado saneado |
+| `GET /api/points` | Returns filtered, geolocated transaction points using a privacy-safe data shape |
+| `GET /api/stats` | Computes count, average, median, minimum/maximum, and price per square metre over the filtered set |
+| `GET /api/export?format=csv\|geojson` | Downloads the filtered set as an Excel-friendly CSV (`BOM` + `;`) or as GeoJSON for QGIS |
+| `GET /api/facets` | Returns communes and year/amount ranges used to populate filters |
+| `GET /api/suelos/export` | Returns a CIREN soil PNG for the current viewport, with timeout and response-type validation |
+| `GET /api/suelos/identify` | Returns a sanitised agricultural soil classification for one point |
 
-**Filtros compartidos** (`src/lib/filters.ts`, parametrizados $N, anti-inyección):
-`comuna`, `anio_min/max`, `monto_min/max`, `sup_min/max`, `predio` (ILIKE),
-`rol` (ILIKE).
+Shared filters are defined in `src/lib/filters.ts`. They use parameterised SQL
+placeholders and include `comuna`, `anio_min/max`, `monto_min/max`,
+`sup_min/max`, `predio` (`ILIKE`), and `rol` (`ILIKE`).
 
-## Datos & privacidad
+## Data and privacy
 
-Columnas expuestas por punto: `lat, lng, monto, anio, comuna, predio,
-superficie, rol, destino, fechaEscritura, fojas, numero, conservador`.
+Public fields returned for each point are `lat`, `lng`, `monto`, `anio`,
+`comuna`, `predio`, `superficie`, `rol`, `destino`, `fechaEscritura`, `fojas`,
+`numero`, and `conservador`.
 
-- **`rol` SII se expone**: es el identificador público de propiedad del SII, no
-  es dato personal bajo la Ley 19.628. Habilita la búsqueda por ROL para
-  peritos.
-- **NUNCA se exponen**: `comprador, vendedor, rut, user_id, observaciones`.
-  Estas columnas son PII y se descartan en el handler (`src/app/api/points/route.ts:34-49`)
-  y en `src/lib/security.ts` (origin allowlist + rate-limit).
+- **The SII property identifier (`rol`) is intentionally public.** It is a
+  public property identifier issued by Chile's Internal Revenue Service
+  (*Servicio de Impuestos Internos*, SII), not personal data under Chilean Law
+  No. 19,628. Appraisers commonly use it to locate properties.
+- **The API never exposes** `comprador`, `vendedor`, `rut`, `user_id`, or
+  `observaciones`. These fields may contain personally identifiable information
+  and are excluded at the query/handler level.
+- Database credentials remain server-side in `NEON_DATABASE_URL`; no client
+  bundle imports or connects to Neon.
 
-## Fuentes de datos y licencias
+## Data sources and licences
 
-| Capa | Fuente | Licencia | Construcción |
+| Layer | Source | Licence / terms | Build or runtime path |
 |---|---|---|---|
-| Transacciones CBR | Recopilación propia de inscripciones del CBR | Datos abiertos (anonimizado bajo Ley 19.628) | Neon Postgres, rol read-only |
-| Áreas protegidas (RNAP) | [Ministerio del Medio Ambiente — Registro Nacional de Áreas Protegidas](https://lineasdebasepublicas.mma.gob.cl/datos_abiertos/dataset/areas-protegidas), portal *Líneas de Base Públicas* | **CC0 1.0** (dominio público) | `npm run data:build:protected` (ETL con mapshaper) |
-| Límite urbano (PRC) | MINVU — planes reguladores comunales | Verificar con MINVU (uso referencial) | `npm run data:build:urban` |
-| Límites comunales (DPA) | SUBDERE — División Político-Administrativa 2023 (geoportal.cl) | Datos abiertos del Estado de Chile | `npm run data:build:comunas` |
-| Red caminera | MOP — Dirección de Vialidad (mapasvialidad.mop.gob.cl) | Verificar con MOP (uso referencial) | `npm run data:build:red-vial` |
-| Líneas de transmisión eléctrica | Ministerio de Energía — IDE Energía; geometría CEN | Cobertura institucional para uso público, sin licencia estándar declarada; atribución obligatoria | `npm run data:build:lineas-transmision` |
-| Catastro Frutícola | CIREN-ODEPA, vía IDE Minagri | Atribución CIREN-ODEPA (ver `src/lib/catastro-fruticola.ts`) | `npm run data:build:catastro-fruticola` |
-| Recursos vegetacionales | CONAF, SIT CONAF e IDE Minagri | Atribución CONAF; revisar condiciones de uso de la fuente oficial (ver `src/lib/vegetacional.ts`) | Dinámica remota: PNG por viewport + consulta puntual `identify` |
-| Suelos agrológicos | CIREN, ArcGIS público (esri.ciren.cl) | Atribución CIREN (ver `src/lib/suelos.ts`) | Dinámica remota mediante proxy seguro (PNG por viewport) |
+| CBR transactions | Project-maintained compilation of CBR registrations | Open data, anonymised in accordance with Chilean Law No. 19,628 | Neon Postgres through a read-only role |
+| Protected areas (RNAP) | [Ministry of the Environment — National Registry of Protected Areas](https://lineasdebasepublicas.mma.gob.cl/datos_abiertos/dataset/areas-protegidas), *Public Baselines* portal | **CC0 1.0** (public domain) | `npm run data:build:protected` (mapshaper ETL) |
+| Urban boundaries (PRC) | MINVU — municipal regulatory plans | Confirm terms with MINVU; referential use | `npm run data:build:urban` |
+| Municipal boundaries (DPA) | SUBDERE — 2023 Political-Administrative Division (geoportal.cl) | Chilean government open data | `npm run data:build:comunas` |
+| National road network | MOP — Directorate of Roads (mapasvialidad.mop.gob.cl) | Confirm terms with MOP; referential use | `npm run data:build:red-vial` |
+| Electrical transmission lines | Ministry of Energy — IDE Energía; CEN geometry | Institutional public coverage; no standard licence declared; attribution required | `npm run data:build:lineas-transmision` |
+| Fruit-growing cadastre | CIREN-ODEPA through IDE Minagri | CIREN-ODEPA attribution; see `src/lib/catastro-fruticola.ts` | `npm run data:build:catastro-fruticola` |
+| Vegetation resources | CONAF through SIT CONAF and IDE Minagri | CONAF attribution; review the official source terms in `src/lib/vegetacional.ts` | Remote dynamic layer: viewport PNG plus point `identify` requests |
+| Agricultural soils | CIREN public ArcGIS service (esri.ciren.cl) | CIREN attribution; see `src/lib/suelos.ts` | Remote dynamic layer through a validated proxy (one PNG per viewport) |
 
-> Cada capa tiene un archivo `*.meta.json` adyacente que documenta la fecha de
-> corte (`vintage`), el organismo proveedor y la URL de la ficha SIMBIO o
-> equivalente. Ver `src/lib/*.ts` para la attribution string exacta usada en
-> panel, popup y leyenda.
+Each reproducible static layer has an adjacent `*.meta.json` provenance file
+that records its vintage, publishing institution, and official catalogue or
+source URL. The exact attribution strings displayed in panels, popups, and
+legends are defined in `src/lib/*.ts`.
 
-> Nota científica: las áreas protegidas tienen 12 designaciones legales
-> distintas (Parque Nacional, Reserva Nacional, Monumento Natural, Santuario de
-> la Naturaleza, etc.), cada una bajo jurisdicción y normativa propia. No
-> deben tratarse como una sola categoría.
+> **Scientific note:** RNAP contains 12 distinct legal designations, including
+> national parks, national reserves, natural monuments, and nature sanctuaries.
+> Each designation has its own jurisdiction and legal framework and must not be
+> treated as a single undifferentiated category.
 
-> Nota jurídica: la capa eléctrica representa ejes cartográficos referenciales
-> de líneas de transmisión. No representa fajas de seguridad, servidumbres
-> eléctricas ni gravámenes prediales; estos deben verificarse en los planos y
-> antecedentes de cada concesión o proyecto.
+> **Legal note:** The electrical layer represents referential cartographic
+> centre-lines of transmission infrastructure. It does not represent safety
+> corridors, electrical easements, or property encumbrances. Those must be
+> verified against the plans and legal records of the relevant concession or
+> project.
 
-## Desarrollo
+## Local development
 
 ```bash
-cp .env.example .env.local   # completar NEON_DATABASE_URL (rol web_readonly)
+cp .env.example .env.local   # set NEON_DATABASE_URL for the web_readonly role
 npm install
 npm run dev                  # http://localhost:3000
-npm run build
 ```
 
-## Variables de entorno
+Before submitting a change, run:
 
-- `NEON_DATABASE_URL` — cadena read-only de Neon (server-side only, sin prefijo
-  `NEXT_PUBLIC_`). Configurar en `.env.local` y en Vercel.
+```bash
+npm run lint
+npm run typecheck
+```
 
-## Configuración de agentes AI
+`npm run build` is available for production verification but is intentionally
+not part of the routine local workflow on resource-constrained machines.
 
-Este repo es leído por Claude Code, OpenCode y Codex. El archivo canónico de
-instrucciones para agentes es **[AGENTS.md](./AGENTS.md)**. Los overrides
-opcionales por máquina viven en `AGENTS.local.md` (gitignored y no distribuido).
+## Environment variables
 
-El `opencode.json` en la raíz está **commiteado con los defaults del maintainer**
-(`model: openai/gpt-5.6-sol` + `enabled_providers: ["openai"]`). El primary
-`orchestrator` usa el mismo modelo y coordina los subagentes especializados de
-`.opencode/agents/`.
-Aplica a toda sesión de opencode abierta en este directorio. Otros operadores
-pueden overridear localmente con `OPENCODE_CONFIG` (env var a un JSON por
-máquina), `~/.config/opencode/opencode.json` (global), o editando el archivo
-en su fork. Ver **[AGENTS.md § AI tooling](./AGENTS.md)** para los detalles y
-la precedencia completa.
+- `NEON_DATABASE_URL` — read-only Neon connection string. It is server-side
+  only, must never use a `NEXT_PUBLIC_` prefix, and should be configured in
+  `.env.local` and in the Vercel project settings.
 
-Los subagentes del proyecto son `gis-architect-agent` (Leaflet/GIS),
-`canvas-export-agent` (exportación PNG), `nextjs-architect-agent` (Next.js),
-`neon-data-engineer-agent` (API, SQL y privacidad) y
-`etl-pipeline-engineer-agent` (fuentes oficiales y pipelines GIS). Son
-read-only: el `orchestrator` aplica los cambios después de revisar sus
-informes. Consulta [.opencode/agents/README.md](./.opencode/agents/README.md)
-para el roster y las reglas de delegación.
+Never commit `.env.local` or any other credential-bearing environment file.
 
-## Datos en el repo vs. bucket externo
+## AI-assisted development
 
-Los GeoJSON pre-construidos viven **commiteados a `public/data/`** (~45 MB en
-total, bajo el umbral de aviso de GitHub). Cada uno se regenera con
-`npm run data:build:<capa>` desde fuentes oficiales.
+This repository is used with Claude Code, OpenCode, Codex, and other coding
+agents. The canonical project instructions are in **[AGENTS.md](./AGENTS.md)**.
+Optional machine-specific overrides belong in `AGENTS.local.md`, which is
+gitignored and not distributed.
 
-> Migración planeada (Q4-2026): mover el output del ETL a un bucket externo
-> (R2 / S3 / Vercel Blob) para permitir capas más grandes (PMTiles / Vector
-> Tiles) sin inflar el repo. El plan público se mantiene en `docs/roadmap.md`.
+The committed `opencode.json` contains the maintainer defaults
+(`model: openai/gpt-5.6-sol` and `enabled_providers: ["openai"]`). The primary
+`orchestrator` uses the same model and coordinates the read-only specialists in
+`.opencode/agents/`. Local operators may override these settings through
+`OPENCODE_CONFIG`, `~/.config/opencode/opencode.json`, or their own fork. See
+[AGENTS.md § AI tooling](./AGENTS.md) for precedence and safety rules.
+
+Project specialists include:
+
+- `gis-architect-agent` — Leaflet and GIS runtime architecture
+- `canvas-export-agent` — PNG map composition
+- `nextjs-architect-agent` — Next.js and React architecture
+- `neon-data-engineer-agent` — API, SQL, performance, and privacy
+- `etl-pipeline-engineer-agent` — official GIS sources and reproducible ETL
+
+Specialists provide read-only analysis; the `orchestrator` reviews their reports
+before applying changes. See
+[`.opencode/agents/README.md`](./.opencode/agents/README.md) for the full roster
+and delegation policy.
+
+## Repository data and future storage
+
+Pre-built GeoJSON outputs are committed under `public/data/` (approximately
+45 MB in total). Each dataset can be reproduced from its official source using
+the corresponding `npm run data:build:<layer>` command.
+
+> A future migration may move large ETL outputs to external object storage
+> (R2, S3, or Vercel Blob) to support larger PMTiles or vector-tile layers
+> without expanding the Git repository. The public plan is maintained in
+> `docs/roadmap.md`.
 
 ## Roadmap
 
-Las capas pendientes y mejoras UX están priorizadas en
-`docs/roadmap.md`, con criterios de valor / accesibilidad de dato / costo de
-implementación.
+Planned thematic layers and UX improvements are prioritised in
+[`docs/roadmap.md`](./docs/roadmap.md) by professional value, source
+availability, and implementation cost.
 
-## Licencia
+## Contributing and security
 
-- **Código**: [MIT](./LICENSE) © 2026 Gabriel Pantoja.
-- **Datos de áreas protegidas**: CC0 1.0 (Ministerio del Medio Ambiente de
-  Chile).
-- **Mapa base**: © OpenStreetMap contributors.
-- **Demás capas**: ver tabla "Fuentes de datos y licencias" arriba; cada
-  `meta.json` declara la atribución exacta que debe mostrarse al usuario.
+Contributions are welcome. Please read
+[`CONTRIBUTING.md`](./CONTRIBUTING.md) and
+[`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) before opening a pull request.
+Report security issues according to [`SECURITY.md`](./SECURITY.md), not through
+a public issue.
+
+## Licence
+
+- **Source code:** [MIT](./LICENSE) © 2026 Gabriel Pantoja
+- **Protected-area data:** CC0 1.0, Ministry of the Environment of Chile
+- **Base map:** © OpenStreetMap contributors
+- **Other layers:** see the data-source table above; each provenance manifest
+  declares the attribution that must accompany the corresponding dataset
