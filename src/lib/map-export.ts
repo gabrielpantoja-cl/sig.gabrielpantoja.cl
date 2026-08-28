@@ -70,6 +70,7 @@ const ATTRIBUTION_LINEAS_TRANSMISION = 'Ministerio de Energía · IDE Energía �
 const ATTRIBUTION_SUELOS = 'CIREN · Estudios Agrológicos';
 const ATTRIBUTION_CATASTRO = 'CIREN-ODEPA · Catastro Frutícola';
 const ATTRIBUTION_VEGETACIONAL = 'CONAF · Catastro de Recursos Vegetacionales';
+const ATTRIBUTION_PROPIEDADES_RURALES = 'CIREN · Propiedades rurales';
 const ATTRIBUTION_HEXBINS =
   'Mapa de calor: elaboración propia sobre inscripciones de los Conservadores de Bienes Raíces';
 
@@ -796,6 +797,7 @@ function drawFrame(
   if (opts.showSuelos) atts.push(ATTRIBUTION_SUELOS);
   if (opts.showCatastroFruticola) atts.push(ATTRIBUTION_CATASTRO);
   if (opts.showVegetacional) atts.push(ATTRIBUTION_VEGETACIONAL);
+  if (opts.showPropiedadesRurales) atts.push(ATTRIBUTION_PROPIEDADES_RURALES);
   if (opts.showHexbins) atts.push(ATTRIBUTION_HEXBINS);
   drawAttributionStrip(ctx, atts);
 }
@@ -813,6 +815,7 @@ export type LayerExportFlags = {
   showSuelos: boolean;
   showCatastroFruticola: boolean;
   showVegetacional: boolean;
+  showPropiedadesRurales: boolean;
   /** Mapa de calor de valor ($/m² por hexágono). Se rasteriza solo con la
    *  captura de vectores (es un L.geoJSON sobre el canvas compartido); esta
    *  bandera existe para la atribución obligatoria del PNG. */

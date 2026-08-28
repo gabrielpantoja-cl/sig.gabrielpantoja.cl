@@ -52,6 +52,7 @@ import {
   VEGETACIONAL_SOURCE_URL,
 } from '@/lib/vegetacional';
 import { KML_MAX_FILE_MB, kmlDisplayName, type KmlLayer } from '@/lib/kml';
+import { PROPIEDADES_RURALES_ATTRIBUTION, PROPIEDADES_RURALES_COLOR, PROPIEDADES_RURALES_DISCLAIMER, PROPIEDADES_RURALES_MIN_ZOOM, PROPIEDADES_RURALES_REGIONS, PROPIEDADES_RURALES_SOURCE_URL, type PropiedadesRuralesStatus } from '@/lib/propiedades-rurales';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
 
 /**
@@ -411,6 +412,9 @@ export function LayersControl({
   onToggleCatastroFruticola,
   showVegetacional,
   onToggleVegetacional,
+  showPropiedadesRurales,
+  onTogglePropiedadesRurales,
+  propiedadesRuralesStatus,
   kmlLayers,
   kmlError,
   onAddKmlFiles,
@@ -450,6 +454,9 @@ export function LayersControl({
   onToggleCatastroFruticola: (v: boolean) => void;
   showVegetacional: boolean;
   onToggleVegetacional: (v: boolean) => void;
+  showPropiedadesRurales: boolean;
+  onTogglePropiedadesRurales: (v: boolean) => void;
+  propiedadesRuralesStatus: PropiedadesRuralesStatus;
   kmlLayers: KmlLayer[];
   kmlError: string | null;
   onAddKmlFiles: (files: FileList) => void;
@@ -564,6 +571,14 @@ export function LayersControl({
             </p>
             <p className="text-[0.6rem] leading-snug opacity-50">{HEXBINS_ATTRIBUTION}</p>
           </div>
+        </LayerRow>
+
+        <LayerRow checked={showPropiedadesRurales} onChange={onTogglePropiedadesRurales} label="Propiedades rurales (CIREN)" swatch={<span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: `${PROPIEDADES_RURALES_COLOR}22`, border: `1.5px solid ${PROPIEDADES_RURALES_COLOR}` }} />}>
+          <p className="text-[0.6rem] leading-snug opacity-50">
+            {PROPIEDADES_RURALES_ATTRIBUTION}. 14 regiones, sin Antofagasta ni Magallanes; levantamientos {PROPIEDADES_RURALES_REGIONS[0][1]}–{PROPIEDADES_RURALES_REGIONS.at(-1)?.[1]}. <strong>Visible desde zoom {PROPIEDADES_RURALES_MIN_ZOOM}.</strong> {PROPIEDADES_RURALES_DISCLAIMER}{' '}
+            <a href={PROPIEDADES_RURALES_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-100">Ver fuente oficial →</a>
+          </p>
+          {propiedadesRuralesStatus.kind === 'zoom-required' && <p className="mt-1 text-[0.6rem] opacity-50">Acerca el mapa para consultar ROL y comuna.</p>}
         </LayerRow>
 
         <LayerRow

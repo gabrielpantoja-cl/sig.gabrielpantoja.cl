@@ -94,6 +94,19 @@ import {
   type SuelosProxyErrorBody,
   type SuelosStatus,
 } from '@/lib/suelos';
+import {
+  PROPIEDADES_RURALES_ATTRIBUTION,
+  PROPIEDADES_RURALES_COLOR,
+  PROPIEDADES_RURALES_DISCLAIMER,
+  PROPIEDADES_RURALES_EXPORT_URL,
+  PROPIEDADES_RURALES_IDENTIFY_URL,
+  PROPIEDADES_RURALES_MIN_ZOOM,
+  PROPIEDADES_RURALES_OPACITY,
+  PROPIEDADES_RURALES_SERVICE_NAME,
+  type PropiedadesRuralesOperation,
+  type PropiedadesRuralesProxyErrorBody,
+  type PropiedadesRuralesStatus,
+} from '@/lib/propiedades-rurales';
 
 /**
  * Imperative Leaflet map with marker clustering.
@@ -162,6 +175,14 @@ async function suelosFailureDetails(
   } catch {
     return { service: SUELOS_SERVICE_NAME, operation: fallbackOperation };
   }
+}
+
+async function ruralFailureDetails(response: Response, fallbackOperation: PropiedadesRuralesOperation): Promise<{ service: string; operation: PropiedadesRuralesOperation }> {
+  try {
+    const body = await response.json() as PropiedadesRuralesProxyErrorBody;
+    const operation = body.error?.operation === 'identify' || body.error?.operation === 'export' ? body.error.operation : fallbackOperation;
+    return { service: body.error?.service === PROPIEDADES_RURALES_SERVICE_NAME ? body.error.service : PROPIEDADES_RURALES_SERVICE_NAME, operation };
+  } catch { return { service: PROPIEDADES_RURALES_SERVICE_NAME, operation: fallbackOperation }; }
 }
 
 function waitForImage(url: string): Promise<void> {
@@ -640,6 +661,7 @@ export default function MapView({
   showSuelos = false,
   showCatastroFruticola = false,
   showVegetacional = false,
+  showPropiedadesRurales = false,
   showHexbins = false,
   hexbinDestino,
   hexbinMinN,
@@ -649,6 +671,7 @@ export default function MapView({
   onRenderProgress,
   onRenderComplete,
   onSuelosStatus,
+  onPropiedadesRuralesStatus,
   onHexbinStatus,
   mapExportRef,
 }: {
@@ -665,6 +688,7 @@ export default function MapView({
   showSuelos?: boolean;
   showCatastroFruticola?: boolean;
   showVegetacional?: boolean;
+  showPropiedadesRurales?: boolean;
   /** Mapa de calor de valor: hexbins de $/m² agregados en Neon por viewport. */
   showHexbins?: boolean;
   /** Código de destino SII sobre el que se agrega. Obligatorio: la mediana de
@@ -685,6 +709,7 @@ export default function MapView({
   onRenderComplete?: () => void;
   /** Disponibilidad operacional de la capa remota de suelos para el panel UI. */
   onSuelosStatus?: (status: SuelosStatus) => void;
+  onPropiedadesRuralesStatus?: (status: PropiedadesRuralesStatus) => void;
   /** Resolución, umbral y cortes de cuantiles vigentes — alimenta la leyenda,
    *  que debe declarar sobre qué se calculó el color que se está viendo. */
   onHexbinStatus?: (status: HexbinStatus) => void;
@@ -709,6 +734,7 @@ export default function MapView({
   const suelosRef = useRef<L.ImageOverlay | null>(null);
   const catastroFruticolaRef = useRef<L.GeoJSON | null>(null);
   const vegetacionalRef = useRef<L.ImageOverlay | null>(null);
+  const propiedadesRuralesRef = useRef<L.ImageOverlay | null>(null);
   const hexbinsRef = useRef<L.ImageOverlay | null>(null);
   // Muestras de la superficie vigente. El raster no es clicable, así que el
   // popup se resuelve buscando la celda más cercana al clic sobre esta lista.
@@ -729,13 +755,15 @@ export default function MapView({
   const onRenderProgressRef = useRef(onRenderProgress);
   const onRenderCompleteRef = useRef(onRenderComplete);
   const onSuelosStatusRef = useRef(onSuelosStatus);
+  const onPropiedadesRuralesStatusRef = useRef(onPropiedadesRuralesStatus);
   const onHexbinStatusRef = useRef(onHexbinStatus);
   useEffect(() => {
     onRenderProgressRef.current = onRenderProgress;
     onRenderCompleteRef.current = onRenderComplete;
     onSuelosStatusRef.current = onSuelosStatus;
+    onPropiedadesRuralesStatusRef.current = onPropiedadesRuralesStatus;
     onHexbinStatusRef.current = onHexbinStatus;
-  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onHexbinStatus]);
+  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onPropiedadesRuralesStatus, onHexbinStatus]);
 
   // Publica el método de export en el ref entregado por la página. La closure
   // se re-bindea en cada cambio de flags para que la captura refleje siempre
@@ -763,7 +791,8 @@ export default function MapView({
         showLineasTransmision,
         showSuelos,
         showCatastroFruticola,
-        showVegetacional,
+         showVegetacional,
+         showPropiedadesRurales,
         showHexbins,
         cluster: clusterRef.current,
         metadata: args?.metadata,
@@ -785,6 +814,7 @@ export default function MapView({
     showSuelos,
     showCatastroFruticola,
     showVegetacional,
+    showPropiedadesRurales,
     showHexbins,
   ]);
 
@@ -802,6 +832,7 @@ export default function MapView({
     // son el dato sustantivo de la capa: deben quedar visibles).
     vegetacionalRef.current?.bringToFront();
     catastroFruticolaRef.current?.bringToFront();
+    propiedadesRuralesRef.current?.bringToFront();
     // Red caminera sobre los polígonos (líneas finas, deben quedar visibles).
     redVialRef.current?.bringToFront();
     // Red de drenaje (ríos + esteros) sobre los polígonos; debajo de la red
@@ -1875,6 +1906,102 @@ export default function MapView({
       }
     };
   }, [showSuelos]);
+
+  // Propiedades rurales CIREN: raster por viewport e identify acotado. El
+  // servicio contiene polígonos prediales grandes, por lo que no se descarga
+  // como GeoJSON ni se usa WMS teselado en el navegador.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (propiedadesRuralesRef.current) map.removeLayer(propiedadesRuralesRef.current);
+    propiedadesRuralesRef.current = null;
+    if (!showPropiedadesRurales) {
+      onPropiedadesRuralesStatusRef.current?.({ kind: 'idle' });
+      return;
+    }
+    const overlay = L.imageOverlay(TRANSPARENT_PIXEL, map.getBounds(), {
+      opacity: PROPIEDADES_RURALES_OPACITY,
+      attribution: PROPIEDADES_RURALES_ATTRIBUTION,
+      interactive: false,
+    }).addTo(map);
+    propiedadesRuralesRef.current = overlay;
+    let exportSequence = 0;
+    let exportController: AbortController | null = null;
+    let identifySequence = 0;
+    let identifyController: AbortController | null = null;
+    let activeBlobUrl: string | null = null;
+    const clearRaster = (bounds: L.LatLngBounds) => {
+      overlay.setUrl(TRANSPARENT_PIXEL);
+      overlay.setBounds(bounds);
+      if (activeBlobUrl) { URL.revokeObjectURL(activeBlobUrl); activeBlobUrl = null; }
+    };
+    const refresh = async () => {
+      const bounds = map.getBounds();
+      const size = map.getSize();
+      const id = ++exportSequence;
+      exportController?.abort();
+      if (map.getZoom() < PROPIEDADES_RURALES_MIN_ZOOM) {
+        clearRaster(bounds);
+        onPropiedadesRuralesStatusRef.current?.({ kind: 'zoom-required', minZoom: PROPIEDADES_RURALES_MIN_ZOOM });
+        return;
+      }
+      clearRaster(bounds);
+      onPropiedadesRuralesStatusRef.current?.({ kind: 'loading' });
+      const controller = new AbortController();
+      exportController = controller;
+      let candidate: string | null = null;
+      try {
+        const params = new URLSearchParams({ bbox: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`, size: `${size.x},${size.y}` });
+        const response = await fetch(`${PROPIEDADES_RURALES_EXPORT_URL}?${params}`, { signal: controller.signal });
+        if (response.status === 204) { onPropiedadesRuralesStatusRef.current?.({ kind: 'ready' }); return; }
+        if (!response.ok) { const failure = await ruralFailureDetails(response, 'export'); if (id === exportSequence && !controller.signal.aborted) onPropiedadesRuralesStatusRef.current?.({ kind: 'error', ...failure }); return; }
+        const blob = await response.blob();
+        if (blob.type !== 'image/png') throw new Error('Invalid rural property image');
+        candidate = URL.createObjectURL(blob);
+        await waitForImage(candidate);
+        if (id !== exportSequence || controller.signal.aborted || !propiedadesRuralesRef.current) { URL.revokeObjectURL(candidate); candidate = null; return; }
+        overlay.setUrl(candidate); overlay.setBounds(bounds); activeBlobUrl = candidate; candidate = null;
+        onPropiedadesRuralesStatusRef.current?.({ kind: 'ready' });
+      } catch (error) {
+        if (candidate) URL.revokeObjectURL(candidate);
+        if (controller.signal.aborted || id !== exportSequence) return;
+        console.error('No se pudo cargar la capa de propiedades rurales CIREN.', error);
+        onPropiedadesRuralesStatusRef.current?.({ kind: 'error', service: PROPIEDADES_RURALES_SERVICE_NAME, operation: 'export' });
+      }
+    };
+    const onMoveEnd = () => void refresh();
+    map.on('moveend', onMoveEnd);
+    void refresh();
+    let popupGeneration = 0;
+    const onPopupOpen = () => { popupGeneration++; };
+    const onClick = async (e: L.LeafletMouseEvent) => {
+      if (map.getZoom() < PROPIEDADES_RURALES_MIN_ZOOM) return;
+      const expectedPopupGeneration = popupGeneration;
+      const id = ++identifySequence;
+      identifyController?.abort();
+      const controller = new AbortController(); identifyController = controller;
+      const bounds = map.getBounds(); const size = map.getSize();
+      const params = new URLSearchParams({ geometry: `${e.latlng.lng},${e.latlng.lat}`, mapExtent: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`, imageDisplay: `${size.x},${size.y},96`, tolerance: '2' });
+      try {
+        const response = await fetch(`${PROPIEDADES_RURALES_IDENTIFY_URL}?${params}`, { signal: controller.signal });
+        if (!response.ok) return;
+        const data = await response.json() as { results?: Array<{ layerName?: string | null; attributes?: { rol?: string | null; comuna?: string | null; region?: string | null; quality?: string } }> };
+        if (id !== identifySequence || controller.signal.aborted || popupGeneration !== expectedPopupGeneration || !mapRef.current || !data.results?.length) return;
+        const item = data.results[0]; const p = item.attributes ?? {};
+        const rows = [['ROL SII del predio', p.rol], ['Comuna', p.comuna], ['Región', p.region]].filter((row): row is [string, string] => Boolean(row[1]));
+        const table = rows.map(([k, v]) => `<tr><td style="opacity:.55;padding:1px 8px 1px 0">${k}</td><td>${esc(v)}</td></tr>`).join('');
+        L.popup({ maxWidth: 320 }).setLatLng(e.latlng).setContent(`<div style="font-size:.8rem;line-height:1.45;min-width:230px"><div style="font-weight:600;font-size:.92rem;color:${PROPIEDADES_RURALES_COLOR}">Propiedad rural CIREN</div><table style="border-collapse:collapse;margin-top:.3rem">${table}</table>${p.quality === 'rol-invalid' ? '<div style="margin-top:.3rem;color:#b91c1c">ROL no válido en la fuente.</div>' : ''}<div style="margin-top:.4rem;font-size:.62rem;opacity:.55">${PROPIEDADES_RURALES_DISCLAIMER}<br/>${PROPIEDADES_RURALES_ATTRIBUTION}</div></div>`).openOn(mapRef.current);
+      } catch (error) { if (!controller.signal.aborted) console.error('No se pudo consultar la propiedad rural CIREN.', error); }
+    };
+    map.on('popupopen', onPopupOpen); map.on('click', onClick);
+    return () => {
+      exportSequence++; identifySequence++; exportController?.abort(); identifyController?.abort();
+      if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
+      map.off('moveend', onMoveEnd); map.off('popupopen', onPopupOpen); map.off('click', onClick);
+      if (map.hasLayer(overlay)) map.removeLayer(overlay);
+      if (propiedadesRuralesRef.current === overlay) propiedadesRuralesRef.current = null;
+    };
+  }, [showPropiedadesRurales]);
 
   // Capas KML del usuario — ya parseadas a GeoJSON en el navegador (lib/kml).
   // Se sincronizan por id: se quitan las eliminadas u ocultas, se agregan las
