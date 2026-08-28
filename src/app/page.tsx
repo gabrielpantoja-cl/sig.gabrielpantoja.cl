@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import dynamic from 'next/dynamic';
 import type { Facets, GeocodeResult, MapPoint, Stats } from '@/lib/types';
 import { kmlColorFor, kmlDisplayName, parseKmlFile, type KmlLayer } from '@/lib/kml';
@@ -30,11 +30,11 @@ import { LayersControl } from '@/components/LayersControl';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
 import { BasemapSwitcher } from '@/components/BasemapSwitcher';
 import {
-  isBasemapId,
-  BASEMAP_STORAGE_KEY,
-  DEFAULT_BASEMAP_ID,
-  type BasemapId,
-} from '@/lib/basemap';
+  getBasemapServerSnapshot,
+  getBasemapSnapshot,
+  setBasemapPreference,
+  subscribeBasemap,
+} from '@/lib/basemap-store';
 import { SearchFields, FilterFields, StatsFields, type RuralRolSearchState } from '@/components/FieldGroups';
 import { GeocoderSearch } from '@/components/GeocoderSearch';
 import { InfoPanel } from '@/components/InfoPanel';
@@ -518,26 +518,15 @@ export default function Home() {
   const [hexbinMinN, setHexbinMinN] = useState(HEXBIN_MIN_N_DEFAULT);
   const [hexbinStatus, setHexbinStatus] = useState<HexbinStatus>({ kind: 'idle' });
 
-  // Mapa base. Arranca SIEMPRE en el default para que el HTML del servidor y
-  // el del cliente coincidan; la preferencia guardada se aplica tras hidratar.
-  const [basemap, setBasemap] = useState<BasemapId>(DEFAULT_BASEMAP_ID);
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(BASEMAP_STORAGE_KEY);
-      if (isBasemapId(saved)) setBasemap(saved);
-    } catch {
-      // localStorage puede estar bloqueado (modo privado, políticas del
-      // navegador). El selector sigue funcionando, solo no recuerda.
-    }
-  }, []);
-  const handleBasemapChange = useCallback((id: BasemapId) => {
-    setBasemap(id);
-    try {
-      window.localStorage.setItem(BASEMAP_STORAGE_KEY, id);
-    } catch {
-      // idem: elegir el fondo nunca debe fallar por no poder persistirlo.
-    }
-  }, []);
+  // Mapa base. La preferencia vive en localStorage y se lee por
+  // `useSyncExternalStore` (ver lib/basemap-store.ts): el servidor pinta el
+  // fondo por defecto, el cliente el guardado, sin hidratación rota ni
+  // parpadeo del mapa al montar.
+  const basemap = useSyncExternalStore(
+    subscribeBasemap,
+    getBasemapSnapshot,
+    getBasemapServerSnapshot,
+  );
 
   // Capas KML subidas por el usuario: parseo 100% en el navegador (lib/kml),
   // el archivo nunca sale del dispositivo. El contador de colores es un ref
@@ -951,7 +940,7 @@ export default function Home() {
             de escala de Leaflet — el lugar donde Google Maps y los visores SIG
             ponen este control. En mobile sube para no chocar con el FAB. */}
         <div className="absolute bottom-20 left-3 z-[600] md:bottom-9">
-          <BasemapSwitcher value={basemap} onChange={handleBasemapChange} />
+          <BasemapSwitcher value={basemap} onChange={setBasemapPreference} />
         </div>
 
         {/* FAB mobile: abre el drawer consolidado */}

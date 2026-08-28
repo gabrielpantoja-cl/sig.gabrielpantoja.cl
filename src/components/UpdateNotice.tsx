@@ -58,17 +58,31 @@ export function UpdateNotice() {
     }
   }, []);
 
+  // El sondeo es una suscripción a un sistema externo (el servidor). Vive
+  // entero en callbacks — el primer tick se AGENDA con `setTimeout(…, 0)` en
+  // vez de llamarse en el cuerpo del efecto — para que ningún `setState`
+  // cuelgue de la fase de montaje y el ciclo sea uno solo, encadenado: así dos
+  // sondeos nunca se solapan si la red va lenta.
   useEffect(() => {
-    void check();
-    const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') void check();
-    }, UPDATE_POLL_MS);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tick = async () => {
+      if (stopped) return;
+      if (document.visibilityState === 'visible') await check();
+      if (!stopped) timer = setTimeout(tick, UPDATE_POLL_MS);
+    };
+    timer = setTimeout(tick, 0);
+
+    // Volver a una pestaña olvidada es el momento más probable de encontrarse
+    // con un deploy nuevo: se comprueba de inmediato, sin esperar al ciclo.
     const onVisible = () => {
       if (document.visibilityState === 'visible') void check();
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
-      clearInterval(timer);
+      stopped = true;
+      clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [check]);
