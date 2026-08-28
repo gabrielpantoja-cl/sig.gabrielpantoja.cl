@@ -63,3 +63,6 @@ next-env.d.ts
 CLAUDE.local.md
 AGENTS.local.md
 
+# Directorios de investigación y referencias (no versionados)
+.research/
+research/
