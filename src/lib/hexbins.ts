@@ -151,47 +151,95 @@ export function quantileBreaks(values: number[]): number[] {
 /* ---------- Destino (código SII) ---------- */
 
 /**
+ * Diccionario OFICIAL de códigos de destino del SII, transcrito de la «Tabla
+ * Destinos» del documento *Estructura del Detalle Catastral*
+ * (`docs/estructura-catastral.md` § 3.2).
+ *
+ * Hasta el 2026-08-27 este módulo mostraba el código crudo (`Destino W`) con la
+ * mediana de superficie como desambiguador, porque no había diccionario: la
+ * base en Neon guarda la letra y no hay tabla de lookup. El documento del SII
+ * es esa tabla, así que ahora cada código se rotula con su nombre oficial en
+ * vez de obligar al usuario a saberse el alfabeto catastral.
+ *
+ * Se transcriben los 20 códigos de la tabla, no solo los 11 presentes hoy en la
+ * base: si mañana entra una inscripción con destino `Q` o `M`, el selector la
+ * rotula bien sin tocar código.
+ *
+ * La grafía se mantiene idéntica a la del documento oficial —un perito puede
+ * estar cruzando esta pantalla con un certificado de avalúo, y ahí los nombres
+ * aparecen así.
+ */
+export const DESTINO_SII_NAMES: Readonly<Record<string, string>> = {
+  A: 'Agrícola',
+  B: 'Agroindustrial',
+  C: 'Comercio',
+  D: 'Deporte y Recreación',
+  E: 'Educación y Cultura',
+  F: 'Forestal',
+  G: 'Hotel, Motel',
+  H: 'Habitacional',
+  I: 'Industria',
+  L: 'Bodega y Almacenaje',
+  M: 'Minería',
+  O: 'Oficina',
+  P: 'Adm. Pública / Casa Patronal',
+  Q: 'Culto',
+  S: 'Salud',
+  T: 'Transporte y Telecomunicaciones',
+  V: 'Otros no considerados',
+  W: 'Sitio Eriazo',
+  Y: 'Gallineros, chancheras y otros',
+  Z: 'Estacionamiento',
+};
+
+/**
  * Códigos de destino presentes en la base, con su conteo y la mediana de
  * superficie de terreno — medidos contra producción el 2026-08-27.
  *
- * La base NO trae el diccionario oficial de destinos del SII (no hay tabla de
- * lookup en Neon), así que solo se rotulan los códigos cuya lectura es
- * inequívoca: `H` (mediana 152 m² de terreno y 60 m² construidos = vivienda
- * urbana). Los demás se muestran con su código crudo y la mediana de
- * superficie como desambiguador, en vez de inventarles un nombre.
+ * El orden es por frecuencia descendente: el selector pone arriba lo que la
+ * gente va a elegir. `medianaSup` ya no entra en el rótulo (el nombre oficial
+ * dice más que un tamaño típico), pero se conserva porque es la medición que
+ * respalda la lectura de cada código contra la base real.
  *
  * `min_n` no aplica aquí: este arreglo solo alimenta el selector de la UI.
  */
 export interface DestinoOption {
   code: string;
-  /** Rótulo solo cuando la lectura del código es inequívoca. */
-  label: string | null;
+  /** Nombre oficial del SII (`DESTINO_SII_NAMES`). */
+  label: string;
   n: number;
-  /** Mediana de `superficieTerreno` (m²) — desambiguador en el selector. */
+  /** Mediana de `superficieTerreno` (m²) medida en producción. */
   medianaSup: number;
 }
 
 export const DESTINO_OPTIONS: readonly DestinoOption[] = [
-  { code: 'H', label: 'Habitacional', n: 48734, medianaSup: 152 },
-  { code: 'W', label: null, n: 18031, medianaSup: 5000 },
-  { code: 'A', label: null, n: 8599, medianaSup: 12500 },
-  { code: 'L', label: null, n: 878, medianaSup: 525 },
-  { code: 'C', label: null, n: 862, medianaSup: 336 },
-  { code: 'Z', label: null, n: 646, medianaSup: 254 },
-  { code: 'O', label: null, n: 228, medianaSup: 349 },
-  { code: 'V', label: null, n: 120, medianaSup: 935 },
-  { code: 'I', label: null, n: 111, medianaSup: 2236 },
-  { code: 'E', label: null, n: 53, medianaSup: 775 },
-  { code: 'G', label: null, n: 27, medianaSup: 1145 },
+  { code: 'H', label: DESTINO_SII_NAMES.H, n: 48734, medianaSup: 152 },
+  { code: 'W', label: DESTINO_SII_NAMES.W, n: 18031, medianaSup: 5000 },
+  { code: 'A', label: DESTINO_SII_NAMES.A, n: 8599, medianaSup: 12500 },
+  { code: 'L', label: DESTINO_SII_NAMES.L, n: 878, medianaSup: 525 },
+  { code: 'C', label: DESTINO_SII_NAMES.C, n: 862, medianaSup: 336 },
+  { code: 'Z', label: DESTINO_SII_NAMES.Z, n: 646, medianaSup: 254 },
+  { code: 'O', label: DESTINO_SII_NAMES.O, n: 228, medianaSup: 349 },
+  { code: 'V', label: DESTINO_SII_NAMES.V, n: 120, medianaSup: 935 },
+  { code: 'I', label: DESTINO_SII_NAMES.I, n: 111, medianaSup: 2236 },
+  { code: 'E', label: DESTINO_SII_NAMES.E, n: 53, medianaSup: 775 },
+  { code: 'G', label: DESTINO_SII_NAMES.G, n: 27, medianaSup: 1145 },
 ];
 
 /** El default es habitacional: es el 57 % de la base y el caso urbano. */
 export const DESTINO_DEFAULT = 'H';
 
+/**
+ * Rótulo de un destino: nombre oficial con el código entre paréntesis.
+ *
+ * El código se conserva a la vista a propósito: es lo que aparece en el
+ * certificado de avalúo del SII, así que dejarlo permite cruzar esta pantalla
+ * con el papel sin traducir de memoria. Un código fuera de la tabla oficial
+ * cae al crudo en vez de inventarle un nombre.
+ */
 export function destinoLabel(code: string): string {
-  const found = DESTINO_OPTIONS.find((d) => d.code === code);
-  if (!found) return `Destino ${code}`;
-  return found.label ?? `Destino ${code} · mediana ${found.medianaSup.toLocaleString('es-CL')} m²`;
+  const name = DESTINO_SII_NAMES[code];
+  return name ? `${name} (${code})` : `Destino ${code}`;
 }
 
 /* ---------- Umbral de celdas ---------- */

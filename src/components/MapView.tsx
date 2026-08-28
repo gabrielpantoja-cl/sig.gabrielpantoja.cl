@@ -68,6 +68,7 @@ import {
   HEXBINS_ATTRIBUTION,
   HEXBINS_URL,
   HEXBIN_MIN_N_DEFAULT,
+  destinoLabel,
   hexEdgeLabel,
   quantileBreaks,
   type HexbinMeta,
@@ -607,7 +608,7 @@ function buildHexbinPopup(props: HexbinProps, meta: HexbinMeta): string {
     ['Transacciones', `${props.n.toLocaleString('es-CL')} en la celda`],
     ['Mediana del monto', money(props.mediana_monto)],
     ['Resolución', `hexágono de ${hexEdgeLabel(meta.edge_m)} de arista`],
-    ['Destino SII', esc(meta.destino)],
+    ['Destino SII', esc(destinoLabel(meta.destino))],
   ];
   const body = rows
     .map(
