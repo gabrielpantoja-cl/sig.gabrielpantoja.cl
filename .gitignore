@@ -46,10 +46,11 @@ opencode.local.json
 *.tsbuildinfo
 next-env.d.ts
 
-# local scratch dropped in the repo root: screenshots + DNS zone exports
+# local scratch dropped in the repo root: screenshots + DNS zone exports + docs
 # (scoped to root with a leading slash so public/ images stay tracked)
 /*.png
 /*.txt
+/*.pdf
 
 # Playwright MCP artifacts (console logs + page snapshots from browser sessions)
 /.playwright-mcp/
