@@ -509,6 +509,8 @@ export default function Home() {
   const [showLineasTransmision, setShowLineasTransmision] = useState(false);
   const [showSuelos, setShowSuelos] = useState(false);
   const [suelosStatus, setSuelosStatus] = useState<SuelosStatus>({ kind: 'idle' });
+  const [showBioclima, setShowBioclima] = useState(false);
+  const [bioclimaVariable, setBioclimaVariable] = useState<'temperature' | 'precipitation'>('precipitation');
   const [showCatastroFruticola, setShowCatastroFruticola] = useState(false);
   const [showVegetacional, setShowVegetacional] = useState(false);
   // Mapa de calor de valor. El destino arranca en habitacional: es el 57 % de
@@ -951,6 +953,10 @@ export default function Home() {
             showSuelos={showSuelos}
             onToggleSuelos={setShowSuelos}
             suelosStatus={suelosStatus}
+            showBioclima={showBioclima}
+            onToggleBioclima={setShowBioclima}
+            bioclimaVariable={bioclimaVariable}
+            onBioclimaVariable={setBioclimaVariable}
             showCatastroFruticola={showCatastroFruticola}
             onToggleCatastroFruticola={setShowCatastroFruticola}
             showVegetacional={showVegetacional}

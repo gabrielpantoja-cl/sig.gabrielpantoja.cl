@@ -53,6 +53,7 @@ import {
 } from '@/lib/vegetacional';
 import { KML_MAX_FILE_MB, kmlDisplayName, type KmlLayer } from '@/lib/kml';
 import { PROPIEDADES_RURALES_ATTRIBUTION, PROPIEDADES_RURALES_COLOR, PROPIEDADES_RURALES_DISCLAIMER, PROPIEDADES_RURALES_MIN_ZOOM, PROPIEDADES_RURALES_REGIONS, PROPIEDADES_RURALES_SOURCE_URL, type PropiedadesRuralesStatus } from '@/lib/propiedades-rurales';
+import { bioclimaAttribution, bioclimaColorPalette } from '@/lib/bioclima';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
 
 /**
@@ -408,6 +409,10 @@ export function LayersControl({
   showSuelos,
   onToggleSuelos,
   suelosStatus,
+  showBioclima,
+  onToggleBioclima,
+  bioclimaVariable,
+  onBioclimaVariable,
   showCatastroFruticola,
   onToggleCatastroFruticola,
   showVegetacional,
@@ -450,6 +455,10 @@ export function LayersControl({
   showSuelos: boolean;
   onToggleSuelos: (v: boolean) => void;
   suelosStatus: SuelosStatus;
+  showBioclima: boolean;
+  onToggleBioclima: (v: boolean) => void;
+  bioclimaVariable: 'temperature' | 'precipitation';
+  onBioclimaVariable: (v: 'temperature' | 'precipitation') => void;
   showCatastroFruticola: boolean;
   onToggleCatastroFruticola: (v: boolean) => void;
   showVegetacional: boolean;
@@ -854,6 +863,57 @@ export function LayersControl({
           </LayerRow>
           {showSuelos && <SuelosStatusNotice status={suelosStatus} />}
         </div>
+
+        <LayerRow
+          checked={showBioclima}
+          onChange={onToggleBioclima}
+          label="Bioclima (WORLDCLIM)"
+          swatch={
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-sm"
+              style={{
+                background: `linear-gradient(90deg, ${bioclimaColorPalette[bioclimaVariable].ranges[0].color}, ${bioclimaColorPalette[bioclimaVariable].ranges.at(-1)?.color})`,
+              }}
+            />
+          }
+        >
+          <label className="block">
+            <span className="text-[0.6rem] font-medium uppercase tracking-wide opacity-60">
+              Variable
+            </span>
+            <select
+              value={bioclimaVariable}
+              onChange={(e) => onBioclimaVariable(e.target.value as 'temperature' | 'precipitation')}
+              className="mt-0.5 w-full rounded border border-black/15 bg-[var(--background)] px-1.5 py-1 text-xs text-[var(--foreground)] dark:border-white/20"
+            >
+              <option value="temperature">Temperatura media anual (°C)</option>
+              <option value="precipitation">Precipitación anual (mm)</option>
+            </select>
+          </label>
+          <div className="mt-2 space-y-1 text-[0.6rem]">
+            {bioclimaColorPalette[bioclimaVariable].ranges.map((range) => (
+              <div key={range.label} className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2 w-4 shrink-0 rounded-sm"
+                  style={{ background: range.color }}
+                />
+                <span className="opacity-80">{range.label}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
+            {bioclimaAttribution}. Climatología observada 1981-2010 (2.5 min ~5 km).
+            Resolución gruesa; útil para contexto regional y análisis de nichos.{' '}
+            <a
+              href="https://www.worldclim.org/data/worldclim21.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:opacity-100"
+            >
+              Ver fuente oficial →
+            </a>
+          </p>
+        </LayerRow>
       </div>
 
       {/* Capas KML del usuario */}
