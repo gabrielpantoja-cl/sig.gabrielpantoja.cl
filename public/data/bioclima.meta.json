@@ -18,8 +18,11 @@
       "url_descarga": "https://www.worldclim.org/data/worldclim21.html (manual)"
     }
   },
-  "estado": "INVESTIGACIÓN",
-  "archivos_encontrados": [],
+  "estado": "DESCARGADO",
+  "archivos_encontrados": [
+    "wc2.1_2.5m_bio_1.tif",
+    "wc2.1_2.5m_bio_12.tif"
+  ],
   "observaciones": [
     "Descarga manual requerida: worldclim.org no expone URLs públicas estables",
     "Usar navegador web para descargar desde https://www.worldclim.org/data/worldclim21.html",
