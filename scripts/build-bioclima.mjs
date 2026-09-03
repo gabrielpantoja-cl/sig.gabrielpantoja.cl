@@ -81,7 +81,7 @@ async function buildBioclima() {
   };
 
   console.log('📖 Receta de descarga e integración:\n');
-  meta.pasos_descarga.forEach((paso, i) => {
+  meta.pasos_descarga.forEach((paso) => {
     console.log(`   ${paso}`);
   });
 
