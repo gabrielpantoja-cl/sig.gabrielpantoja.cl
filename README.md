@@ -123,33 +123,6 @@ not part of the routine local workflow on resource-constrained machines.
 
 Never commit `.env.local` or any other credential-bearing environment file.
 
-## AI-assisted development
-
-This repository is used with Claude Code, OpenCode, Codex, and other coding
-agents. The canonical project instructions are in **[AGENTS.md](./AGENTS.md)**.
-Optional machine-specific overrides belong in `AGENTS.local.md`, which is
-gitignored and not distributed.
-
-The committed `opencode.json` contains the maintainer defaults
-(`model: openai/gpt-5.6-sol` and `enabled_providers: ["openai"]`). The primary
-`orchestrator` uses the same model and coordinates the read-only specialists in
-`.opencode/agents/`. Local operators may override these settings through
-`OPENCODE_CONFIG`, `~/.config/opencode/opencode.json`, or their own fork. See
-[AGENTS.md § AI tooling](./AGENTS.md) for precedence and safety rules.
-
-Project specialists include:
-
-- `gis-architect-agent` — Leaflet and GIS runtime architecture
-- `canvas-export-agent` — PNG map composition
-- `nextjs-architect-agent` — Next.js and React architecture
-- `neon-data-engineer-agent` — API, SQL, performance, and privacy
-- `etl-pipeline-engineer-agent` — official GIS sources and reproducible ETL
-
-Specialists provide read-only analysis; the `orchestrator` reviews their reports
-before applying changes. See
-[`.opencode/agents/README.md`](./.opencode/agents/README.md) for the full roster
-and delegation policy.
-
 ## Repository data and future storage
 
 Pre-built GeoJSON outputs are committed under `public/data/` (approximately
