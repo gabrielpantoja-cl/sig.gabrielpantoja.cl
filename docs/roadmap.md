@@ -9,24 +9,36 @@
 
 ## Visión
 
-Convertir el SIG en una herramienta de **tasación rural asistida**: además de
-los puntos CBR ya implementados, el usuario (perito, tasador, abogado,
-ingeniero agrónomo) debe poder ver, en una sola vista, qué es cada predio,
-qué se puede hacer en él, qué restricciones tiene y cuánto paga el mercado
-por predios comparables. Esto implica tres direcciones:
+Convertir el SIG en una plataforma **geoespacial integrada** que sirva tres públicos
+simultáneamente en una sola vista: **tasación rural, ecoinformática y conservación**.
 
-1. **Datos del predio**: capas rurales (Catastro Frutícola, deslindes
-   prediales, ROL validado contra CIREN).
-2. **Restricciones del predio**: derechos de agua, áreas protegidas, zonas
-   de riesgo, erosión, bosque nativo, planes reguladores.
-3. **Inteligencia de mercado**: comparador de transacciones, estadísticas
-   con cuartiles (no solo promedio), series de tiempo, exportación a DXF.
-   — *Primer entregable en producción: el mapa de calor de valor ($/m² por
-   hexágono, `/api/hexbins`). Plan y fases pendientes en
-   [`plan-mapa-de-calor.md`](./plan-mapa-de-calor.md).*
+### Para tasadores / peritos rurales:
+Visualizar, en una sola vista, qué es cada predio, qué se puede hacer en él, qué 
+restricciones tiene y cuánto paga el mercado por predios comparables. Tres direcciones:
 
-Las tres direcciones se sirven en la misma vista, con la misma UX ya probada
-(paneles flotantes, capas estáticas + dinámicas, atribución obligatoria).
+1. **Datos del predio**: capas rurales (Catastro Frutícola, deslindes prediales, ROL
+   validado contra CIREN).
+2. **Restricciones del predio**: derechos de agua, áreas protegidas, zonas de riesgo,
+   erosión, bosque nativo, planes reguladores.
+3. **Inteligencia de mercado**: comparador de transacciones, estadísticas con cuartiles
+   (no solo promedio), series de tiempo, exportación a DXF. — *Primer entregable en
+   producción: el mapa de calor de valor ($/m² por hexágono, `/api/hexbins`). Plan y
+   fases pendientes en [`plan-mapa-de-calor.md`](./plan-mapa-de-calor.md).*
+
+### Para ecoinformáticos / investigadores en conservación:
+Acceder a capas de **biodiversidad, hidrología, vegetación y clima** con series temporales
+para análisis de paisaje, nichos ecológicos, cambio climático y fragmentación de hábitats.
+Cuatro direcciones:
+
+1. **Bioclima e hidrología**: temperatura, precipitación, índices de aridez, ciclo del agua.
+2. **Cobertura y cambios**: NDVI dinámico, uso de suelo, bosque nativo, monitoreo temporal.
+3. **Eventos naturales**: incendios, inundaciones, glaciares como indicadores.
+4. **Análisis espacial**: corredores biológicos, conectividad, fragmentación derivada de
+   capas base.
+
+**Las cuatro direcciones se sirven en la misma vista**, con la misma UX ya probada
+(paneles flotantes, capas estáticas + dinámicas, atribución obligatoria, selectors de
+rango temporal para series).
 
 ## Estado actual (al 2026-07-16)
 
@@ -46,10 +58,13 @@ Backlog de fuentes no integradas — ya inventariado en
 
 ## Criterios de priorización
 
-Cada ítem se evalúa en una matriz rápida de 3 ejes:
+Cada ítem se evalúa en una matriz rápida de 4 ejes (ambos públicos cuentan):
 
 - **Valor para tasación rural** — ¿acelera una decisión del perito? (alto =
   reduce horas-hombre en gabinete, medio = contexto, bajo = nice-to-have).
+- **Valor para ecoinformática** — ¿es crítico para análisis de biodiversidad,
+  cambio climático, fragmentación o degradación? (alto = backbone del análisis,
+  medio = contexto, bajo = enriquecimiento).
 - **Accesibilidad del dato** — público, oficial, descargable en masa
   (alto), o requiere scraping/API frágil (bajo).
 - **Costo de implementación** — S (≤ 1 día), M (≤ 1 semana), L (> 1 semana
@@ -156,8 +171,10 @@ Reglas duras (heredadas de AGENTS.md y `arquitectura-capas.md`):
   (cartografía digital y mapas públicos). Cobertura progresiva
   O'Higgins → Los Lagos; el resto del país en vías.
 - **Qué agrega**: erosión actual (estado) y potencial (riesgo), en
-  ton/ha/año, con categorías estandarizadas. Crucial para tasación de
-  predios con pendiente.
+  ton/ha/año, con categorías estandarizadas.
+  - **Para tasación**: crucial para predios con pendiente (afecta productividad).
+  - **Para ecoinformática**: indicador de degradación de suelos, susceptibilidad
+    a cambio climático, y pérdida de servicios ecosistémicos.
 - **Tipo de capa esperada**: **estática** (descarga WFS → GeoJSON + el
   ETL habitual de mapshaper) si el GeoNode lo soporta, o **dinámica
   remota** estilo CIREN-suelos si el dataset pesa > 50 MB.
@@ -182,24 +199,24 @@ Reglas duras (heredadas de AGENTS.md y `arquitectura-capas.md`):
   - Hidrolínea: <https://snia.mop.gob.cl/sat/site/informes/mapas/mapas.xhtml>
   - Estadística Hidrométrica: <https://mapas2.mop.gob.cl/>
   - Inventario Público de Glaciares: <https://snia.mop.gob.cl/observatorio/>
-- **Qué agrega**: para tasación rural, el derecho de agua es tanto o más
-  decisivo que el suelo mismo. Visualizar puntos de captación,
-  derechos consuntivos/no consuntivos, permanentes/eventuales, y el
-  estado de la cuenca.
-- **Tipo de capa esperada**: **mixta** — los *registros de derechos
-  individuales* se consultan por expediente y probablemente no hay
-  endpoint masivo; lo que sí existe público es **glaciares** (SNIA,
-  formato WFS) y **red hidrográfica nacional** (probablemente en
-  geoportal.cl). Tratar esa primera entrega como "contexto hídrico"
-  (glaciares, cauces DGA, cuencas) y dejar el query por expediente a
-  un link-out del popup.
-- **Esfuerzo**: **L** — evaluar primero qué de DGA está realmente
-  servido como WFS masivo y qué no.
-- **Riesgo**: cada registro de derechos es un expediente (PDF +
-  shapefile individual); abrirlos y consolidar es un proyecto en sí
-  mismo. Reencuadrar la Fase 2.2 como *"capa de contexto hídrico
-  (glaciares + red de drenaje)"* y dejar la integración de expedientes
-  individuales para una fase posterior si el valor lo justifica.
+- **Qué agrega**:
+  - **Para tasación rural**: el derecho de agua es tanto o más decisivo que el suelo mismo.
+    Visualizar puntos de captación, derechos consuntivos/no consuntivos, permanentes/eventuales,
+    y el estado de la cuenca.
+  - **Para ecoinformática**: los glaciares son indicadores clave de cambio climático;
+    la red hidrográfica es la columna vertebral del análisis de conectividad y ciclo
+    de agua; las cuencas permiten análisis hidrológico integrado.
+- **Tipo de capa esperada**: **mixta** — los *registros de derechos individuales* se
+  consultan por expediente y probablemente no hay endpoint masivo; lo que sí existe
+  público es **glaciares** (SNIA, formato WFS) y **red hidrográfica nacional**
+  (probablemente en geoportal.cl). Tratar esa primera entrega como "contexto hídrico"
+  (glaciares, cauces DGA, cuencas) y dejar el query por expediente a un link-out del popup.
+- **Esfuerzo**: **L** — evaluar primero qué de DGA está realmente servido como WFS
+  masivo y qué no.
+- **Riesgo**: cada registro de derechos es un expediente (PDF + shapefile individual);
+  abrirlos y consolidar es un proyecto en sí mismo. Reencuadrar la Fase 2.2 como
+  *"capa de contexto hídrico (glaciares + red de drenaje)"* y dejar la integración
+  de expedientes individuales para una fase posterior si el valor lo justifica.
 
 ### 2.3 SERNAGEOMIN — Peligros geológicos (remociones en masa, volcanismo)
 
@@ -236,12 +253,17 @@ Reglas duras (heredadas de AGENTS.md y `arquitectura-capas.md`):
   <https://simef.minagri.gob.cl/>). Simef publica Reportes Estadísticos
   con *"Uso de la Tierra, Cambio de Uso de la Tierra, Incendios
   Forestales"* (última carga 31/12/2025).
-- **Qué agrega**: clasificación de uso de suelo (bosque nativo,
-  plantaciones, matorral, praderas, etc.) y contexto ecológico/
-  incendios para predios rurales.
+- **Qué agrega**:
+  - **Para tasación**: clasificación de uso de suelo (bosque nativo, plantaciones,
+    matorral, praderas, etc.) y contexto ecológico/incendios.
+  - **Para ecoinformática**: CENTRAL para análisis de ecosistemas, fragmentación,
+    pérdida de hábitat, cambios de cobertura temporal, y nichos de biodiversidad.
+    CONAF + Simef juntos permiten series temporales de cambio de uso.
 - **Tipo**: **dinámica remota**, implementada mediante PNG por viewport y
   consulta puntual `identify` al servicio oficial.
 - **Esfuerzo**: **M**.
+- **Potencial futuro**: integrar índices derivados (NDVI histórico desde MODIS
+  para 2000–presente) como capa paralela para análisis de tendencias más finas.
 
 ### 3.3 SHOA — Línea de costa oficial
 
@@ -291,6 +313,158 @@ Reglas duras (heredadas de AGENTS.md y `arquitectura-capas.md`):
   frigorífico, agroindustria cercanos).
 - *Directorio Agroindustria Hortofrutícola Ciren-Odepa* (descarga
   XLSX directa, datos 2017–2019) → segunda tabla de enriquecimiento.
+
+## Fase 5 — Ecoinformática & Análisis de paisaje (Q4 2026 — Q1/Q2 2027)
+
+**Núcleo de capas dedicadas a biodiversidad, conservación e investigación ambiental.**
+Reutiliza la infraestructura de remote layers + time series. Todas las capas de esta fase
+agregan valor tanto para tasación rural (contexto ambiental) como para ecoinformática
+(backbone del análisis).
+
+### 5.1 Bioclima global (WORLDCLIM o CHELSA) — **PRIORIDAD ALTA**
+
+- **Fuente**: WORLDCLIM (<https://www.worldclim.org/>, 1981–2010, 2.5 min ~5 km) o
+  CHELSA (<https://chelsa-climate.org/>, 2020–2021, 30″ ~1 km, más reciente).
+- **Qué agrega**:
+  - **Para tasación**: contexto climático básico (rango de precipitación anual,
+    temperatura media) para entender capacidad productiva.
+  - **Para ecoinformática**: BACKBONE de cualquier análisis de nichos ecológicos,
+    áreas de aptitud, cambio climático. Imprescindible para modelar distribuciones
+    de especies, modelar proyecciones futuras (CMIP6), análisis de refugia climática.
+- **Tipo de capa esperada**: **estática raster** (GeoTIFF optimizado, servido como
+  `L.ImageOverlay` con leyenda de cuantiles). Una sola fecha o dos épocas (baseline
+  histórica + proyección 2070 de un escenario climático).
+- **Esfuerzo**: **S** — descargar GeoTIFF de WORLDCLIM o CHELSA, mapear a paleta
+  de colores divergente (azul frío = húmedo, rojo caliente = árido), documentar,
+  publicar. ~1–2 días.
+- **Datos a incluir**: precipitación anual (mm), temperatura media anual (°C), rango
+  de temperatura, índices derivados (SPI estandarizado por cuencas usando datos
+  históricos del DMC).
+- **Riesgo**: la escala 2.5 min puede ser gruesa para análisis predial fino; CHELSA
+  a 30″ es mejor pero más peso. Evaluar peso en ZIP post-simplificación.
+
+### 5.2 Índices de vegetación dinámicos (MODIS NDVI/EVI 2000–presente)
+
+- **Fuente**: USGS LPDAAC (MODIS MOD13Q1 500 m, 16-day composites, 2000–presente,
+  descargable por tiles regionales vía `AppEEARS`).
+- **Qué agrega**:
+  - **Para tasación**: tendencia de productividad/cobertura del predio a lo largo
+    de 20 años; detección de estrés vegetacional (sequía, plagas).
+  - **Para ecoinformática**: CRÍTICO — NDVI es la señal más directa de salud del
+    ecosistema. Series temporales permiten: (a) detección de cambios de uso/degradación,
+    (b) ciclos de estrés climático (acoplamiento con SPI), (c) respuesta a incendios
+    (recuperación post-fuego), (d) comparación inter-anual de productividad.
+- **Tipo de capa esperada**: **dinámica con timeline** — raster servido por
+  `/api/ndvi/export?date=YYYY-MM-DD&bbox=...` que retorna PNG + stats, o
+  **PMTiles** (vector tiles binarios con range-request HTTP) si peso lo justifica.
+- **Esfuerzo**: **M** — descargar serie MODIS (tedioso pero uno-a-uno), preprocesar
+  (cloud mask, reproject EPSG:4326), agregar a temporal pyramid en PMTiles o
+  generar series de PNG mensuales, exponer UI con date picker.
+- **Riesgo**: MODIS es 500 m (resolución gruesa para predio individual); ofrecer
+  fallback a Sentinel-2 (10 m, 2015–presente) si peso lo permite, pero implica
+  replicar ETL.
+
+### 5.3 Eventos naturales: Incendios + Inundaciones
+
+#### 5.3a Incendios históricos (FIRMS NASA + CONAF Catastro)
+
+- **Fuente**: FIRMS (<https://firms.modaps.eosdis.nasa.gov/>) exporta VIIRS/MODIS
+  hotspots diarios (2012–presente); CONAF publica polígonos quemados anuales
+  (<https://www.conaf.cl/incendios-forestales/informacion-de-utilidad/>).
+- **Qué agrega**:
+  - **Para tasación**: documentar si predio está en zona de riesgo alto de incendios,
+    o tuvo quema reciente (afecta seguros, crédito, productividad).
+  - **Para ecoinformática**: eventos de perturbación; analizar patrones espaciales,
+    tendencias de frecuencia/severidad, recuperación post-fuego (sobreposición con
+    NDVI timeline).
+- **Tipo**: **puntos dinámicos + polígonos históricos estáticos**. Puntos FIRMS como
+  marcadores con popup "fecha, confianza, potencia radiativa"; polígonos CONAF por
+  año (estilo choropleth por año de quema).
+- **Esfuerzo**: **M** — FIRMS es API fácil pero requiere ingesta de 12 años de
+  datos; CONAF shapefile descargable; cruzar y simplificar.
+
+#### 5.3b Inundaciones recientes (ECHOE Chile + DGA Alerta)
+
+- **Fuente**: ECHOE (<https://www.echochile.cl/>) publica análisis de eventos de
+  inundación; DGA exposición de eventos críticos por cuenca.
+- **Qué agrega**: contexto de riesgo hidrológico, eventos documentados de desastre
+  natural.
+- **Tipo**: **polígonos de evento + timeline limitado** (últimos 10 años).
+- **Esfuerzo**: **S-M** (es parcialmente manual, pero disponible en geoportal.cl).
+
+### 5.4 Corredores biológicos y fragmentación de hábitat (derivado)
+
+- **Fuente**: derivado de Áreas Protegidas (MMA, Fase 1) + Bosque Nativo (CONAF, Fase 3)
+  + DTM (GEBCO/SRTM para resistencia de elevación).
+- **Qué agrega**:
+  - **Para tasación**: identifica si predio conecta ecosistemas protegidos (valor
+    de conservación, potencial pago por servicios ecosistémicos).
+  - **Para ecoinformática**: FUNDAMENTAL para análisis de conectividad, fragmentación,
+    dispersión de especies. Usar algoritmos de least-cost paths (PostGIS + una librería
+    como `gdal_translate` + `r.cost`) para derivar índices de centralidad/resistencia.
+- **Tipo de capa esperada**: **estática vectorial** — polígonos/líneas de corredores
+  coloreados por calidad (ancho, densidad de cobertura nativa, pendiente).
+- **Esfuerzo**: **M** — es PostGIS avanzado (connectivity analysis con movimiento), pero
+  la receta está en `docs/arquitectura-capas.md`; reutilizar patrón de otras capas derivadas.
+- **Nota metodológica**: este análisis es exactamente lo que hizo Horacio Samaniego con
+  su spatial Durbin model — aplicar esa lección aquí: la fragmentación del hábitat
+  (distancia a protegidas, ancho de corredor) es un predictor de precio más robusto que
+  la precipitación cruda. Documentar en el popup.
+
+### 5.5 Series climáticas futuras (CMIP6 downscaled, opcional)
+
+- **Fuente**: ClimateChile (<https://www.climatechile.cl/>, datos CMIP6 downscaleados
+  a 5 km para escenarios SSP1-2.6, SSP2-4.5, SSP5-8.5).
+- **Qué agrega**: proyecciones de cambio climático (temp, precip) a 2050, 2070, 2100.
+- **Tipo**: **raster estático multi-escenario** con UI de selector de escenario + década.
+- **Esfuerzo**: **L** — si ClimateChile expone descarga directa; M si hay que
+  descargar/reempaquetar de CMIP6 crudo.
+- **Prioridad**: posponer a Fase 6; Fase 5 se centra en observado + índices derivados.
+
+## Fase 6 — Biodiversidad (Q2 2027+)
+
+Capas de distribuciones de especies, endemismos, y datos de biodiversidad observada.
+Estas son más caras (requieren ingesta de datos de terceros: eBird, FloraChile, SiBB)
+y tienen lag de actualización. Propias de ecoinformática pura, no tanto de tasación.
+
+### 6.1 Distribuciones de especies (eBird, FloraChile, SiBB)
+
+- **Fuente**: eBird (<https://ebird.org/>, descargable por región), FloraChile
+  (<https://www.florachile.cl/>, repositorio de plantas nativas), SiBB
+  (<https://sibchia.mma.gob.cl/>, Sistema de Información de Biodiversidad).
+- **Qué agrega**: heatmaps de riqueza de especies (aves, plantas), endemismos,
+  nichos observados. Análisis de qué especies coexisten en un predio.
+- **Tipo**: **puntos de observación estáticos** + **heatmaps derivados de densidad**.
+- **Esfuerzo**: **M** (cada fuente tiene ciclo de ingesta diferente; eBird es
+  mensual, FloraChile anual, SiBB irregular).
+
+---
+
+## Resumen de la fusión: De tasación rural a plataforma ecoinformática integrada
+
+**Antes (roadmap original, Fases 1–4):**
+- 100 % enfocado en tasación rural y mercado inmobiliario.
+- Capas económicas: CBR, Catastro Frutícola, suelos, derechos de agua.
+- Capas de restricción: áreas protegidas, red vial, erosión.
+
+**Después (con Fase 5–6):**
+- Tasación rural + Ecoinformática + Conservación en una sola plataforma.
+- Capas económicas: ídem (sin cambios).
+- Capas de contexto ambiental: erosión, CONAF vegetación, DGA hidrología, glaciares.
+- **Capas de ciencia ambiental (Fase 5): bioclima, NDVI series, incendios, fragmentación.**
+- **Capas de biodiversidad (Fase 6): distribuciones de especies, endemismos.**
+
+**Beneficiarios:**
+- Perito rural: ve restricciones + mercado + contexto en una vista.
+- Ecoinformático: ve series temporales, análisis de fragmentación, nichos, cambio climático.
+- Conservacionista: ve estado de hábitat, tendencias de degradación, corredores de conectividad.
+
+**Ganancia arquitectónica:**
+- Misma UX para todos (paneles, capas, leyendas, exportación).
+- Mismas rutas de API (remote layers via `/api/*/export`, `identify`).
+- Mismo versionado de datos (meta.json, atribución, vintage).
+- Reutilización de infraestructura: timeline de NDVI = timeline de MODIS = timeline de
+  incendios FIRMS.
 
 ## Backlog sin priorizar
 
@@ -520,17 +694,26 @@ que amplían el uso diario del perito:
    Documentar siempre en `meta.json` y mostrar en el panel un tooltip
    "vintage: YYYY-MM".
 3. **Cobertura nacional incompleta**. CIREN-Suelos no cubre todo Chile;
-   la Catastro Frutícola tampoco. Manejar ausencias como *primera
-   clase de feature* (gris + mensaje), no como bug.
+   la Catastro Frutícola tampoco. MODIS 500 m no detecta fragmentación fina;
+   Sentinel-2 lo hace pero pesa. Manejar ausencias como *primera
+   clase de feature* (gris + mensaje), no como bug. Documentar umbral de
+   resolución en el panel de cada capa.
 4. **Licencias y atribución**. La regla de los "3 lugares" (panel,
    popup, meta.json) vale para todas las capas nuevas. Cualquier
    capa nueva que entre con pago o scraping tiene que tener la
-   aprobación del usuario en CHANGELOG antes de mergear.
+   aprobación del usuario en CHANGELOG antes de mergear. Atención especial
+   con datos de biodiversidad (eBird, FloraChile): tienen licencias
+   específicas de atribución y cita de investigación.
 5. **PII**. Catastro Frutícola y Directorio Frutícola CIREN contienen
    *Productor con razón social* y *rol*. El popup del CBR nunca debe
    exponer razón social ni el nombre del productor; usar el ROL
    como pivote y dejar el link-out a CIREN si el usuario quiere
    profundizar.
+6. **Series temporales y lag de datos**. Capas como MODIS NDVI o eBird
+   tienen delays (MODIS es 1–2 días, eBird es agregación mensual,
+   datos de biodiversidad tienen lag de años). Documentar en `meta.json`
+   la fecha de actualización esperada y en el panel mostrar "datos
+   actualizados al YYYY-MM-DD; próxima actualización: YYYY-MM-DD".
 
 ## Catálogo actualizado de fuentes (síntesis de la investigación)
 
@@ -553,11 +736,16 @@ próxima revisión:
 
 1. Al cerrar un ítem de cualquier fase, moverlo a un historial breve
    bajo "Hitos" (abajo) con la fecha y el commit/versión.
-2. Al proponer un nuevo ítem, evaluarlo contra los 3 ejes de
-   priorización y justificar la fase asignada en el PR.
+2. Al proponer un nuevo ítem, evaluarlo contra los **4 ejes de
+   priorización** (valor tasación rural + valor ecoinformática +
+   accesibilidad + costo) y justificar la fase asignada en el PR.
+   Un ítem entra más rápido si suma valor en ambos públicos.
 3. Trimestral: revisar el catálogo actualizado de fuentes para ver si
    algún organismo publicó una capa relevante (especialmente IDE
-   Minagri).
+   Minagri, ClimateChile, datos de biodiversidad emergentes).
+4. Fase 5 es la transición: priorizar capas bioclimáticas + NDVI series
+   antes de biodiversidad observada (Fase 6). Esto maximiza valor para
+   ambos públicos en menos tiempo.
 
 ## Hitos (a llenar al cerrar tareas)
 
