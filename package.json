@@ -35,7 +35,8 @@
   ],
   "scripts": {
     "build": "next build",
-    "data:build": "npm run data:build:protected && npm run data:build:urban && npm run data:build:comunas && npm run data:build:red-vial && npm run data:build:red-drenaje && npm run data:build:lineas-transmision && npm run data:build:catastro-fruticola",
+    "data:build": "npm run data:build:protected && npm run data:build:urban && npm run data:build:comunas && npm run data:build:red-vial && npm run data:build:red-drenaje && npm run data:build:lineas-transmision && npm run data:build:catastro-fruticola && npm run data:build:bioclima",
+    "data:build:bioclima": "node scripts/build-bioclima.mjs",
     "data:build:catastro-fruticola": "node scripts/build-catastro-fruticola.mjs",
     "data:build:comunas": "node scripts/build-comunas.mjs",
     "data:build:derechos-agua": "node scripts/build-derechos-agua.mjs",
