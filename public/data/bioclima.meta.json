@@ -4,35 +4,10 @@
   "fecha_levantamiento": "1981-2010 (climatología)",
   "licencia": "CC-BY-4.0 (WORLDCLIM Project)",
   "url_fuente": "https://www.worldclim.org/data/worldclim21.html",
-  "variables": {
-    "bio1_temp_media_anual": {
-      "unidad": "°C × 10",
-      "descripcion": "Temperatura media anual (escala 1/10 °C)",
-      "file": "wc2.1_2.5m_bio_1.tif",
-      "url": "https://www.worldclim.org/data/worldclim21.html"
-    },
-    "bio12_precip_anual": {
-      "unidad": "mm",
-      "descripcion": "Precipitación total anual",
-      "file": "wc2.1_2.5m_bio_12.tif",
-      "url": "https://www.worldclim.org/data/worldclim21.html"
-    }
-  },
-  "observaciones": [
-    "Primera entrega: bioclima observado (climatología 1981-2010)",
-    "Próxima: proyecciones climáticas futuras (CMIP6 2050, 2070)",
-    "Resolución 2.5 min es gruesa para predios individuales; útil para contexto regional",
-    "Los datos crudos de WORLDCLIM son GeoTIFF en EPSG:4326 (listo para usar)"
-  ],
-  "estado": "INVESTIGACIÓN",
-  "pasos_descarga": [
-    "1. Descargar BIO1 (temp media anual) desde https://www.worldclim.org/data/worldclim21.html",
-    "2. Descargar BIO12 (precip anual) desde la misma fuente",
-    "3. Reproducir con gdal: gdal_translate -projwin -75.7 -17 -66.4 -56 wc2.1_2.5m_bio_1.tif bioclima_temp_chile.tif",
-    "4. Convertir a GeoJSON con gdal_translate -of GeoJSON o usar raster2pgsql para PostGIS",
-    "5. Generar PNG por viewport en /api/bioclima/export (similar a /api/suelos/export)"
-  ],
-  "features_count": null,
+  "variables": {},
+  "estado": "DESCARGADO",
+  "archivos_descargados": [],
+  "archivos_procesados": [],
   "boundsWgs84": {
     "north": "-17°",
     "south": "-56°",
