@@ -30,7 +30,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const bbox = url.searchParams.get('bbox');
   const size = url.searchParams.get('size');
-  const variable = url.searchParams.get('variable');
+  // const variable = url.searchParams.get('variable'); // TODO: future implementation
 
   // Validar parámetros mínimos
   if (!bbox || !size) {
