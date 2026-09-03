@@ -4,15 +4,27 @@
   "fecha_levantamiento": "1981-2010 (climatología)",
   "licencia": "CC-BY-4.0 (WORLDCLIM Project)",
   "url_fuente": "https://www.worldclim.org/data/worldclim21.html",
-  "variables": {},
-  "estado": "DESCARGADO",
-  "archivos_descargados": [],
-  "archivos_procesados": [],
-  "boundsWgs84": {
-    "north": "-17°",
-    "south": "-56°",
-    "east": "-66.4°",
-    "west": "-75.7°",
-    "descripcion": "Cubierta de Chile continental"
-  }
+  "variables": {
+    "bio1": {
+      "unidad": "°C × 10",
+      "descripcion": "Temperatura media anual",
+      "file": "wc2.1_2.5m_bio_1.tif",
+      "url_descarga": "https://www.worldclim.org/data/worldclim21.html (manual)"
+    },
+    "bio12": {
+      "unidad": "mm",
+      "descripcion": "Precipitación total anual",
+      "file": "wc2.1_2.5m_bio_12.tif",
+      "url_descarga": "https://www.worldclim.org/data/worldclim21.html (manual)"
+    }
+  },
+  "estado": "INVESTIGACIÓN",
+  "archivos_encontrados": [],
+  "observaciones": [
+    "Descarga manual requerida: worldclim.org no expone URLs públicas estables",
+    "Usar navegador web para descargar desde https://www.worldclim.org/data/worldclim21.html",
+    "Extraer ZIPs en .research/worldclim/",
+    "Ejecutar npm run data:build:bioclima nuevamente para procesar",
+    "Próximo: integración en LayersControl con /api/bioclima/export"
+  ]
 }
