@@ -372,6 +372,16 @@ agregan valor tanto para tasación rural (contexto ambiental) como para ecoinfor
       de lluvia) y en temperatura la franja fría siguiendo la cordillera. Los
       rangos observados son los correctos para Chile —0 a 6.733 mm y −12 a
       20,7 °C—, lo que confirma que la georreferenciación es real.
+- [x] **Diagnóstico en producción (2026-09-03, build `f7ac4e9`)**: los PNG se
+      sirven (200, 25 y 51 KB); el overlay monta con 127.852 píxeles con dato y
+      79.124 transparentes (el océano); queda como primer hijo del `overlay-pane`
+      —o sea al fondo— con las áreas protegidas legibles encima; alternar
+      variable de ida y vuelta deja **un solo overlay en el DOM** (se reutiliza
+      con `setUrl`, no se acumulan capas) y no arroja errores de consola. La
+      prueba que cierra el círculo: los **7 colores presentes en el PNG coinciden
+      exactamente** con los 7 swatches de la leyenda, sin sobrantes en ninguna
+      dirección — es la comprobación empírica de que compartir
+      `bioclima-ramp.json` evita la desalineación, en vez de solo suponerlo.
 
 **Lo que falta:**
 
@@ -384,6 +394,13 @@ agregan valor tanto para tasación rural (contexto ambiental) como para ecoinfor
       informe muestre lo mismo que la pantalla, con su atribución.
 - [ ] **Opacidad ajustable**: hoy va fija en 0,6. Se cruza con el ítem general de
       «opacidad por capa» de la auditoría de UX.
+- [ ] **El selector de variable está escondido.** Detectado al diagnosticar
+      producción: el `<select>` solo existe en el DOM con el detalle de la capa
+      desplegado, así que quien enciende la capa ve precipitación y no tiene
+      señal de que puede cambiar a temperatura. Para una capa con leyenda sola
+      el colapso está bien; para una con control, esconde funcionalidad. Se
+      resuelve junto con la «leyenda flotante que muestra solo las capas
+      encendidas» del § Leyendas de la auditoría.
 
 - **Riesgo asumido y documentado**: 2.5 min de arco es una superficie
   **interpolada desde estaciones meteorológicas**, no una medición del predio.
