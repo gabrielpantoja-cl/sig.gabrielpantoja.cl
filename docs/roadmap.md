@@ -1,6 +1,6 @@
 # Roadmap del SIG de suelo — `sig.gabrielpantoja.cl`
 
-> Documento vivo. Última actualización: 2026-08-28.
+> Documento vivo. Última actualización: 2026-09-03.
 > Próxima revisión sugerida: trimestral o cuando se cierre una fase.
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
@@ -40,18 +40,34 @@ Cuatro direcciones:
 (paneles flotantes, capas estáticas + dinámicas, atribución obligatoria, selectors de
 rango temporal para series).
 
-## Estado actual (al 2026-07-16)
+## Estado actual (al 2026-09-03)
 
-Cinco capas en producción (`docs/arquitectura-capas.md:13-21`):
+**Trece capas en producción**, en el orden en que las lista el panel
+(`docs/arquitectura-capas.md`):
 
-| # | Capa | Tipo |
-|---|---|---|
-| 1 | Puntos CBR ~85k | Dinámica (Neon vía `/api/points`) |
-| 2 | Áreas protegidas RNAP | Estática (GeoJSON, 6,0 MB) |
-| 3 | Límite urbano PRC | Estática (0,9 MB) |
-| 4 | Límites comunales DPA | Estática (2,7 MB) |
-| 5 | Red caminera MOP | Estática (5,9 MB) |
-| 6 | Suelos agrológicos CIREN | Dinámica remota (PNG por viewport) |
+| # | Capa | Tipo | Peso |
+|---|---|---|---|
+| 1 | Transacciones CBR (~85k puntos) | Dinámica (Neon vía `/api/points`) | 21 MB en el cable |
+| 2 | Mapa de calor de valor ($/m²) | Derivada (PostGIS `ST_HexagonGrid` + interpolación) | — |
+| 3 | Propiedades rurales (CIREN) | Dinámica remota (PNG por viewport + `identify`) | — |
+| 4 | Áreas protegidas (RNAP) | Estática | 5,8 MB |
+| 5 | Límite urbano (PRC) | Estática | 0,9 MB |
+| 6 | Límites comunales (DPA) | Estática | 2,7 MB |
+| 7 | Red caminera (MOP) | Estática | 5,9 MB |
+| 8 | Red de drenaje (DGA) | Estática | 13,3 MB |
+| 9 | Catastro frutícola (CIREN) | Estática | 30,1 MB |
+| 10 | Líneas de transmisión eléctrica | Estática | 3,0 MB |
+| 11 | Recursos vegetacionales (CONAF) | Dinámica remota (PNG por viewport + `identify`) | — |
+| 12 | Suelos agrológicos (CIREN) | Dinámica remota (PNG por viewport + `identify`) | — |
+| 13 | **Bioclima (WorldClim)** | **Estática, PNG reproyectado** | **75 KB** |
+
+Más las capas KML que sube el propio usuario, que se procesan en el navegador
+y nunca salen del dispositivo (`src/lib/kml.ts`).
+
+`public/data/` pesa hoy **62 MB**, de los cuales el catastro frutícola es la
+mitad. Eso es lo que empuja la «Migración de almacenamiento» de más abajo.
+Bioclima es la excepción deliberada: 75 KB entre sus dos imágenes, porque un
+raster recortado y pintado ocupa mucho menos que el vector equivalente.
 
 Backlog de fuentes no integradas — ya inventariado en
 `docs/fuentes-gis-chile.md:42-53` y ampliado con este roadmap.
@@ -317,9 +333,25 @@ Reglas duras (heredadas de AGENTS.md y `arquitectura-capas.md`):
 ## Fase 5 — Ecoinformática & Análisis de paisaje (Q4 2026 — Q1/Q2 2027)
 
 **Núcleo de capas dedicadas a biodiversidad, conservación e investigación ambiental.**
-Reutiliza la infraestructura de remote layers + time series. Todas las capas de esta fase
-agregan valor tanto para tasación rural (contexto ambiental) como para ecoinformática
-(backbone del análisis).
+Todas las capas de esta fase agregan valor a los dos públicos: contexto ambiental
+para la tasación rural, y base de análisis para la ecoinformática.
+
+> **Progreso: 1 de 5.** § 5.1 (Bioclima) está en producción desde el
+> 2026-09-03. El siguiente objetivo es § 5.2 (NDVI), que es el salto
+> cualitativo de la fase: introduce la **serie temporal**, algo que ninguna capa
+> del SIG tiene hoy —todas son de una sola fecha— y que obliga a resolver un
+> selector de tiempo en la UI y una estrategia de ingesta de 20 años de datos.
+>
+> **Lo aprendido en 5.1 que aplica al resto de la fase:**
+> 1. Un raster recortado y pintado en el ETL pesa muy poco (75 KB para todo
+>    Chile a 2.5′). Antes de montar un servicio por viewport, calcular cuánto
+>    pesa realmente el recorte: el patrón remoto existe para datasets que no
+>    caben, no por defecto.
+> 2. Todo raster que se sirva como `L.ImageOverlay` debe ir **reproyectado a
+>    Web Mercator**, o queda corrido en latitud. Esto vale para NDVI, para las
+>    proyecciones CMIP6 y para cualquier GeoTIFF que entre después.
+> 3. Verificar una capa raster contra una **costa o frontera concreta**, nunca
+>    contra la impresión de que el patrón «se ve razonable».
 
 ### 5.1 Bioclima (WorldClim 2.1) — ✅ **EN PRODUCCIÓN**
 
@@ -416,6 +448,13 @@ agregan valor tanto para tasación rural (contexto ambiental) como para ecoinfor
       el colapso está bien; para una con control, esconde funcionalidad. Se
       resuelve junto con la «leyenda flotante que muestra solo las capas
       encendidas» del § Leyendas de la auditoría.
+- [ ] **En el sur, la precipitación se confunde con el mar.** Los tramos altos
+      de la rampa (2.000–3.000 y >3.000 mm) son azules, y el agua de
+      OpenStreetMap también: en Chiloé o Aysén cuesta separar isla de canal. No
+      es un error de dato —se verificó que la isla está pintada— sino de
+      legibilidad sobre ese mapa base. Salidas posibles: correr esos dos tramos
+      hacia el violeta/turquesa, o sugerir el mapa base «Neutro» al encender la
+      capa, que es el que ya se recomienda para el mapa de calor.
 
 - **Riesgo asumido y documentado**: 2.5 min de arco es una superficie
   **interpolada desde estaciones meteorológicas**, no una medición del predio.
@@ -717,6 +756,11 @@ que amplían el uso diario del perito:
       de dentro del `<ul>`.
 - [ ] **Un solo geocoder en el DOM**: hoy se renderizan la variante mobile y
       la desktop a la vez, con la misma etiqueta accesible.
+      *Confirmado en producción el 2026-09-03*: apuntar al buscador por su
+      etiqueta accesible devuelve dos nodos, y el primero del DOM es
+      precisamente el que está oculto por CSS. Un lector de pantalla anuncia dos
+      buscadores idénticos, y cualquier automatización que tome «el primero»
+      toma el invisible.
 - [ ] **Panel de capas como drawer inferior en mobile**, igual que el de
       filtros: hoy tapa ~80 % de la pantalla.
 - [ ] **Repartir el borde inferior en mobile**: atribución, escala, chip de
@@ -830,6 +874,23 @@ próxima revisión:
    ambos públicos en menos tiempo.
 
 ## Hitos (a llenar al cerrar tareas)
+
+- **2026-09-03 — Primera capa de la Fase 5: Bioclima (WorldClim 2.1).**
+  Temperatura media anual y precipitación anual como PNG estático recortado a
+  Chile (75 KB entre ambas variables), con selector de variable y leyenda.
+  Abre la línea ecoinformática del SIG: es la entrada obligatoria de cualquier
+  análisis de nichos o de aptitud climática.
+  Dos decisiones que conviene no revertir: **(a)** servir un PNG pintado en el
+  ETL en vez de renderizar por viewport —el patrón por viewport existe para los
+  500 MB remotos de CIREN y aquí sería complejidad sin beneficio—; **(b)** el
+  PNG va **reproyectado a Web Mercator**, porque `L.ImageOverlay` estira la
+  imagen linealmente en la proyección del mapa. La primera versión salió
+  equiespaciada en grados y quedó corrida **hasta 287 km al sur**; se descubrió
+  porque Chiloé aparecía en blanco. Corregido en `872e261`.
+  *Lección transversal, aplicable a toda capa raster futura:* ese desfase es
+  cero en los extremos del recorte y máximo en el medio, así que es invisible a
+  una revisión de «se ve plausible» —sobrevivió a una— y solo aparece al
+  contrastar con una costa concreta. **Una isla es el mejor testigo.**
 
 - **2026-08-26 — Corrección de las estadísticas del panel CBR.**
   `/api/stats` expone los tres denominadores reales (`count`,
