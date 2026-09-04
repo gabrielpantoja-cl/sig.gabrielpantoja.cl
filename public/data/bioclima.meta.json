@@ -11,32 +11,35 @@
     "bytes": 658405521,
     "contiene": "Las 19 variables bioclimáticas (bio_1 … bio_19) en un solo ZIP. No existe descarga por variable individual."
   },
+  "nota": "Superficie interpolada desde estaciones meteorológicas, no una medición del predio: es contexto regional, no dato de sitio.",
+  "recorte": "Chile continental",
+  "boundsWgs84": {
+    "oeste": -75.70833333333334,
+    "este": -66.375,
+    "norte": -17.5,
+    "sur": -56
+  },
   "variables": {
-    "bio_1": {
-      "file": "wc2.1_2.5m_bio_1.tif",
+    "temperature": {
+      "descripcion": "Temperatura media anual (BIO1)",
       "unidad": "°C",
-      "descripcion": "Temperatura media anual",
-      "presente": true,
-      "bytes": 50198441
+      "archivo": "/data/bioclima-temperatura.png",
+      "bytes": 51271,
+      "rango_observado": {
+        "min": -12,
+        "max": 20.7
+      }
     },
-    "bio_12": {
-      "file": "wc2.1_2.5m_bio_12.tif",
+    "precipitation": {
+      "descripcion": "Precipitación total anual (BIO12)",
       "unidad": "mm",
-      "descripcion": "Precipitación total anual",
-      "presente": true,
-      "bytes": 25761708
+      "archivo": "/data/bioclima-precipitacion.png",
+      "bytes": 25822,
+      "rango_observado": {
+        "min": 0,
+        "max": 6733
+      }
     }
   },
-  "estado": "RASTER_DESCARGADO",
-  "pendiente": [
-    "Recortar a Chile continental y reproyectar a Web Mercator para el overlay",
-    "Renderizar PNG por viewport en /api/bioclima/export (hoy devuelve un placeholder 1×1)",
-    "Montar el L.ImageOverlay en MapView (hoy el toggle del panel no dibuja nada)"
-  ],
-  "boundsWgs84": {
-    "oeste": -75.7,
-    "sur": -56,
-    "este": -66.4,
-    "norte": -17.5
-  }
+  "generado": "2026-09-04"
 }

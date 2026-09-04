@@ -103,6 +103,11 @@ import {
   type SuelosStatus,
 } from '@/lib/suelos';
 import {
+  BIOCLIMA_DEFAULT_VARIABLE,
+  fetchBioclimaMeta,
+  type BioclimaVariable,
+} from '@/lib/bioclima';
+import {
   PROPIEDADES_RURALES_ATTRIBUTION,
   PROPIEDADES_RURALES_COLOR,
   PROPIEDADES_RURALES_DISCLAIMER,
@@ -668,6 +673,8 @@ export default function MapView({
   showRedDrenaje = false,
   showLineasTransmision = false,
   showSuelos = false,
+  showBioclima = false,
+  bioclimaVariable = BIOCLIMA_DEFAULT_VARIABLE,
   showCatastroFruticola = false,
   showVegetacional = false,
   showPropiedadesRurales = false,
@@ -697,6 +704,10 @@ export default function MapView({
   showRedDrenaje?: boolean;
   showLineasTransmision?: boolean;
   showSuelos?: boolean;
+  /** Bioclima WorldClim: imagen estática recortada a Chile, no un servicio por
+   *  viewport — el raster completo pesa 25-50 KB. */
+  showBioclima?: boolean;
+  bioclimaVariable?: BioclimaVariable;
   showCatastroFruticola?: boolean;
   showVegetacional?: boolean;
   showPropiedadesRurales?: boolean;
@@ -749,6 +760,7 @@ export default function MapView({
   const redDrenajeRef = useRef<L.GeoJSON | null>(null);
   const lineasTransmisionRef = useRef<L.GeoJSON | null>(null);
   const suelosRef = useRef<L.ImageOverlay | null>(null);
+  const bioclimaRef = useRef<L.ImageOverlay | null>(null);
   const catastroFruticolaRef = useRef<L.GeoJSON | null>(null);
   const vegetacionalRef = useRef<L.ImageOverlay | null>(null);
   const propiedadesRuralesRef = useRef<L.ImageOverlay | null>(null);
@@ -854,6 +866,10 @@ export default function MapView({
     // Comunas al fondo de todo (contexto), luego áreas protegidas.
     protectedRef.current?.bringToBack();
     comunasRef.current?.bringToBack();
+    // Bioclima queda por debajo incluso de comunas: es una superficie continua
+    // que cubre todo el territorio, así que sobre cualquier otra capa las
+    // taparía por completo. Va justo encima del mapa base.
+    bioclimaRef.current?.bringToBack();
     urbanLimitRef.current?.bringToFront();
     // Catastro frutícola sobre los polígonos administrativos (los huertos
     // son el dato sustantivo de la capa: deben quedar visibles).
@@ -1752,6 +1768,58 @@ export default function MapView({
       if (vegetacionalRef.current === overlay) vegetacionalRef.current = null;
     };
   }, [showVegetacional, reorderOverlays]);
+
+  // Bioclima (WorldClim). Es la capa remota más simple del mapa y a propósito:
+  // el raster recortado a Chile son 224×924 px (25-50 KB), así que el ETL lo
+  // deja pintado como PNG y aquí solo se cuelga con sus bounds. Sin fetch por
+  // viewport, sin refresco en `moveend` y sin servicio de terceros en runtime,
+  // al revés que suelos CIREN —cuyo dataset de 500 MB sí obliga a ese patrón—.
+  // Los bounds salen del manifiesto y no de una constante repetida: si cambia
+  // el recorte del ETL, la imagen se sigue georreferenciando sola.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!showBioclima) {
+      if (bioclimaRef.current) {
+        map.removeLayer(bioclimaRef.current);
+        bioclimaRef.current = null;
+      }
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const meta = await fetchBioclimaMeta();
+        if (cancelled || !mapRef.current) return;
+
+        const b = meta.boundsWgs84;
+        const bounds = L.latLngBounds([b.sur, b.oeste], [b.norte, b.este]);
+        const url = meta.variables[bioclimaVariable].archivo;
+
+        if (bioclimaRef.current) {
+          bioclimaRef.current.setUrl(url);
+          bioclimaRef.current.setBounds(bounds);
+        } else {
+          bioclimaRef.current = L.imageOverlay(url, bounds, {
+            opacity: 0.6,
+            // No es clicable: el valor bajo el cursor se resuelve por popup del
+            // mapa, no por eventos de la imagen, que taparía a las capas de
+            // abajo si capturara el puntero.
+            interactive: false,
+          }).addTo(mapRef.current);
+        }
+        reorderOverlays();
+      } catch (error) {
+        console.error('Bioclima: no se pudo montar la capa.', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showBioclima, bioclimaVariable, reorderOverlays]);
 
   // Suelos agrológicos (CIREN) — capa dinámica remota: el dataset completo
   // supera los 500 MB, así que el servidor de CIREN renderiza la imagen con

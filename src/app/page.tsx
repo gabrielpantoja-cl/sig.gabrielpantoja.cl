@@ -814,6 +814,8 @@ export default function Home() {
             showLineasTransmision={showLineasTransmision}
             showSuelos={showSuelos}
             onSuelosStatus={setSuelosStatus}
+            showBioclima={showBioclima}
+            bioclimaVariable={bioclimaVariable}
             showCatastroFruticola={showCatastroFruticola}
             showVegetacional={showVegetacional}
             showPropiedadesRurales={showPropiedadesRurales}

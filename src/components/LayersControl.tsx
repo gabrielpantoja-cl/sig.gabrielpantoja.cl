@@ -53,7 +53,12 @@ import {
 } from '@/lib/vegetacional';
 import { KML_MAX_FILE_MB, kmlDisplayName, type KmlLayer } from '@/lib/kml';
 import { PROPIEDADES_RURALES_ATTRIBUTION, PROPIEDADES_RURALES_COLOR, PROPIEDADES_RURALES_DISCLAIMER, PROPIEDADES_RURALES_MIN_ZOOM, PROPIEDADES_RURALES_REGIONS, PROPIEDADES_RURALES_SOURCE_URL, type PropiedadesRuralesStatus } from '@/lib/propiedades-rurales';
-import { bioclimaAttribution, bioclimaColorPalette } from '@/lib/bioclima';
+import {
+  BIOCLIMA_SOURCE_URL,
+  bioclimaAttribution,
+  bioclimaRamp,
+  type BioclimaVariable,
+} from '@/lib/bioclima';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
 
 /**
@@ -457,8 +462,8 @@ export function LayersControl({
   suelosStatus: SuelosStatus;
   showBioclima: boolean;
   onToggleBioclima: (v: boolean) => void;
-  bioclimaVariable: 'temperature' | 'precipitation';
-  onBioclimaVariable: (v: 'temperature' | 'precipitation') => void;
+  bioclimaVariable: BioclimaVariable;
+  onBioclimaVariable: (v: BioclimaVariable) => void;
   showCatastroFruticola: boolean;
   onToggleCatastroFruticola: (v: boolean) => void;
   showVegetacional: boolean;
@@ -867,12 +872,12 @@ export function LayersControl({
         <LayerRow
           checked={showBioclima}
           onChange={onToggleBioclima}
-          label="Bioclima (WORLDCLIM)"
+          label="Bioclima (WorldClim)"
           swatch={
             <span
               className="inline-block h-2.5 w-2.5 rounded-sm"
               style={{
-                background: `linear-gradient(90deg, ${bioclimaColorPalette[bioclimaVariable].ranges[0].color}, ${bioclimaColorPalette[bioclimaVariable].ranges.at(-1)?.color})`,
+                background: `linear-gradient(90deg, ${bioclimaRamp[bioclimaVariable].stops[0].color}, ${bioclimaRamp[bioclimaVariable].stops.at(-1)?.color})`,
               }}
             />
           }
@@ -883,28 +888,35 @@ export function LayersControl({
             </span>
             <select
               value={bioclimaVariable}
-              onChange={(e) => onBioclimaVariable(e.target.value as 'temperature' | 'precipitation')}
+              onChange={(e) => onBioclimaVariable(e.target.value as BioclimaVariable)}
               className="mt-0.5 w-full rounded border border-black/15 bg-[var(--background)] px-1.5 py-1 text-xs text-[var(--foreground)] dark:border-white/20"
             >
-              <option value="temperature">Temperatura media anual (°C)</option>
-              <option value="precipitation">Precipitación anual (mm)</option>
+              <option value="precipitation" className="bg-[var(--background)] text-[var(--foreground)]">
+                Precipitación anual (mm)
+              </option>
+              <option value="temperature" className="bg-[var(--background)] text-[var(--foreground)]">
+                Temperatura media anual (°C)
+              </option>
             </select>
           </label>
-          <div className="mt-2 space-y-1 text-[0.6rem]">
-            {bioclimaColorPalette[bioclimaVariable].ranges.map((range) => (
-              <div key={range.label} className="flex items-center gap-1.5">
+          <ul className="mt-2 space-y-1 text-xs">
+            {bioclimaRamp[bioclimaVariable].stops.map((stop) => (
+              <li key={stop.label} className="flex items-center gap-1.5 leading-tight">
                 <span
-                  className="inline-block h-2 w-4 shrink-0 rounded-sm"
-                  style={{ background: range.color }}
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-black/20 dark:border-white/25"
+                  style={{ background: stop.color }}
                 />
-                <span className="opacity-80">{range.label}</span>
-              </div>
+                <span className="opacity-80">
+                  {stop.label}
+                  <span className="opacity-60"> {bioclimaRamp[bioclimaVariable].unit}</span>
+                </span>
+              </li>
             ))}
-          </div>
+          </ul>
           <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
             {bioclimaAttribution}{' '}
             <a
-              href="https://www.worldclim.org/data/worldclim21.html"
+              href={BIOCLIMA_SOURCE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="underline hover:opacity-100"
