@@ -70,10 +70,17 @@ Browser → /api/geocode → Nominatim/OSM (address search, Chile only, cached p
   downloads the official 628 MiB package (all 19 bioclimatic variables ship in ONE zip; there
   is no per-variable download), extracts only BIO1 and BIO12, and clips the window out of the
   8640 × 4320 global GeoTIFF with `geotiff` + `pngjs`. Three details that are load-bearing:
-  (1) the colour ramp lives in `src/lib/bioclima-ramp.json`, read by BOTH the ETL and the
-  legend, so map and legend cannot drift apart; (2) the overlay's bounds come from the
+  (1) **the PNG is written REPROJECTED to Web Mercator** — rows evenly spaced in EPSG:3857
+  Y, not in degrees of latitude. `L.ImageOverlay` stretches the image linearly in the map's
+  projection, so a degree-spaced PNG lands **up to 287 km too far south** in central Chile;
+  that bug shipped once and showed up as Chiloé rendering blank, because the pixel landing on
+  the island came from ~2.4° further north, which at that longitude is open ocean. The offset
+  is zero at both edges of the clip and worst in the middle, so it is invisible to a "looks
+  plausible" check — verify against a concrete coastline, an island is the best witness;
+  (2) the colour ramp lives in `src/lib/bioclima-ramp.json`, read by BOTH the ETL and the
+  legend, so map and legend cannot drift apart; (3) the overlay's bounds come from the
   manifest, computed from the pixel-rounded clip — using the nominal degrees offsets the
-  image by up to half a cell; (3) ocean arrives as `NaN` or a large negative sentinel and both
+  image by up to half a cell; (4) ocean arrives as `NaN` or a large negative sentinel and both
   must be dropped, or the sea gets painted with the coldest ramp colour. BIO1 is °C float32 —
   v2.1 dropped v1.4's ×10 integer scaling. Climatology is **1970-2000** at 2.5 arc-minutes: an
   interpolated surface from weather stations, never a site measurement, and the attribution

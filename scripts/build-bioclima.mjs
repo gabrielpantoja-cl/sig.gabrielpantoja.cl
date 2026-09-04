@@ -48,6 +48,24 @@ const ZIP_BYTES = 658405521;
 /** Grados por píxel del grid de 2.5 minutos de arco. */
 const RES = 1 / 24;
 
+/**
+ * Web Mercator (EPSG:3857) en su forma normalizada, y su inversa.
+ *
+ * Existe por un bug real: el GeoTIFF tiene las filas equiespaciadas en GRADOS
+ * de latitud, pero `L.ImageOverlay` estira la imagen linealmente en la
+ * proyección del mapa, que es Mercator. Escribir el PNG con filas
+ * equiespaciadas en grados dejaba la capa corrida **hasta 287 km hacia el sur**
+ * en el centro de Chile: sobre Chiloé caía el píxel de ~2,4° más al norte —a
+ * esa longitud, océano abierto— y la isla se veía sin datos.
+ *
+ * El desfase es 0 en los extremos del recorte y máximo en el medio, así que no
+ * se detecta mirando el patrón general: hay que comparar contra una costa
+ * concreta. Por eso el PNG se escribe ya reproyectado, con las filas
+ * equiespaciadas en Y de Mercator.
+ */
+const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+const mercLat = (y) => ((Math.atan(Math.exp(y)) - Math.PI / 4) * 360) / Math.PI;
+
 /** Recorte pedido. Se ajusta al píxel más cercano; los bounds efectivos se
  *  recalculan desde los índices para que el overlay no quede corrido. */
 const CHILE = { oeste: -75.7, este: -66.4, norte: -17.5, sur: -56.0 };
@@ -145,31 +163,48 @@ async function renderVariable(key, spec) {
 
   const [raster] = await image.readRasters({ window: [x0, y0, x1, y1] });
 
+  // Alto del PNG de salida en filas de Mercator. Mercator estira hacia el polo,
+  // así que se dimensiona por la latitud MÁS FINA del recorte (la del norte,
+  // donde una celda ocupa menos espacio proyectado) para no perder filas del
+  // origen en ninguna latitud.
+  const mNorte = mercY(bounds.norte);
+  const mSur = mercY(bounds.sur);
+  const pasoMinimo = Math.abs(mercY(bounds.norte) - mercY(bounds.norte - RES));
+  const heightMerc = Math.ceil(Math.abs(mNorte - mSur) / pasoMinimo);
+
   const stops = RAMP[key].stops.map((s) => ({ ...s, rgb: hexToRgb(s.color) }));
-  const png = new PNG({ width, height });
+  const png = new PNG({ width, height: heightMerc });
 
   let min = Infinity;
   let max = -Infinity;
   let conDato = 0;
 
-  for (let i = 0; i < raster.length; i++) {
-    const v = raster[i];
-    const o = i * 4;
-    // El océano viene como NaN o como un centinela muy negativo según cómo se
-    // escribió el TIFF; ambos casos deben quedar transparentes en vez de
-    // pintarse con el color del tramo más frío.
-    if (Number.isNaN(v) || v < -1e30) {
-      png.data[o] = png.data[o + 1] = png.data[o + 2] = png.data[o + 3] = 0;
-      continue;
+  for (let fila = 0; fila < heightMerc; fila++) {
+    // Cada fila de salida está equiespaciada en Mercator; se traduce a la
+    // latitud que le corresponde y de ahí a la fila del raster de origen.
+    const lat = mercLat(mNorte + ((fila + 0.5) / heightMerc) * (mSur - mNorte));
+    const filaOrigen = Math.floor((bounds.norte - lat) / RES);
+    if (filaOrigen < 0 || filaOrigen >= height) continue;
+
+    for (let col = 0; col < width; col++) {
+      const v = raster[filaOrigen * width + col];
+      const o = (fila * width + col) * 4;
+      // El océano viene como NaN o como un centinela muy negativo según cómo se
+      // escribió el TIFF; ambos casos deben quedar transparentes en vez de
+      // pintarse con el color del tramo más frío.
+      if (Number.isNaN(v) || v < -1e30) {
+        png.data[o] = png.data[o + 1] = png.data[o + 2] = png.data[o + 3] = 0;
+        continue;
+      }
+      const [r, g, b] = colorFor(stops, v);
+      png.data[o] = r;
+      png.data[o + 1] = g;
+      png.data[o + 2] = b;
+      png.data[o + 3] = 255;
+      if (v < min) min = v;
+      if (v > max) max = v;
+      conDato++;
     }
-    const [r, g, b] = colorFor(stops, v);
-    png.data[o] = r;
-    png.data[o + 1] = g;
-    png.data[o + 2] = b;
-    png.data[o + 3] = 255;
-    if (v < min) min = v;
-    if (v > max) max = v;
-    conDato++;
   }
 
   const buffer = PNG.sync.write(png);
@@ -177,10 +212,11 @@ async function renderVariable(key, spec) {
 
   return {
     width,
-    height,
+    height: heightMerc,
+    altoOriginal: height,
     bounds,
     bytes: buffer.length,
-    cobertura: conDato / raster.length,
+    cobertura: conDato / (width * heightMerc),
     rango: { min, max },
   };
 }
@@ -208,8 +244,8 @@ async function buildBioclima() {
       },
     };
     console.log(
-      `   ${r.width}×${r.height} px · ${(r.bytes / 1024).toFixed(0)} KB · ` +
-        `tierra ${(r.cobertura * 100).toFixed(0)}% · ` +
+      `   ${r.width}×${r.height} px (reproyectado desde ${r.width}×${r.altoOriginal}) · ` +
+        `${(r.bytes / 1024).toFixed(0)} KB · tierra ${(r.cobertura * 100).toFixed(0)}% · ` +
         `rango ${r.rango.min.toFixed(1)}–${r.rango.max.toFixed(1)} ${spec.unidad}`,
     );
   }
@@ -230,6 +266,8 @@ async function buildBioclima() {
     },
     nota: 'Superficie interpolada desde estaciones meteorológicas, no una medición del predio: es contexto regional, no dato de sitio.',
     recorte: 'Chile continental',
+    proyeccion:
+      'PNG reproyectado a Web Mercator (filas equiespaciadas en Y de EPSG:3857) porque L.ImageOverlay estira la imagen linealmente en la proyección del mapa. Escribirlo equiespaciado en grados dejaba la capa corrida hasta 287 km al sur en el centro del país.',
     boundsWgs84: bounds,
     variables,
     generado: new Date().toISOString().slice(0, 10),
