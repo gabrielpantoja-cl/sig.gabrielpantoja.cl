@@ -902,8 +902,7 @@ export function LayersControl({
             ))}
           </div>
           <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
-            {bioclimaAttribution}. Climatología observada 1981-2010 (2.5 min ~5 km).
-            Resolución gruesa; útil para contexto regional y análisis de nichos.{' '}
+            {bioclimaAttribution}{' '}
             <a
               href="https://www.worldclim.org/data/worldclim21.html"
               target="_blank"

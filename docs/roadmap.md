@@ -321,27 +321,62 @@ Reutiliza la infraestructura de remote layers + time series. Todas las capas de 
 agregan valor tanto para tasación rural (contexto ambiental) como para ecoinformática
 (backbone del análisis).
 
-### 5.1 Bioclima global (WORLDCLIM o CHELSA) — **PRIORIDAD ALTA**
+### 5.1 Bioclima (WorldClim 2.1) — 🚧 **A MEDIO CAMINO**
 
-- **Fuente**: WORLDCLIM (<https://www.worldclim.org/>, 1981–2010, 2.5 min ~5 km) o
-  CHELSA (<https://chelsa-climate.org/>, 2020–2021, 30″ ~1 km, más reciente).
+> **Estado 2026-09-03.** Los datos están en disco y la UI existe, pero **la capa
+> todavía no dibuja nada en el mapa**: encender el toggle no produce ningún
+> píxel. Falta la mitad que convierte el raster en imagen sobre el mapa.
+
+- **Fuente**: WorldClim 2.1 (<https://www.worldclim.org/data/worldclim21.html>),
+  climatología **1970-2000**, 2.5 min de arco (≈4,6 km en el ecuador). Descarga
+  directa verificada: `https://geodata.ucdavis.edu/climate/worldclim/2_1/base/wc2.1_2.5m_bio.zip`.
 - **Qué agrega**:
-  - **Para tasación**: contexto climático básico (rango de precipitación anual,
-    temperatura media) para entender capacidad productiva.
-  - **Para ecoinformática**: BACKBONE de cualquier análisis de nichos ecológicos,
-    áreas de aptitud, cambio climático. Imprescindible para modelar distribuciones
-    de especies, modelar proyecciones futuras (CMIP6), análisis de refugia climática.
-- **Tipo de capa esperada**: **estática raster** (GeoTIFF optimizado, servido como
-  `L.ImageOverlay` con leyenda de cuantiles). Una sola fecha o dos épocas (baseline
-  histórica + proyección 2070 de un escenario climático).
-- **Esfuerzo**: **S** — descargar GeoTIFF de WORLDCLIM o CHELSA, mapear a paleta
-  de colores divergente (azul frío = húmedo, rojo caliente = árido), documentar,
-  publicar. ~1–2 días.
-- **Datos a incluir**: precipitación anual (mm), temperatura media anual (°C), rango
-  de temperatura, índices derivados (SPI estandarizado por cuencas usando datos
-  históricos del DMC).
-- **Riesgo**: la escala 2.5 min puede ser gruesa para análisis predial fino; CHELSA
-  a 30″ es mejor pero más peso. Evaluar peso en ZIP post-simplificación.
+  - **Para tasación**: contexto climático del predio (precipitación anual,
+    temperatura media) como referencia de capacidad productiva.
+  - **Para ecoinformática**: base de cualquier análisis de nichos ecológicos,
+    áreas de aptitud y refugia climática; entrada obligatoria para modelar
+    distribuciones de especies.
+- **Tipo**: **raster estático** recortado a Chile, servido como `L.ImageOverlay`.
+
+**Hecho:**
+
+- [x] Descarga del paquete oficial (`wc2.1_2.5m_bio.zip`, 628 MiB) y extracción de
+      las dos variables usadas: BIO1 (temperatura media anual, 48 MB) y BIO12
+      (precipitación anual, 25 MB), en `.research/worldclim/` (gitignored).
+- [x] ETL `scripts/build-bioclima.mjs`: descarga, extrae solo esas dos de las 19,
+      valida el tamaño del ZIP y emite el manifiesto de procedencia.
+- [x] `src/lib/bioclima.ts`: cortes de color de ambas rampas, atribución y cita
+      académica, extensión del recorte.
+- [x] `LayersControl`: fila de capa, selector de variable (temperatura ↔
+      precipitación) y leyenda; estados cableados en `page.tsx`.
+
+**Falta (esto es lo que hace que la capa exista de verdad):**
+
+- [ ] **Recorte y reproyección**. Los TIF son globales y vienen en EPSG:4326;
+      hay que recortarlos a Chile continental y dejarlos listos para componer
+      sobre el mapa. Requiere GDAL, que **no está instalado en la máquina del
+      mantenedor** — decidir entre instalarlo o resolver la lectura del GeoTIFF
+      en el route handler con una librería JS (`geotiff.js`).
+- [ ] **`/api/bioclima/export` de verdad**. Hoy el handler valida `bbox` y `size`
+      y devuelve un **PNG transparente de 1×1**: un placeholder, no una imagen del
+      raster. Falta leer la ventana pedida del GeoTIFF, mapear cada valor a su
+      color con la rampa de `bioclima.ts` y devolver el PNG.
+- [ ] **Montar el overlay en `MapView`**. `MapView.tsx` **no tiene ni una
+      referencia a bioclima**: por eso el toggle del panel no dibuja nada. Falta
+      el `L.ImageOverlay` refrescado en `moveend`, siguiendo el patrón ya probado
+      de suelos CIREN (`docs/arquitectura-capas.md` § Capas dinámicas remotas).
+- [ ] **Consulta puntual** (`/api/bioclima/identify`): clic sobre el mapa →
+      «1.240 mm/año · 11,3 °C». Es lo que vuelve la capa consultable en vez de
+      solo decorativa.
+- [ ] **Decidir dónde viven los rasters en producción**. 73 MB de GeoTIFF no
+      pueden ir al repositorio; se cruza con la «Migración de almacenamiento de
+      GeoJSON» de Q4-2026. Mientras tanto la capa solo funciona en local.
+
+- **Esfuerzo restante**: **M** (la parte de render es la cara, no la descarga).
+- **Riesgo asumido y documentado**: 2.5 min es una superficie **interpolada desde
+  estaciones meteorológicas**, no una medición del predio. Sirve como contexto
+  regional; el popup debe decirlo para que nadie la cite como dato de sitio en un
+  informe de tasación.
 
 ### 5.2 Índices de vegetación dinámicos (MODIS NDVI/EVI 2000–presente)
 

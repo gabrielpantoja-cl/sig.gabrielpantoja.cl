@@ -1,35 +1,41 @@
 /**
- * Bioclima — WORLDCLIM v2.1 (1981-2010)
+ * Bioclima — WorldClim 2.1, climatología 1970-2000
  *
- * Raster de variables bioclimáticas: temperatura media anual, precipitación anual,
- * índices derivados. Backbone para análisis de nichos ecológicos, distribuciones de
- * especies, cambio climático.
+ * Raster de variables bioclimáticas: temperatura media anual y precipitación
+ * anual. Base para análisis de nichos ecológicos, distribuciones de especies y
+ * contexto climático del predio.
  *
  * Datos: https://www.worldclim.org/data/worldclim21.html
- * - BIO1: Temp media anual (°C × 10)
- * - BIO12: Precip total anual (mm)
- * - Resolución: 2.5 min (~5 km)
+ * - BIO1: temperatura media anual (°C, float32 — la v2.1 NO usa la escala
+ *   entera ×10 de la v1.4; leer el valor tal cual)
+ * - BIO12: precipitación total anual (mm, entero)
+ * - Resolución: 2.5 min de arco (≈4,6 km en el ecuador; la celda es más
+ *   angosta en longitud a la latitud de Chile)
+ *
+ * Las 19 variables vienen en un solo ZIP de 658 MB; el ETL extrae solo estas dos.
  *
  * @see docs/roadmap.md § 5.1
  */
 
 /**
- * Rango de valores esperados para Chile.
- * BIO1 (temp media): -2 a +20 °C → -20 a +200 en escala WORLDCLIM
- * BIO12 (precip): 50 a 4000 mm anuales
+ * Cortes de color. Los rangos son los valores REALES del raster —°C para
+ * temperatura, mm para precipitación— sin factor de escala.
+ *
+ * Chile continental abarca del desierto absoluto (Arica, ~0 mm) a la Patagonia
+ * occidental (>4000 mm), y de la altiplanicie andina bajo cero a los ~19 °C del
+ * norte costero, así que los extremos de ambas rampas se usan de verdad.
  */
 export const bioclimaColorPalette = {
-  // Temperatura (BIO1): divergente azul → rojo
-  // Escala: -20 (frío extremo) → 0 (congelación) → 200 (cálido, 20°C)
+  // Temperatura (BIO1): divergente azul → rojo, en °C.
   temperature: {
     ranges: [
-      { min: -50, max: -20, color: '#1a237e', label: '< -2°C (extremo)' },
-      { min: -20, max: 0, color: '#1565c0', label: '-2 a 0°C (frío)' },
-      { min: 0, max: 50, color: '#42a5f5', label: '0 a 5°C' },
-      { min: 50, max: 100, color: '#81c784', label: '5 a 10°C (templado)' },
-      { min: 100, max: 150, color: '#fdd835', label: '10 a 15°C' },
-      { min: 150, max: 200, color: '#ff7043', label: '15 a 20°C (cálido)' },
-      { min: 200, max: 300, color: '#c62828', label: '> 20°C (muy cálido)' },
+      { min: -50, max: 0, color: '#1a237e', label: '< 0 °C (altiplano, hielo)' },
+      { min: 0, max: 5, color: '#1565c0', label: '0 a 5 °C' },
+      { min: 5, max: 10, color: '#42a5f5', label: '5 a 10 °C' },
+      { min: 10, max: 13, color: '#81c784', label: '10 a 13 °C (templado)' },
+      { min: 13, max: 16, color: '#fdd835', label: '13 a 16 °C' },
+      { min: 16, max: 20, color: '#ff7043', label: '16 a 20 °C (cálido)' },
+      { min: 20, max: 60, color: '#c62828', label: '> 20 °C' },
     ],
     label: 'Temperatura media anual',
     unit: '°C',
@@ -51,66 +57,18 @@ export const bioclimaColorPalette = {
   },
 };
 
-/**
- * Configuración de capa para LayersControl.
- */
-export const bioclimaLayerConfig = {
-  name: 'Bioclima (WORLDCLIM)',
-  shortName: 'Bioclima',
-  className: 'bioclima',
-  color: '#42a5f5',
-  description: 'Temperatura media anual y precipitación total (1981-2010)',
-  zIndex: 40,
-  variable: 'precipitation' as const, // Default a precipitación; permite toggle
-};
+export type BioclimaVariable = keyof typeof bioclimaColorPalette;
 
-/**
- * Fetch GeoJSON de bioclima (stub mientras se descarga raster real).
- *
- * @throws Error si el archivo no existe o está vacío (investigación en curso).
- */
-export async function fetchBioclima(): Promise<{
-  type: 'FeatureCollection';
-  features: unknown[];
-  properties: { status: string };
-}> {
-  const res = await fetch('/data/bioclima.meta.json');
-  if (!res.ok) {
-    throw new Error(`fetchBioclima: ${res.status} ${res.statusText}`);
-  }
-  const meta = (await res.json()) as Record<string, unknown>;
-  if (meta.estado === 'INVESTIGACIÓN') {
-    console.warn(
-      '⚠️  Capa Bioclima aún en investigación. Raster WORLDCLIM descargado pero no integrado en viewer.',
-    );
-  }
-  return {
-    type: 'FeatureCollection',
-    features: [],
-    properties: {
-      status: 'INVESTIGACIÓN — raster no embebido aún',
-    },
-  };
-}
+/** Variable mostrada al encender la capa. */
+export const BIOCLIMA_DEFAULT_VARIABLE: BioclimaVariable = 'precipitation';
 
-/**
- * Información sobre la variable bioclimática seleccionada.
- */
-export function bioclimaInfo(variable: 'temperature' | 'precipitation'): {
-  label: string;
-  unit: string;
-  palette: (typeof bioclimaColorPalette)['temperature' | 'precipitation'];
-} {
-  const pal =
-    variable === 'temperature'
-      ? bioclimaColorPalette.temperature
-      : bioclimaColorPalette.precipitation;
-  return {
-    label: pal.label,
-    unit: pal.unit,
-    palette: pal,
-  };
-}
+/** Extensión del raster recortado, en WGS84: Chile continental. */
+export const BIOCLIMA_BOUNDS = {
+  oeste: -75.7,
+  sur: -56.0,
+  este: -66.4,
+  norte: -17.5,
+} as const;
 
 /**
  * Atribución y descargo legal.
@@ -118,13 +76,14 @@ export function bioclimaInfo(variable: 'temperature' | 'precipitation'): {
  * @see docs/roadmap.md § 5.1
  */
 export const bioclimaAttribution = `
-© WORLDCLIM Project · Fick & Hijmans (2017) "WorldClim 2: new 1-km spatial resolution
-climate surfaces for global land areas" International Journal of Climatology 37:4302-4315.
+WorldClim 2.1 · Fick, S.E. &amp; Hijmans, R.J. (2017) «WorldClim 2: new 1-km spatial
+resolution climate surfaces for global land areas», International Journal of
+Climatology 37(12): 4302-4315.
 
-Datos: <a href="https://www.worldclim.org/" target="_blank">worldclim.org</a>
-Licencia: <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC-BY 4.0</a>
+Datos: <a href="https://www.worldclim.org/" target="_blank">worldclim.org</a> ·
+Licencia: <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>
 
-<strong>Nota:</strong> Climatología observada 1981-2010 (2.5 min, ~5 km).
-Resolución gruesa para análisis predial fino; útil para contexto regional y análisis de nichos.
-Para cambio climático futuro, ver proyecciones CMIP6 (Fase 5.5).
+<strong>Nota:</strong> climatología 1970-2000 a 2.5 min de arco (≈4,6 km). Es una
+superficie interpolada desde estaciones meteorológicas, no una medición del predio:
+sirve como contexto regional y para análisis de nichos, no como dato de sitio.
 `.trim();
