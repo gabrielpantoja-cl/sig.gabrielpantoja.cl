@@ -321,11 +321,20 @@ Reutiliza la infraestructura de remote layers + time series. Todas las capas de 
 agregan valor tanto para tasación rural (contexto ambiental) como para ecoinformática
 (backbone del análisis).
 
-### 5.1 Bioclima (WorldClim 2.1) — 🚧 **A MEDIO CAMINO**
+### 5.1 Bioclima (WorldClim 2.1) — ✅ **EN PRODUCCIÓN**
 
-> **Estado 2026-09-03.** Los datos están en disco y la UI existe, pero **la capa
-> todavía no dibuja nada en el mapa**: encender el toggle no produce ningún
-> píxel. Falta la mitad que convierte el raster en imagen sobre el mapa.
+> **Cerrado el 2026-09-03.** La capa se dibuja, se puede alternar entre
+> temperatura y precipitación, y quedó verificada en el navegador. Queda
+> pendiente solo la consulta puntual (ver «Lo que falta» abajo).
+>
+> **La decisión de diseño que importa**: recortado a Chile el raster mide
+> 224 × 924 px —**50 KB temperatura, 25 KB precipitación**—, así que NO se
+> siguió el patrón de suelos CIREN de renderizar un PNG por viewport. El ETL
+> pinta las dos imágenes una vez y el mapa las cuelga como `L.ImageOverlay`
+> estático. Sin route handler, sin refresco en `moveend`, sin dependencia de
+> terceros en runtime y cacheable por el navegador. El patrón por viewport
+> existe para datasets de 500 MB en servidores ajenos; aplicarlo aquí habría
+> sido complejidad sin beneficio.
 
 - **Fuente**: WorldClim 2.1 (<https://www.worldclim.org/data/worldclim21.html>),
   climatología **1970-2000**, 2.5 min de arco (≈4,6 km en el ecuador). Descarga
@@ -340,43 +349,49 @@ agregan valor tanto para tasación rural (contexto ambiental) como para ecoinfor
 
 **Hecho:**
 
-- [x] Descarga del paquete oficial (`wc2.1_2.5m_bio.zip`, 628 MiB) y extracción de
-      las dos variables usadas: BIO1 (temperatura media anual, 48 MB) y BIO12
-      (precipitación anual, 25 MB), en `.research/worldclim/` (gitignored).
-- [x] ETL `scripts/build-bioclima.mjs`: descarga, extrae solo esas dos de las 19,
-      valida el tamaño del ZIP y emite el manifiesto de procedencia.
-- [x] `src/lib/bioclima.ts`: cortes de color de ambas rampas, atribución y cita
-      académica, extensión del recorte.
-- [x] `LayersControl`: fila de capa, selector de variable (temperatura ↔
-      precipitación) y leyenda; estados cableados en `page.tsx`.
+- [x] ETL `scripts/build-bioclima.mjs`: descarga el paquete oficial
+      (`wc2.1_2.5m_bio.zip`, 628 MiB), extrae solo BIO1 y BIO12 de las 19,
+      recorta la ventana de Chile del GeoTIFF global (8640 × 4320) con
+      `geotiff`, pinta el PNG con `pngjs` y emite el manifiesto.
+- [x] **Escala de color en un solo archivo** (`src/lib/bioclima-ramp.json`), que
+      leen tanto el ETL —para pintar— como la leyenda del panel. Es lo que
+      garantiza que leyenda y mapa no puedan desalinearse: con copias separadas
+      se separarían en silencio, sin que nada fallara de forma visible.
+- [x] **Bounds derivados del recorte real**, no de los grados pedidos. El ETL
+      redondea a píxel y publica los bounds efectivos en el manifiesto; el mapa
+      los lee de ahí. Usar los grados nominales habría corrido la imagen hasta
+      medio píxel.
+- [x] **Océano transparente**: el TIFF marca el mar como `NaN` o con un centinela
+      muy negativo según cómo se escribió; ambos casos se descartan, o el mar se
+      habría pintado con el color del tramo más frío.
+- [x] `L.ImageOverlay` montado en `MapView`, al fondo del apilado (es una
+      superficie continua: sobre cualquier otra capa la taparía entera).
+- [x] `LayersControl`: fila, selector de variable y leyenda; estados en `page.tsx`.
+- [x] **Verificado en el navegador**, y no solo que el `<img>` cargara: en
+      precipitación se ve el contraste húmedo/árido cruzando los Andes (sombra
+      de lluvia) y en temperatura la franja fría siguiendo la cordillera. Los
+      rangos observados son los correctos para Chile —0 a 6.733 mm y −12 a
+      20,7 °C—, lo que confirma que la georreferenciación es real.
 
-**Falta (esto es lo que hace que la capa exista de verdad):**
+**Lo que falta:**
 
-- [ ] **Recorte y reproyección**. Los TIF son globales y vienen en EPSG:4326;
-      hay que recortarlos a Chile continental y dejarlos listos para componer
-      sobre el mapa. Requiere GDAL, que **no está instalado en la máquina del
-      mantenedor** — decidir entre instalarlo o resolver la lectura del GeoTIFF
-      en el route handler con una librería JS (`geotiff.js`).
-- [ ] **`/api/bioclima/export` de verdad**. Hoy el handler valida `bbox` y `size`
-      y devuelve un **PNG transparente de 1×1**: un placeholder, no una imagen del
-      raster. Falta leer la ventana pedida del GeoTIFF, mapear cada valor a su
-      color con la rampa de `bioclima.ts` y devolver el PNG.
-- [ ] **Montar el overlay en `MapView`**. `MapView.tsx` **no tiene ni una
-      referencia a bioclima**: por eso el toggle del panel no dibuja nada. Falta
-      el `L.ImageOverlay` refrescado en `moveend`, siguiendo el patrón ya probado
-      de suelos CIREN (`docs/arquitectura-capas.md` § Capas dinámicas remotas).
-- [ ] **Consulta puntual** (`/api/bioclima/identify`): clic sobre el mapa →
-      «1.240 mm/año · 11,3 °C». Es lo que vuelve la capa consultable en vez de
-      solo decorativa.
-- [ ] **Decidir dónde viven los rasters en producción**. 73 MB de GeoTIFF no
-      pueden ir al repositorio; se cruza con la «Migración de almacenamiento de
-      GeoJSON» de Q4-2026. Mientras tanto la capa solo funciona en local.
+- [ ] **Consulta puntual**: clic → «1.240 mm/año · 11,3 °C». El PNG solo guarda
+      color, así que hace falta publicar además los valores crudos (Int16
+      recortado, ~400 KB por variable, o comprimido bastante menos) y cargarlos
+      de forma diferida al primer clic. Sin esto la capa se lee, pero no se
+      consulta.
+- [ ] **Incluirla en el PNG exportado** (`map-export.ts`) para que la lámina del
+      informe muestre lo mismo que la pantalla, con su atribución.
+- [ ] **Opacidad ajustable**: hoy va fija en 0,6. Se cruza con el ítem general de
+      «opacidad por capa» de la auditoría de UX.
 
-- **Esfuerzo restante**: **M** (la parte de render es la cara, no la descarga).
-- **Riesgo asumido y documentado**: 2.5 min es una superficie **interpolada desde
-  estaciones meteorológicas**, no una medición del predio. Sirve como contexto
-  regional; el popup debe decirlo para que nadie la cite como dato de sitio en un
-  informe de tasación.
+- **Riesgo asumido y documentado**: 2.5 min de arco es una superficie
+  **interpolada desde estaciones meteorológicas**, no una medición del predio.
+  La atribución del panel lo dice de forma explícita para que nadie la cite como
+  dato de sitio en un informe de tasación.
+- **Nota de almacenamiento**: los 73 MB de GeoTIFF globales quedan en
+  `.research/` (gitignored); al repositorio solo entran los dos PNG recortados,
+  75 KB entre ambos. Esta capa NO participa de la migración a bucket de Q4-2026.
 
 ### 5.2 Índices de vegetación dinámicos (MODIS NDVI/EVI 2000–presente)
 
