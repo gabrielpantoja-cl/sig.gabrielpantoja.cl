@@ -1,0 +1,29 @@
+{
+  "_comment": "Fuente única de la escala de color de la capa Bioclima. La lee el ETL (scripts/build-bioclima.mjs) para pintar el PNG y la UI (src/lib/bioclima.ts) para dibujar la leyenda, de modo que mapa y leyenda no pueden desalinearse. Cada tramo aplica hasta 'max' exclusive; el último lleva max null (sin tope). Los valores son los del raster: °C para temperatura, mm/año para precipitación, sin factor de escala.",
+  "temperature": {
+    "label": "Temperatura media anual",
+    "unit": "°C",
+    "stops": [
+      { "max": 0, "color": "#1a237e", "label": "< 0 (altiplano, hielo)" },
+      { "max": 5, "color": "#1565c0", "label": "0 a 5" },
+      { "max": 10, "color": "#42a5f5", "label": "5 a 10" },
+      { "max": 13, "color": "#81c784", "label": "10 a 13 (templado)" },
+      { "max": 16, "color": "#fdd835", "label": "13 a 16" },
+      { "max": 20, "color": "#ff7043", "label": "16 a 20 (cálido)" },
+      { "max": null, "color": "#c62828", "label": "> 20" }
+    ]
+  },
+  "precipitation": {
+    "label": "Precipitación anual",
+    "unit": "mm",
+    "stops": [
+      { "max": 100, "color": "#8b4513", "label": "< 100 (desierto absoluto)" },
+      { "max": 300, "color": "#d2691e", "label": "100 a 300 (árido)" },
+      { "max": 600, "color": "#f5deb3", "label": "300 a 600 (semiárido)" },
+      { "max": 1200, "color": "#7cb342", "label": "600 a 1.200 (templado)" },
+      { "max": 2000, "color": "#2e7d32", "label": "1.200 a 2.000" },
+      { "max": 3000, "color": "#0277bd", "label": "2.000 a 3.000 (húmedo)" },
+      { "max": null, "color": "#01579b", "label": "> 3.000 (Patagonia occidental)" }
+    ]
+  }
+}
