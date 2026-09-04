@@ -59,8 +59,10 @@ npm run data:build
 | `npm run data:build:urban` | Regenera `public/data/limite-urbano.geojson` |
 | `npm run data:build:comunas` | Regenera `public/data/limites-comunales.geojson` |
 | `npm run data:build:red-vial` | Regenera `public/data/red-vial.geojson` |
+| `npm run data:build:red-drenaje` | Regenera `public/data/red-drenaje.geojson` |
 | `npm run data:build:lineas-transmision` | Regenera `public/data/lineas-transmision.geojson` |
 | `npm run data:build:catastro-fruticola` | Regenera `public/data/catastro-fruticola.geojson` |
+| `npm run data:build:bioclima` | Regenera `public/data/bioclima-*.png` (descarga 628 MiB la primera vez) |
 | `npm run data:build` | Regenera todas las capas estáticas con ETL |
 
 ## Convenciones de código
@@ -112,10 +114,14 @@ Estas nunca se negocian en un PR:
 
 ## Estructura del pull request
 
-0. **El check `Lint` debe pasar antes de mergear**. La rama `main` está
-   protegida por un ruleset que requiere el job `Lint` del workflow
-   `.github/workflows/lint.yml` (corre `npm run lint`) y al menos 1
-   aprobación. Un PR con lint en rojo no se puede mergear.
+0. **El check `ESLint + TypeScript` debe pasar antes de mergear**. La rama
+   `main` está protegida por un ruleset (`Protect main`) que exige ese job del
+   workflow `.github/workflows/lint.yml` (corre `npm run lint` y
+   `npm run typecheck`) y bloquea el force-push y el borrado de `main`. El
+   ruleset **no** exige aprobaciones: el mantenedor solo (proyecto de un
+   desarrollador) puede empujar directo a `main`, y las contribuciones externas
+   llegan por fork + PR, que pasan por el mismo check. Un PR con el check en
+   rojo no se puede mergear.
 
 1. Crea una rama con prefijo descriptivo:
    - `feat/<capa>-nueva` — capa nueva
@@ -134,9 +140,16 @@ Estas nunca se negocian en un PR:
 ## Versionado y releases
 
 - `main` es siempre deployable.
-- No se hace semantic versioning formal todavía (el proyecto está en
-  `0.1.0` y todavía no hay consumo externo de la API que justifique romper).
-- Cuando se publique la API v1, se introduce SemVer con `npm version` y
+- **SemVer `MAYOR.MENOR.PARCHE` ya está en vigor** desde el primer release
+  etiquetado `v0.1.0`. La política completa de qué mueve cada número vive en
+  [`src/lib/version.ts`](./src/lib/version.ts) y en
+  [AGENTS.md § Versioning](./AGENTS.md); el historial, en
+  [`CHANGELOG.md`](./CHANGELOG.md).
+- El `0.` mayor es una afirmación concreta, no modestia: **el contrato público
+  de `/api/*` todavía no está documentado ni congelado**. `1.0.0` llega el día
+  que lo esté.
+- Si tu PR cambia el número, tiene que moverlo en los **dos** sitios que deben
+  coincidir — `package.json` y `src/lib/version.ts` — y añadir su entrada en
   `CHANGELOG.md`.
 
 ## Recursos

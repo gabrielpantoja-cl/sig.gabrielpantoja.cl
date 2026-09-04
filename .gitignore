@@ -59,9 +59,13 @@ next-env.d.ts
 # only the simplified output in public/data/ is committed)
 /scripts/.cache/
 
-# local agent overrides (per-machine, not shared)
+# local agent overrides (per-machine, not shared). El settings.local.json de
+# Claude Code guarda permisos y rutas de la máquina: se ignora aquí y no solo
+# en el ~/.config/git/ignore del mantenedor, para que ningún contribuyente lo
+# commitee desde otra máquina.
 CLAUDE.local.md
 AGENTS.local.md
+.claude/settings.local.json
 
 # Directorios de investigación y referencias (no versionados)
 .research/
