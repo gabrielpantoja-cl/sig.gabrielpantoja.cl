@@ -361,6 +361,21 @@ agregan valor tanto para tasación rural (contexto ambiental) como para ecoinfor
       redondea a píxel y publica los bounds efectivos en el manifiesto; el mapa
       los lee de ahí. Usar los grados nominales habría corrido la imagen hasta
       medio píxel.
+- [x] **PNG reproyectado a Web Mercator** (corregido el 2026-09-03 tras un bug
+      en producción). El GeoTIFF tiene las filas equiespaciadas en GRADOS de
+      latitud, pero `L.ImageOverlay` estira la imagen linealmente en la
+      proyección del mapa, que es Mercator y comprime la latitud de forma no
+      lineal. Escribir el PNG en grados dejaba la capa corrida **hasta 287 km
+      hacia el sur** en el centro del país: sobre Chiloé caía el píxel de ~2,4°
+      más al norte —a esa longitud, océano abierto— y la isla se veía sin datos.
+      Ahora las filas van equiespaciadas en Y de Mercator, y el alto se
+      dimensiona por la latitud más fina del recorte para no perder filas
+      (224×924 → 224×1148).
+      **Lección para cualquier capa raster futura**: el desfase es cero en los
+      dos extremos del recorte y máximo en el medio, así que NO se detecta
+      mirando si el patrón «se ve plausible». Hay que verificar contra una costa
+      o frontera concreta —una isla es el mejor testigo—. Este bug sobrevivió a
+      una verificación visual previa justamente por eso.
 - [x] **Océano transparente**: el TIFF marca el mar como `NaN` o con un centinela
       muy negativo según cómo se escribió; ambos casos se descartan, o el mar se
       habría pintado con el color del tramo más frío.

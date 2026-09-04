@@ -13,6 +13,7 @@
   },
   "nota": "Superficie interpolada desde estaciones meteorológicas, no una medición del predio: es contexto regional, no dato de sitio.",
   "recorte": "Chile continental",
+  "proyeccion": "PNG reproyectado a Web Mercator (filas equiespaciadas en Y de EPSG:3857) porque L.ImageOverlay estira la imagen linealmente en la proyección del mapa. Escribirlo equiespaciado en grados dejaba la capa corrida hasta 287 km al sur en el centro del país.",
   "boundsWgs84": {
     "oeste": -75.70833333333334,
     "este": -66.375,
@@ -24,7 +25,7 @@
       "descripcion": "Temperatura media anual (BIO1)",
       "unidad": "°C",
       "archivo": "/data/bioclima-temperatura.png",
-      "bytes": 51271,
+      "bytes": 52435,
       "rango_observado": {
         "min": -12,
         "max": 20.7
@@ -34,7 +35,7 @@
       "descripcion": "Precipitación total anual (BIO12)",
       "unidad": "mm",
       "archivo": "/data/bioclima-precipitacion.png",
-      "bytes": 25822,
+      "bytes": 26672,
       "rango_observado": {
         "min": 0,
         "max": 6733
