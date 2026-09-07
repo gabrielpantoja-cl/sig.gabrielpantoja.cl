@@ -572,11 +572,14 @@ para la tasación rural, y base de análisis para la ecoinformática.
       recortado, ~400 KB por variable, o comprimido bastante menos) y cargarlos
       de forma diferida al primer clic. Sin esto la capa se lee, pero no se
       consulta.
-- [ ] **Incluirla en el PNG exportado** (`map-export.ts`) para que la lámina del
-      informe muestre lo mismo que la pantalla, con su atribución.
-- [ ] **Opacidad ajustable**: hoy va fija en 0,6. Se cruza con el ítem general de
-      «opacidad por capa» de la auditoría de UX.
-- [ ] **El selector de variable está escondido.** Detectado al diagnosticar
+- [x] **Incluirla en el PNG exportado** (`map-export.ts`): captura en orden DOM,
+      opacidad efectiva (incluido cero), atribución y variable/período/resolución
+      en el cajetín. Implementado el 2026-09-07.
+- [x] **Opacidad ajustable**: valor inicial 0,6, control en la leyenda activa y
+      restablecimiento de valores originales (2026-09-07).
+- [x] **El selector de variable estaba escondido.** Corregido el 2026-09-07:
+      aparece en «Leyendas activas» al encender Bioclima, sin abrir su detalle.
+      Antecedente: detectado al diagnosticar
       producción: el `<select>` solo existe en el DOM con el detalle de la capa
       desplegado, así que quien enciende la capa ve precipitación y no tiene
       señal de que puede cambiar a temperatura. Para una capa con leyenda sola
@@ -863,21 +866,21 @@ que amplían el uso diario del perito:
       y en el PNG: el informe de tasación la cita.
 - [ ] **Medición** de distancias y superficies (m/km, m²/ha), fijable para
       que salga en el PNG exportado.
-- [ ] **Opacidad por capa** en `LayersControl` — ⭐ **siguiente en la cola
-      (acordado 2026-09-07)**. Hoy suelos agrológicos + límites comunales
-      dejan el mapa base ilegible y no hay forma de atenuarlos. Es una S que
-      desbloquea cuatro capas: suelos, límites comunales, bioclima (opacidad
-      fija en 0,6) y la carta IGM de § 1.4, que no es usable sin esto.
+- [x] **Opacidad por capa** — implementada el 2026-09-07 para suelos,
+      comunas (solo relleno), bioclima, vegetacional, propiedades rurales y
+      catastro frutícola (solo relleno). Controles en «Leyendas activas», con
+      restablecimiento; no reinician descargas ni reconstruyen capas. No se
+      modifica el alfa del mapa de calor, que codifica soporte de datos.
 - [ ] **Reordenar capas** (o al menos «traer al frente»): el apilado de
       `reorderOverlays()` es fijo.
 
 ### Leyendas (auditoría 2026-08-28)
 
-- [ ] **Leyenda flotante sobre el mapa**, colapsable, con **solo las capas
-      encendidas**. Hoy viven dentro del panel de capas: con cinco capas
-      activas quedan cortadas por el `max-h`, y la leyenda de una capa
-      apagada sigue mostrándose.
-- [ ] **El mapa de calor debe mostrar su leyenda por defecto.** Un mapa de
+- [x] **Leyenda flotante sobre el mapa**, colapsable, con **solo las capas
+      temáticas encendidas** (2026-09-07). Reutiliza el mismo catálogo de
+      escalas, controles y atribuciones; altura limitada y scroll en móvil.
+- [x] **El mapa de calor muestra su leyenda por defecto** en «Leyendas activas»
+      (2026-09-07). Antecedente: un mapa de
       calor sin escala de color no significa nada, y la que tiene —cortes de
       cuantiles, n, opacidad como cobertura, descargo de «señal de mercado,
       no tasación»— es buena y está escondida tras un chevron.
