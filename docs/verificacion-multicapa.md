@@ -12,9 +12,8 @@ agregar dependencias de test ni acceder a credenciales. No se ejecutó build.
 | Restablecer opacidades | Bioclima vuelve a 0,6 y comunas a su default |
 | Apagar comunas | Desaparece su sección de la leyenda |
 | Alternar variable climática | Se conserva un solo overlay, con el PNG de la variable elegida |
-| Vista de 390 × 844 | Sin overflow horizontal; selector accesible dentro del panel abierto y fuera de él al cerrarlo |
-| Colapsar leyenda | Se reduce a su encabezado, sin tapar el mapa |
-| Panel de capas abierto en escritorio | La leyenda se desplaza a su izquierda para evitar superposición |
+| Vista de 390 × 844 | Sin overflow horizontal; catálogo y lectura activa son pestañas de una misma tarjeta |
+| Inspector en escritorio | Catálogo y lectura activa son dos columnas dentro del mismo borde y sombra |
 | Activar Suelos bajo zoom mínimo | Un solo estado accesible de zoom requerido |
 | PNG con Bioclima a cero | El raster invisible no participa en `drawImage` |
 | PNG con Bioclima a 0,6 + comunas | Dibujo secuencial: imagen con alfa 0,6, luego canvas vectorial con alfa 1 |
@@ -35,8 +34,8 @@ No es un benchmark de red ni garantiza esa latencia con otros mapas base.
 4. Alternar temperatura/precipitación, apagar y encender capas y restablecer
    defaults. La opacidad elegida debe sobrevivir al toggle.
 5. Exportar con alfa cero y con 0,6; comparar la composición y el cajetín.
-6. Repetir a 390 px: selector sin abrir el chevron, leyenda colapsable y ningún
-   solapamiento con el panel de capas abierto.
+6. Repetir a 390 px: alternar «Catálogo»/«Activas», cambiar variable y opacidad,
+   y confirmar que no hay desbordamiento horizontal.
 7. Ejecutar `npm run lint` y `npm run typecheck`.
 
 ## Límites de esta verificación
