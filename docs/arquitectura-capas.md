@@ -126,6 +126,27 @@ restringido a Chile), que no es una capa sino navegación espacial.
 
 ## Receta: agregar una capa temática nueva
 
+### Lectura multicapa (2026-09-07)
+
+`LayersControl` presenta un único catálogo en dos modos: selección de capas y
+leyendas activas flotantes (`ActiveLegendContext`). Cada `LayerRow` activo
+publica sus controles, escala y fuente fuera del panel; no copiar sus rampas
+en otro componente. El contenedor es colapsable y tiene scroll en móvil.
+
+Las opacidades viven en `page.tsx`; sus defaults están en
+`src/lib/layer-opacity.ts`. `MapView` aplica cambios en un efecto de estilo
+separado y mantiene una ref para cargas que terminan después del ajuste:
+`setOpacity()` para imágenes y `setStyle({ fillOpacity })` para rellenos
+vectoriales. No añadir opacidad a dependencias de efectos de descarga.
+El alfa del mapa de calor conserva su semántica de cobertura de datos.
+
+El PNG compone imágenes y canvas de `overlayPane` en orden DOM y con su alfa
+efectivo, incluido cero. Bioclima incluye atribución y variable climática en
+el cajetín. El canvas vectorial compartido sigue siendo una unidad indivisible
+de apilado, tanto en pantalla como en exportación.
+
+### Checklist de nueva capa
+
 Checklist en orden. La capa de límites comunales (commit correspondiente) es
 el ejemplo más reciente y completo de cada paso.
 

@@ -230,88 +230,46 @@ function addCacheString(url: string): string {
   return `${url}${sep}ts=${Date.now()}`;
 }
 
-/** Localiza el `<canvas>` que Leaflet usa como renderer vectorial dentro del
- *  `overlayPane`. Con `preferCanvas: true` (configurado en MapView) todos los
- *  GeoJSON (áreas protegidas, PRC, DPA, red caminera, drenaje, líneas de
- *  transmisión, catastro y polígonos KML subidos por el usuario) terminan
- *  dibujados ahí. La
- *  `_pathRoot` que existía en Leaflet 0.x ya no existe en 1.9.x.
- *
- *  Estrategia de copia:
- *    1. `querySelector('canvas')` busca el primer canvas hijo de overlayPane.
- *    2. `getBoundingClientRect()` sobre ese canvas Y sobre `map.getContainer()`
- *       para calcular el offset en CSS pixels (rect.left - containerRect.left).
- *    3. `ctx.drawImage(canvas, dx, dy, dw, dh)` copia respetando además el
- *       escalado retina (canvas.width natural = 2× style.width en HiDPI, el
- *       argumento dw/dh hace el downscale automáticamente).
- *
- *  Si el mapa no tiene vectores cargados (todas las casillas apagadas, o un
- *  mapa recién abierto), no hay canvas y la función sale silenciosa. */
-function drawPathRootToCanvas(
-  map: L.Map,
-  ctx: CanvasRenderingContext2D,
-): void {
-  // `getPanes()` puede devolver undefined en versiones raras o durante el
-  // desmontaje; defendemos con optional chaining + cast al tipo interno que la
-  // firma expone (`DefaultMapPanes & { [name]: HTMLElement }`).
-  const panes = map.getPanes?.() as L.DefaultMapPanes | undefined;
-  const overlayPane = panes?.overlayPane;
-  if (!overlayPane) return;
-
-  // Si hay varios canvas en el pane (StrictMode, recargas), preferimos el de
-  // área positiva: el renderer anterior, con tamaño 0, no aporta nada.
-  const canvases = Array.from(
-    overlayPane.querySelectorAll('canvas'),
-  ) as HTMLCanvasElement[];
-  const root = canvases.find((c) => c.width > 0 && c.height > 0) ?? null;
-  if (!root) return;
-
-  const mapContainer = map.getContainer();
-  if (!mapContainer) return;
-
-  const canvasRect = root.getBoundingClientRect();
-  const containerRect = mapContainer.getBoundingClientRect();
-  if (canvasRect.width === 0 || canvasRect.height === 0) return;
-
-  const dx = canvasRect.left - containerRect.left;
-  const dy = canvasRect.top - containerRect.top;
-
-  try {
-    ctx.drawImage(root, dx, dy, canvasRect.width, canvasRect.height);
-  } catch (e) {
-    // Canvas tainted (caso muy raro: vectorial con CORS roto). No abortamos
-    // — los tiles OSM de fondo ya quedaron pintados y el frame se dibuja
-    // encima igual, así que el PNG sale con la base mapa + norte/escala/
-    // atribuciones, sin los vectores.
-    console.warn('[export] vector canvas tainted:', e);
-  }
-}
-
-/** Copia los ImageOverlay (suelos y recursos vegetacionales) antes de los
- * vectores, respetando exactamente su rectángulo CSS visible. Sus imágenes se
- * sirven como blob/same-origin, por lo que no contaminan el canvas. */
-async function drawImageOverlaysToCanvas(
+/** El orden DOM es el apilado real de Leaflet, incluido el canvas vectorial.
+ * Decodificamos en paralelo, pero pintamos secuencialmente: la latencia de una
+ * imagen nunca debe decidir qué capa queda encima. */
+async function drawOverlayPaneToCanvas(
   map: L.Map,
   ctx: CanvasRenderingContext2D,
 ): Promise<void> {
+  const pane = map.getPanes().overlayPane;
   const containerRect = map.getContainer().getBoundingClientRect();
-  const tasks: Promise<void>[] = [];
-  map.eachLayer((layer) => {
-    if (!(layer instanceof L.ImageOverlay)) return;
-    const image = layer.getElement();
-    if (!image || !image.complete || image.naturalWidth === 0) return;
-    tasks.push((async () => {
-      try {
-        if (typeof image.decode === 'function') await image.decode();
-        const rect = image.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) return;
-        ctx.drawImage(image, rect.left - containerRect.left, rect.top - containerRect.top, rect.width, rect.height);
-      } catch (error) {
-        console.warn('[export] ImageOverlay omitido:', error);
+  const elements = Array.from(pane.children)
+    .filter((element): element is HTMLImageElement | HTMLCanvasElement =>
+      element instanceof HTMLImageElement || element instanceof HTMLCanvasElement)
+    .map((element) => {
+      const style = getComputedStyle(element);
+      const alpha = Number.parseFloat(style.opacity);
+      return { element, rect: element.getBoundingClientRect(),
+        alpha: Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : 1,
+        hidden: style.visibility === 'hidden' || style.display === 'none' };
+    });
+  await Promise.allSettled(elements.map(({ element, alpha, hidden }) =>
+    !hidden && alpha > 0 && element instanceof HTMLImageElement && element.decode
+      ? element.decode() : Promise.resolve()));
+  for (const { element, rect, alpha, hidden } of elements) {
+    if (hidden || alpha === 0 || rect.width === 0 || rect.height === 0) continue;
+    if (element instanceof HTMLImageElement) {
+      if (!element.complete || !element.naturalWidth) continue;
+      const url = new URL(element.currentSrc || element.src, window.location.href);
+      if (url.origin !== window.location.origin && url.protocol !== 'data:' &&
+          url.protocol !== 'blob:' && element.crossOrigin == null) {
+        throw new Error('No se puede exportar una capa remota sin permiso CORS.');
       }
-    })());
-  });
-  await Promise.allSettled(tasks);
+    } else if (!element.width || !element.height) continue;
+    ctx.save();
+    try {
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(element, rect.left - containerRect.left, rect.top - containerRect.top, rect.width, rect.height);
+    } finally {
+      ctx.restore();
+    }
+  }
 }
 
 /** Crea un canvas maestro del tamaño del map y le pinta tiles + vectores. */
@@ -327,8 +285,7 @@ async function captureBaseCanvas(
   if (!ctx) throw new Error('No se pudo obtener contexto 2D del canvas de export.');
 
   await drawTileLayersToCanvas(map, ctx, basemap);
-  await drawImageOverlaysToCanvas(map, ctx);
-  drawPathRootToCanvas(map, ctx);
+  await drawOverlayPaneToCanvas(map, ctx);
   return canvas;
 }
 
@@ -847,6 +804,7 @@ function drawFrame(
   if (opts.showRedDrenaje) atts.push(ATTRIBUTION_RED_DRENAJE);
   if (opts.showLineasTransmision) atts.push(ATTRIBUTION_LINEAS_TRANSMISION);
   if (opts.showSuelos) atts.push(ATTRIBUTION_SUELOS);
+  if (opts.showBioclima) atts.push('WorldClim 2.1 · Fick y Hijmans (2017) · CC BY 4.0 · 1970–2000');
   if (opts.showCatastroFruticola) atts.push(ATTRIBUTION_CATASTRO);
   if (opts.showVegetacional) atts.push(ATTRIBUTION_VEGETACIONAL);
   if (opts.showPropiedadesRurales) atts.push(ATTRIBUTION_PROPIEDADES_RURALES);
@@ -857,6 +815,7 @@ function drawFrame(
 /* ---------- API pública ---------- */
 
 export type LayerExportFlags = {
+  showBioclima: boolean;
   showPoints: boolean;
   showProtected: boolean;
   showUrbanLimit: boolean;
