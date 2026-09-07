@@ -1,6 +1,6 @@
 # Fuentes GIS oficiales de Chile para este proyecto
 
-> Documento vivo. Última actualización: 2026-07-22.
+> Documento vivo. Última actualización: 2026-09-07.
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
 > públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
@@ -54,9 +54,21 @@ El MOP publica el mismo dato vial por varios canales; en orden de utilidad:
    **pero frágil**: sin `f=geojson`, sin paginación, máx. 1.000 registros por
    consulta, y se cae (500 en todo el servicio) tras descargas masivas
    sostenidas — tarda >30 min en recuperarse.
-3. **www.mapas.mop.cl / mapas.mop.gov.cl** — visor web (Carta Caminera); es
+3. **rest-sit.mop.gob.cl/arcgis/rest/services/MAPA_BASE/IGM50/MapServer** —
+   la carta regular del **Instituto Geográfico Militar 1:50.000** publicada
+   por IDEMOP como MapServer dinámico. Es la única vía pública encontrada a
+   curvas de nivel, cotas y **toponimia rural oficial** de Chile. Verificado
+   el 2026-09-07: ArcGIS 10.21, `capabilities: Map,Query,Data`,
+   `singleFusedMapCache: false` (sin caché de teselas), `exportTilesAllowed:
+   false`, EPSG:3857 nativo, sin CORS. Un `export` de 1024×683 px sobre
+   Valdivia devolvió 675 KB en **7,2 s** (CIREN sano: ~1,2 s).
+   **Solo consumo por imagen**: además de la fragilidad del 10.21, el dato
+   IGM está protegido por la Ley 17.336 y se vende en su tienda oficial
+   (SHP y GEOTIFF incluidos), así que descargarlo y republicarlo desde este
+   repo no corresponde. Ver `roadmap.md` § 1.4.
+4. **www.mapas.mop.cl / mapas.mop.gov.cl** — visor web (Carta Caminera); es
    frontend del REST anterior, no ofrece descarga masiva.
-4. **ide.mop.gob.cl/geomop/** — IDE ministerial GEOMOP: catálogo de todas las
+5. **ide.mop.gob.cl/geomop/** — IDE ministerial GEOMOP: catálogo de todas las
    direcciones MOP (Vialidad, Obras Hidráulicas, DGA, Concesiones,
    Aeropuertos, Obras Portuarias). Punto de partida para datos MOP no viales.
 
@@ -67,6 +79,7 @@ El MOP publica el mismo dato vial por varios canales; en orden de utilidad:
 | **IDE Chile / geoportal.cl** | Catálogo Nacional de Información Geoespacial: agrega los datos de todos los ministerios | Primera parada para descubrir si existe un dato oficial. Descargas erráticas (sin reanudación) pero completas |
 | **SII** — Servicio de Impuestos Internos | Cartografía digital de predios (roles), avalúos fiscales, áreas homogéneas | El ROL de los puntos CBR viene de aquí. Sin API pública de descarga masiva; la cartografía se consulta en mapas.sii.cl |
 | **CIREN** (otros productos) | Catastro frutícola, propiedades rurales, erosión actual/potencial | Complementos de tasación rural en el mismo esri.ciren.cl; shapefiles descargables en ide.minagri.gob.cl/geoweb |
+| **IGM** — Instituto Geográfico Militar (servido por MOP-IDEMOP) | Carta regular 1:50.000: curvas de nivel, puntos acotados, fisiografía, toponimia oficial, hidrografía | Relieve y **nombres de sector rural**, que es como las escrituras del CBR describen el predio. Obra protegida (Ley 17.336, se vende): solo visualización vía el MapServer oficial, nunca ETL |
 | **CONAF** | Catastro de uso de suelo y vegetación, bosque nativo, plantaciones | Complementa destino/uso de predios rurales. IDE en sit.conaf.cl |
 | **DGA** (MOP) — Dirección General de Aguas | Cauces integrados (ríos/esteros, ver sección anterior). Quedan pendientes: derechos de aprovechamiento (DAA), cuencas BNA como polígono de contexto, glaciares, acuíferos SHAC, estaciones fluviométricas | Complementarios para valorización rural |
 | **SERNAGEOMIN** | Geología, peligros geológicos (remoción en masa, volcanismo), concesiones mineras | Restricciones de uso y riesgo en tasaciones. Portal geología: portalgeo.sernageomin.cl |
