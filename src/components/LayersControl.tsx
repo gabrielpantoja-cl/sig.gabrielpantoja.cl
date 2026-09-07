@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { DEFAULT_LAYER_OPACITY, type LayerOpacity } from '@/lib/layer-opacity';
 import { CATEGORY_COLORS } from '@/lib/protected-areas';
 import { URBAN_LIMIT_COLOR } from '@/lib/urban-limit';
 import { COMUNAS_ATTRIBUTION, COMUNAS_COLOR, COMUNAS_SOURCE_URL } from '@/lib/comunas';
@@ -61,12 +62,34 @@ import {
 } from '@/lib/bioclima';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
 
+// Dos presentaciones de un único catálogo: selector y leyendas activas.
+// Las escalas, fuentes y controles se definen una sola vez, más abajo.
+const ActiveLegendContext = createContext(false);
+
+function OpacityControl({ value, onChange, fillOnly = false }: {
+  value: number;
+  onChange: (value: number) => void;
+  fillOnly?: boolean;
+}) {
+  return (
+    <label className="mb-2 block text-xs">
+      <span className="flex justify-between gap-2">
+        <span>Opacidad{fillOnly ? ' del relleno' : ''}</span>
+        <span className="tabular-nums">{Math.round(value * 100)} %</span>
+      </span>
+      <input type="range" min="0" max="1" step="0.01" value={value}
+        aria-valuetext={`${Math.round(value * 100)} %`}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="h-8 w-full cursor-pointer accent-[hsl(153_28%_35%)] focus-visible:outline-2" />
+    </label>
+  );
+}
+
 /**
  * Fila de capa estilo Google Earth Pro: triángulo de despliegue (▸/▾) +
  * checkbox + swatch + nombre. El triángulo abre los DETALLES de la capa
- * (leyenda, fuente, atribución) de forma independiente del checkbox, así
- * activar una capa no obliga a desplegar su leyenda y la lista se mantiene
- * compacta a medida que crece el catálogo de capas.
+ * (fuente y atribución) de forma independiente del checkbox. Al activar una
+ * capa, su contenido se presenta en la leyenda flotante, sin duplicar escalas.
  */
 function LayerRow({
   checked,
@@ -75,6 +98,7 @@ function LayerRow({
   swatch,
   label,
   children,
+  controls,
 }: {
   checked: boolean;
   onChange?: (v: boolean) => void;
@@ -82,8 +106,21 @@ function LayerRow({
   swatch: ReactNode;
   label: string;
   children?: ReactNode;
+  controls?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const activeLegend = useContext(ActiveLegendContext);
+
+  if (activeLegend) {
+    if (!checked || !children) return null;
+    return (
+      <section className="border-b border-black/10 pb-3 dark:border-white/15" aria-label={label}>
+        <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold">{swatch}{label}</h3>
+        {controls}
+        {children}
+      </section>
+    );
+  }
 
   return (
     <div>
@@ -128,9 +165,10 @@ function LayerRow({
         </label>
       </div>
 
+      {checked && controls && <div className="ml-5 mt-2">{controls}</div>}
       {open && children && (
         <div className="ml-5 mt-1.5 border-l border-black/10 pb-1 pl-2.5 dark:border-white/10">
-          {children}
+          {checked ? <p className="text-xs opacity-70">Escala y controles en «Leyendas activas». En móvil, cierra este panel para verlos.</p> : children}
         </div>
       )}
     </div>
@@ -138,6 +176,8 @@ function LayerRow({
 }
 
 function SuelosStatusNotice({ status }: { status: SuelosStatus }) {
+  const activeLegend = useContext(ActiveLegendContext);
+  if (!activeLegend) return null;
   if (status.kind === 'idle') return null;
 
   const content = (() => {
@@ -388,6 +428,8 @@ function HexbinLegend({ status }: { status: HexbinStatus }) {
 }
 
 export function LayersControl({
+  layerOpacity,
+  onLayerOpacity,
   activeId,
   onActivate,
   showPoints,
@@ -434,6 +476,8 @@ export function LayersControl({
   onExport,
   exporting,
 }: {
+  layerOpacity: LayerOpacity;
+  onLayerOpacity: (key: keyof LayerOpacity, value: number) => void;
   activeId: PanelId | null;
   onActivate: (id: PanelId) => void;
   showPoints: boolean;
@@ -490,22 +534,27 @@ export function LayersControl({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  return (
-    <MapPanel
-      id="layers"
-      activeId={activeId}
-      onActivate={onActivate}
-      widthClassName="w-64"
-      align="right"
-      label="Capas"
-      icon={
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <polygon points="12 2 2 7 12 12 22 7 12 2" />
-          <polyline points="2 17 12 22 22 17" />
-          <polyline points="2 12 12 17 22 12" />
-        </svg>
-      }
-    >
+  const opacityControl = (key: keyof LayerOpacity, fillOnly = false) => (
+    <OpacityControl value={layerOpacity[key]} onChange={(value) => onLayerOpacity(key, value)} fillOnly={fillOnly} />
+  );
+  const bioclimaControls = (
+    <>
+      {opacityControl('bioclima')}
+      <label className="block text-xs">
+        <span className="font-medium">Variable climática</span>
+        <select value={bioclimaVariable}
+          onChange={(event) => onBioclimaVariable(event.target.value as BioclimaVariable)}
+          className="mt-1 w-full rounded border border-black/15 bg-[var(--background)] px-1.5 py-1 text-xs text-[var(--foreground)] dark:border-white/20">
+          <option value="precipitation">Precipitación anual (mm)</option>
+          <option value="temperature">Temperatura media anual (°C)</option>
+        </select>
+      </label>
+    </>
+  );
+  const hasActiveLegend = showHexbins || showProtected || showUrbanLimit || showComunas ||
+    showRedVial || showRedDrenaje || showLineasTransmision || showSuelos || showBioclima ||
+    showCatastroFruticola || showVegetacional || showPropiedadesRurales;
+  const catalogue = (
       <div className="space-y-2">
         <LayerRow
           checked={showPoints}
@@ -587,7 +636,7 @@ export function LayersControl({
           </div>
         </LayerRow>
 
-        <LayerRow checked={showPropiedadesRurales} onChange={onTogglePropiedadesRurales} label="Propiedades rurales (CIREN)" swatch={<span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: `${PROPIEDADES_RURALES_COLOR}22`, border: `1.5px solid ${PROPIEDADES_RURALES_COLOR}` }} />}>
+        <LayerRow checked={showPropiedadesRurales} onChange={onTogglePropiedadesRurales} controls={opacityControl('propiedadesRurales')} label="Propiedades rurales (CIREN)" swatch={<span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: `${PROPIEDADES_RURALES_COLOR}22`, border: `1.5px solid ${PROPIEDADES_RURALES_COLOR}` }} />}>
           <p className="text-[0.6rem] leading-snug opacity-50">
             {PROPIEDADES_RURALES_ATTRIBUTION}. 14 regiones, sin Antofagasta ni Magallanes; levantamientos {PROPIEDADES_RURALES_REGIONS[0][1]}–{PROPIEDADES_RURALES_REGIONS.at(-1)?.[1]}. <strong>Visible desde zoom {PROPIEDADES_RURALES_MIN_ZOOM}.</strong> {PROPIEDADES_RURALES_DISCLAIMER}{' '}
             <a href={PROPIEDADES_RURALES_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-100">Ver fuente oficial →</a>
@@ -636,6 +685,7 @@ export function LayersControl({
           checked={showComunas}
           onChange={onToggleComunas}
           label="Límites comunales (DPA)"
+          controls={opacityControl('comunas', true)}
           swatch={
             <span
               className="inline-block h-2.5 w-2.5 rounded-sm"
@@ -734,6 +784,7 @@ export function LayersControl({
           checked={showCatastroFruticola}
           onChange={onToggleCatastroFruticola}
           label="Catastro frutícola (CIREN)"
+          controls={opacityControl('catastroFruticola', true)}
           swatch={
             <span
               className="inline-block h-2.5 w-2.5 rounded-sm"
@@ -813,6 +864,7 @@ export function LayersControl({
           checked={showVegetacional}
           onChange={onToggleVegetacional}
           label="Recursos vegetacionales (CONAF)"
+          controls={opacityControl('vegetacional')}
           swatch={<span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: VEGETACIONAL_COLOR }} />}
         >
           <p className="text-[0.6rem] leading-snug opacity-50">
@@ -831,6 +883,7 @@ export function LayersControl({
             checked={showSuelos}
             onChange={onToggleSuelos}
             label="Suelos agrológicos (CIREN)"
+            controls={opacityControl('suelos')}
             swatch={
               <span
                 className="inline-block h-2.5 w-2.5 rounded-sm"
@@ -873,6 +926,7 @@ export function LayersControl({
           checked={showBioclima}
           onChange={onToggleBioclima}
           label="Bioclima (WorldClim)"
+          controls={bioclimaControls}
           swatch={
             <span
               className="inline-block h-2.5 w-2.5 rounded-sm"
@@ -882,23 +936,6 @@ export function LayersControl({
             />
           }
         >
-          <label className="block">
-            <span className="text-[0.6rem] font-medium uppercase tracking-wide opacity-60">
-              Variable
-            </span>
-            <select
-              value={bioclimaVariable}
-              onChange={(e) => onBioclimaVariable(e.target.value as BioclimaVariable)}
-              className="mt-0.5 w-full rounded border border-black/15 bg-[var(--background)] px-1.5 py-1 text-xs text-[var(--foreground)] dark:border-white/20"
-            >
-              <option value="precipitation" className="bg-[var(--background)] text-[var(--foreground)]">
-                Precipitación anual (mm)
-              </option>
-              <option value="temperature" className="bg-[var(--background)] text-[var(--foreground)]">
-                Temperatura media anual (°C)
-              </option>
-            </select>
-          </label>
           <ul className="mt-2 space-y-1 text-xs">
             {bioclimaRamp[bioclimaVariable].stops.map((stop) => (
               <li key={stop.label} className="flex items-center gap-1.5 leading-tight">
@@ -927,6 +964,20 @@ export function LayersControl({
         </LayerRow>
       </div>
 
+  );
+
+  return (
+    <>
+    <MapPanel id="layers" activeId={activeId} onActivate={onActivate}
+      widthClassName="w-64" align="right" label="Capas"
+      icon={
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <polygon points="12 2 2 7 12 12 22 7 12 2" />
+          <polyline points="2 17 12 22 22 17" />
+          <polyline points="2 12 12 17 22 12" />
+        </svg>
+      }>
+      {catalogue}
       {/* Capas KML del usuario */}
       <div className="mt-3 border-t border-black/10 pt-2.5 dark:border-white/10">
         <p className="text-xs font-semibold uppercase tracking-wide opacity-50">Mis capas</p>
@@ -1045,5 +1096,19 @@ export function LayersControl({
         </p>
       </div>
     </MapPanel>
+    {hasActiveLegend && (
+      <details open className={`fixed bottom-20 right-3 z-[600] w-72 max-w-[calc(100vw-1.5rem)] rounded-lg border border-black/15 bg-[var(--background)] text-[var(--foreground)] shadow-xl dark:border-white/20 ${activeId === 'layers' ? 'hidden lg:block lg:right-80' : ''}`}>
+        <summary className="cursor-pointer px-3 py-2 text-sm font-semibold focus-visible:outline-2">Leyendas activas</summary>
+        <div className="max-h-[40vh] space-y-3 overflow-y-auto overscroll-contain px-3 pb-3">
+          <p className="text-xs opacity-65">Opacidad visual; no modifica los datos. Los bordes vectoriales se conservan.</p>
+          <button type="button" className="text-xs underline focus-visible:outline-2"
+            onClick={() => (Object.keys(DEFAULT_LAYER_OPACITY) as (keyof LayerOpacity)[]).forEach((key) => onLayerOpacity(key, DEFAULT_LAYER_OPACITY[key]))}>
+            Restablecer opacidades
+          </button>
+          <ActiveLegendContext.Provider value={true}>{catalogue}</ActiveLegendContext.Provider>
+        </div>
+      </details>
+    )}
+    </>
   );
 }

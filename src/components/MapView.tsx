@@ -67,7 +67,6 @@ import {
   VEGETACIONAL_EXPORT_URL,
   VEGETACIONAL_IDENTIFY_URL,
   VEGETACIONAL_MIN_ZOOM,
-  VEGETACIONAL_OPACITY,
   speciesPairs,
   type VegetacionalProps,
 } from '@/lib/vegetacional';
@@ -94,7 +93,6 @@ import {
   SUELOS_EXPORT_URL,
   SUELOS_IDENTIFY_URL,
   SUELOS_MIN_ZOOM,
-  SUELOS_OPACITY,
   SUELOS_SERVICE_NAME,
   suelosClassColor,
   TRANSPARENT_PIXEL,
@@ -107,6 +105,7 @@ import {
   fetchBioclimaMeta,
   type BioclimaVariable,
 } from '@/lib/bioclima';
+import { DEFAULT_LAYER_OPACITY, type LayerOpacity } from '@/lib/layer-opacity';
 import {
   PROPIEDADES_RURALES_ATTRIBUTION,
   PROPIEDADES_RURALES_COLOR,
@@ -114,7 +113,6 @@ import {
   PROPIEDADES_RURALES_EXPORT_URL,
   PROPIEDADES_RURALES_IDENTIFY_URL,
   PROPIEDADES_RURALES_MIN_ZOOM,
-  PROPIEDADES_RURALES_OPACITY,
   PROPIEDADES_RURALES_SERVICE_NAME,
   type PropiedadesRuralesOperation,
   type PropiedadesRuralesProxyErrorBody,
@@ -664,6 +662,7 @@ function buildHexbinPopup(props: HexbinProps, meta: HexbinMeta): string {
 }
 
 export default function MapView({
+  layerOpacity = DEFAULT_LAYER_OPACITY,
   points,
   showPoints = true,
   showProtected = false,
@@ -693,6 +692,7 @@ export default function MapView({
   onHexbinStatus,
   mapExportRef,
 }: {
+  layerOpacity?: LayerOpacity;
   points: MapPoint[];
   /** Capa principal (~74k transacciones CBR). Apagarla deja el mapa limpio para
    * componer una vista sin transacciones (p.ej. antes de exportar a PNG). */
@@ -766,6 +766,24 @@ export default function MapView({
   const propiedadesRuralesRef = useRef<L.ImageOverlay | null>(null);
   const propiedadRuralHighlightRef = useRef<L.GeoJSON | null>(null);
   const hexbinsRef = useRef<L.ImageOverlay | null>(null);
+  const opacityRef = useRef(layerOpacity);
+  // Estilo separado de la carga: ningún slider reinicia fetch/identify ni capas.
+  // La ref también cubre las capas cuyo fetch termina después del ajuste.
+  useEffect(() => {
+    const previous = opacityRef.current;
+    opacityRef.current = layerOpacity;
+    // No recorrer miles de polígonos del catastro por cambiar otro raster.
+    if (previous.comunas !== layerOpacity.comunas) {
+      comunasRef.current?.setStyle({ fillOpacity: layerOpacity.comunas });
+    }
+    if (previous.catastroFruticola !== layerOpacity.catastroFruticola) {
+      catastroFruticolaRef.current?.setStyle({ fillOpacity: layerOpacity.catastroFruticola });
+    }
+    if (previous.suelos !== layerOpacity.suelos) suelosRef.current?.setOpacity(layerOpacity.suelos);
+    if (previous.bioclima !== layerOpacity.bioclima) bioclimaRef.current?.setOpacity(layerOpacity.bioclima);
+    if (previous.vegetacional !== layerOpacity.vegetacional) vegetacionalRef.current?.setOpacity(layerOpacity.vegetacional);
+    if (previous.propiedadesRurales !== layerOpacity.propiedadesRurales) propiedadesRuralesRef.current?.setOpacity(layerOpacity.propiedadesRurales);
+  }, [layerOpacity]);
   // Muestras de la superficie vigente. El raster no es clicable, así que el
   // popup se resuelve buscando la celda más cercana al clic sobre esta lista.
   const hexbinSamplesRef = useRef<{ samples: HexbinSample[]; meta: HexbinMeta } | null>(null);
@@ -827,6 +845,7 @@ export default function MapView({
         showRedDrenaje,
         showLineasTransmision,
         showSuelos,
+        showBioclima,
         showCatastroFruticola,
          showVegetacional,
          showPropiedadesRurales,
@@ -850,6 +869,7 @@ export default function MapView({
     showRedDrenaje,
     showLineasTransmision,
     showSuelos,
+    showBioclima,
     showCatastroFruticola,
     showVegetacional,
     showPropiedadesRurales,
@@ -1223,6 +1243,7 @@ export default function MapView({
           style(feature?: Feature<Geometry, ComunaProps>) {
             return {
               ...COMUNAS_STYLE,
+              fillOpacity: opacityRef.current.comunas,
               fillColor: comunaFillColor(feature?.properties?.CUT_COM),
             };
           },
@@ -1439,7 +1460,7 @@ export default function MapView({
             return {
               color,
               fillColor: color,
-              fillOpacity: 0.32,
+              fillOpacity: opacityRef.current.catastroFruticola,
               weight: 0.8,
               opacity: 0.85,
               smoothFactor: 0.6,
@@ -1678,7 +1699,7 @@ export default function MapView({
     if (!showVegetacional) return;
 
     const overlay = L.imageOverlay(TRANSPARENT_PIXEL, map.getBounds(), {
-      opacity: VEGETACIONAL_OPACITY,
+      opacity: opacityRef.current.vegetacional,
       interactive: false,
       attribution: 'CONAF · Recursos vegetacionales',
     }).addTo(map);
@@ -1803,7 +1824,7 @@ export default function MapView({
           bioclimaRef.current.setBounds(bounds);
         } else {
           bioclimaRef.current = L.imageOverlay(url, bounds, {
-            opacity: 0.6,
+            opacity: opacityRef.current.bioclima,
             // No es clicable: el valor bajo el cursor se resuelve por popup del
             // mapa, no por eventos de la imagen, que taparía a las capas de
             // abajo si capturara el puntero.
@@ -1847,7 +1868,7 @@ export default function MapView({
     }
 
     const overlay = L.imageOverlay(TRANSPARENT_PIXEL, map.getBounds(), {
-      opacity: SUELOS_OPACITY,
+      opacity: opacityRef.current.suelos,
       attribution: 'CIREN · Estudios Agrológicos',
       interactive: false,
     }).addTo(map);
@@ -2060,7 +2081,7 @@ export default function MapView({
       return;
     }
     const overlay = L.imageOverlay(TRANSPARENT_PIXEL, map.getBounds(), {
-      opacity: PROPIEDADES_RURALES_OPACITY,
+      opacity: opacityRef.current.propiedadesRurales,
       attribution: PROPIEDADES_RURALES_ATTRIBUTION,
       interactive: false,
     }).addTo(map);

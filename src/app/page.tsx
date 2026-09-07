@@ -27,6 +27,8 @@ import {
 } from '@/lib/hexbins';
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
+import { DEFAULT_LAYER_OPACITY } from '@/lib/layer-opacity';
+import { bioclimaRamp, type BioclimaVariable } from '@/lib/bioclima';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
 import { BasemapSwitcher } from '@/components/BasemapSwitcher';
 import {
@@ -153,6 +155,8 @@ const fmtIntPlain = (v: number): string => v.toLocaleString('es-CL');
 /** Inputs para el cajetín de trazabilidad. Es una función pura (no tiene
  *  closures ni estado) para que sea trivial de testear si añadimos tests. */
 type BuildMetadataInput = {
+  showBioclima: boolean;
+  bioclimaVariable: BioclimaVariable;
   showPoints: boolean;
   showProtected: boolean;
   showUrbanLimit: boolean;
@@ -189,6 +193,14 @@ type BuildMetadataInput = {
  *  - Una entrada por cada capa KML subida por el usuario */
 function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEntry[] {
   const entries: LayerMetadataEntry[] = [];
+  if (input.showBioclima) {
+    entries.push({
+      title: input.bioclimaVariable === 'temperature' ? 'Temperatura media anual (°C)' : 'Precipitación anual (mm)',
+      color: bioclimaRamp[input.bioclimaVariable].stops[0].color,
+      shape: 'square',
+      details: 'WorldClim 2.1 · 1970–2000 · resolución 2,5′\nSuperficie interpolada; no medición del predio.',
+    });
+  }
 
   if (input.showPoints) {
     const filtrosLineas: string[] = [];
@@ -511,6 +523,7 @@ export default function Home() {
   const [suelosStatus, setSuelosStatus] = useState<SuelosStatus>({ kind: 'idle' });
   const [showBioclima, setShowBioclima] = useState(false);
   const [bioclimaVariable, setBioclimaVariable] = useState<'temperature' | 'precipitation'>('precipitation');
+  const [layerOpacity, setLayerOpacity] = useState(DEFAULT_LAYER_OPACITY);
   const [showCatastroFruticola, setShowCatastroFruticola] = useState(false);
   const [showVegetacional, setShowVegetacional] = useState(false);
   // Mapa de calor de valor. El destino arranca en habitacional: es el 57 % de
@@ -585,6 +598,8 @@ export default function Home() {
     setExportError(null);
     try {
       const metadata = buildExportMetadata({
+        showBioclima,
+        bioclimaVariable,
         showPoints,
         showProtected,
         showUrbanLimit,
@@ -619,6 +634,7 @@ export default function Home() {
     }
   }, [
     exporting,
+    showBioclima, bioclimaVariable,
     showPoints, showProtected, showUrbanLimit, showComunas, showRedVial,
     showRedDrenaje, showLineasTransmision, showSuelos, showCatastroFruticola, showVegetacional, showPropiedadesRurales,
     showHexbins, hexbinStatus,
@@ -804,6 +820,7 @@ export default function Home() {
         )}
         <div className="absolute inset-0">
           <MapView
+            layerOpacity={layerOpacity}
             points={points}
             showPoints={showPoints}
             showProtected={showProtected}
@@ -929,6 +946,8 @@ export default function Home() {
             con la barra del geocoder */}
         <div className="absolute right-3 top-[3.75rem] z-[600] w-60 max-w-[calc(100%-1.5rem)] md:top-3">
           <LayersControl
+            layerOpacity={layerOpacity}
+            onLayerOpacity={(key, value) => setLayerOpacity((previous) => ({ ...previous, [key]: value }))}
             activeId={activePanel}
             onActivate={togglePanel}
             showPoints={showPoints}
