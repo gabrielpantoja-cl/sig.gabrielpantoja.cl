@@ -1,6 +1,6 @@
 # Roadmap del SIG de suelo — `sig.gabrielpantoja.cl`
 
-> Documento vivo. Última actualización: 2026-09-03.
+> Documento vivo. Última actualización: 2026-09-07.
 > Próxima revisión sugerida: trimestral o cuando se cierre una fase.
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
@@ -178,6 +178,141 @@ Reglas duras (heredadas de AGENTS.md y `arquitectura-capas.md`):
   handler 24 h por `(rol, comuna)`); cablear en `GeocoderSearch.tsx`.
 - **Riesgos**: CIREN no garantiza SLA; usar cache LRU en servidor y
   fallback silencioso al modo actual si el endpoint está caído.
+
+### 1.4 Carta topográfica IGM 1:50.000 (vía MOP rest-sit) — 🟢 **aprobada, en cola**
+
+> **Documentada y priorizada el 2026-09-07. Aún NO implementada.** El servicio
+> se sondeó y verificó en vivo. **Decisión tomada**: entra como *capa temática
+> con opacidad ajustable*, y **va después** de «opacidad por capa» del backlog
+> de UX, que es su prerrequisito duro (la carta trae relleno propio y tapa el
+> mapa base entero).
+
+- **Fuente**: `https://rest-sit.mop.gob.cl/arcgis/rest/services/MAPA_BASE/IGM50/MapServer`
+  — MapServer publicado por IDEMOP (MOP) con la cartografía regular del
+  **Instituto Geográfico Militar a escala 1:50.000**. El propio servicio se
+  declara: `copyrightText: "Instituto Geográfico Militar"` y
+  `documentInfo.Title: "Mapa base IGM 50.000"`.
+
+**Lo verificado el 2026-09-07** (dos consultas de metadata y un export; es el
+mismo host que colapsó con la red vial, así que se sondeó con cuidado):
+
+| Propiedad | Valor | Consecuencia |
+|---|---|---|
+| `currentVersion` | 10.21 | El mismo ArcGIS frágil de VIALIDAD: sin `f=geojson`, sin paginación |
+| `capabilities` | `Map,Query,Data` | Sirve `export` e `identify`; no hay descarga masiva |
+| `singleFusedMapCache` | `false` | **Sin caché de teselas**: cada request se renderiza en el momento |
+| `exportTilesAllowed` | `false` | El servicio prohíbe explícitamente extraer el teselado |
+| `maxRecordCount` | 1.000 | Techo por consulta, y sin paginación para saltarlo |
+| `spatialReference` | 3857 nativo | No hay que reproyectar nada |
+| `maxImageWidth/Height` | 4.096 | De sobra para un viewport |
+| Latencia medida | metadata 0,12 s · **export 1024×683 = 675 KB en 7,2 s** | Ver «lo que hay que decidir» |
+| CORS | sin `Access-Control-Allow-Origin` | El proxy en `/api/*` es obligatorio, no opcional |
+
+Las 24 subcapas, agrupadas por lo que aportan:
+
+- **Relieve** — `13 Curvas de Nivel` (polilínea; campos `TIPO`, `ZV2` = cota,
+  `LENGTH`; visible bajo 1:250.000), `3 Puntos acotados` (cotas puntuales,
+  bajo 1:100.000), `14`/`20 Fisiografía` (líneas y áreas).
+- **Toponimia oficial** — `2 Nombres Geográficos` y `0 Anotaciones`. Es lo que
+  ninguna otra capa del SIG tiene.
+- **Hidrografía IGM** — `4` puntos, `15` líneas, `18` áreas (independiente de
+  la red DGA que ya está en producción).
+- **Contexto** — `17 Viario`, `6`/`21 Población`, `19 Zonas de vegetación`,
+  `22 Áreas de transporte`, `23 Industria`, `9-12 DPA`.
+
+**Qué agrega** (y es justamente lo que hoy falta):
+
+- **Para tasación rural**: (a) **relieve** — no hay ninguna capa en el SIG que
+  muestre pendiente, y la pendiente manda en el valor de un predio rural; hoy
+  el perito tiene que salir a otra herramienta. (b) **Toponimia rural
+  oficial** — las escrituras del Conservador describen el predio por nombre
+  («predio denominado El Laurel», «sector Angachilla»), no por ROL ni por
+  coordenada. La carta IGM es la fuente canónica de esos nombres en Chile y
+  permite amarrar la descripción de la escritura a un lugar del mapa. En la
+  prueba sobre Valdivia aparecieron decenas de nombres de sector que no están
+  ni en OSM ni en la red vial MOP.
+- **Para ecoinformática**: valor bajo-medio. Las curvas sirven de contexto,
+  pero un análisis necesita un DEM manipulable, no una carta rasterizada (ver
+  la alternativa al final).
+
+**Tipo de capa: dinámica remota, y no por elección.** Dos bloqueos
+independientes, cada uno suficiente por sí solo:
+
+1. **Legal.** La cartografía del IGM está protegida por la Ley 17.336 de
+   propiedad intelectual y se **vende** (tienda oficial: 1:50.000 y 1:250.000
+   en papel, JPG, SHP y GEOTIFF), y sus condiciones exigen no separar de la
+   obra la identificación del titular. Traer los vectores a `public/data/` y
+   republicarlos desde un repo MIT sería redistribuir una obra que no es
+   libre. Consumir la imagen renderizada por el servicio oficial del MOP, con
+   la atribución «Instituto Geográfico Militar» a la vista, es la vía
+   defendible — y es exactamente lo que ya hacemos con CIREN.
+2. **Técnico.** Aunque fuera libre: ArcGIS 10.21, 1.000 registros por
+   consulta, sin paginación, y este mismo host respondió 500 en TODO el
+   servicio por más de 30 minutos tras la descarga masiva de la red vial
+   (`fuentes-gis-chile.md` § ecosistema MOP). Un ETL de curvas de nivel
+   nacionales lo tumbaría.
+
+Corolario: **no escribir `scripts/build-igm.mjs`**. Esta capa es un clon del
+patrón de suelos CIREN — `/api/igm/export` + `/api/igm/identify` +
+`L.ImageOverlay` refrescado en `moveend` — o no es.
+
+**Esfuerzo: S-M.** El patrón está resuelto tres veces (suelos, vegetacional,
+propiedades rurales): es copiar `src/lib/suelos.ts` y `src/app/api/suelos/*`
+cambiando endpoint, `layers=show:...` y leyenda. Un día si no aparece nada
+raro.
+
+**Lo que hay que decidir antes de implementar** — este es el trabajo real, no
+el código:
+
+- [x] **¿Capa temática o mapa base? → capa temática** (decidido 2026-09-07).
+      Es una carta completa, no un tema: trae
+      su propio relleno de suelo, hidrografía, viario y toponimia, y tapa el
+      mapa base. Como entrada del `BasemapSwitcher` («Topográfico IGM») sería
+      más honesta visualmente y competiría con OpenTopoMap, pero el switcher
+      está construido sobre `L.TileLayer` con URL de teselas
+      (`src/lib/basemap.ts`) y esto es un export por viewport a través de un
+      proxy: **mecanismos distintos**. Como capa temática entra sin tocar el
+      switcher, pero exige opacidad ajustable sí o sí — que hoy no existe y
+      está en el backlog de la auditoría UX. **Se eligió la capa temática**:
+      no fuerza al switcher a soportar dos mecanismos distintos, y la opacidad
+      resuelve el problema visual que motivaba la otra opción.
+- [ ] **7,2 segundos por viewport.** CIREN sano responde en ~1,2 s; esto es 6×
+      más lento y sin caché de teselas del lado del servidor. Con `moveend`
+      encadenados la experiencia sería mala. A evaluar: gate de zoom más alto
+      que el de suelos, debounce largo, pedir solo el subconjunto útil
+      (`layers=show:2,3,13,14` = relieve + nombres, que debería renderizar
+      bastante más rápido que las 24) y caché en el route handler por bbox
+      redondeado.
+- [ ] **Qué subcapas mostrar.** Encender las 24 duplica hidrografía (ya está
+      DGA), viario (ya está MOP Vialidad) y límites (ya está DPA), con
+      simbologías que no coinciden. La versión útil es probablemente «curvas +
+      cotas + fisiografía + nombres geográficos» y nada más.
+- [ ] **Vintage.** El servicio no declara fecha de corte en su metadata, y la
+      carta regular 1:50.000 tiene planchetas de épocas muy distintas. Hay que
+      averiguar qué edición está cargada antes de publicar un `meta.json`, o
+      declarar explícitamente «vintage no declarado por la fuente» (regla 2 de
+      `fuentes-gis-chile.md`).
+- [ ] **`identify` sobre curvas**: el campo de cota es `ZV2`. Confirmar unidad
+      (se asume m s.n.m.) y si el clic devuelve la curva más cercana con una
+      tolerancia usable.
+
+**Alternativa complementaria — no sustituta — un DEM libre.** Si lo que se
+busca es *pendiente*, el camino barato y sin ataduras es un modelo de
+elevación (SRTM 30 m o Copernicus GLO-30, ambos libres y redistribuibles),
+procesado como hillshade + curvas derivadas en el ETL y servido como PNG
+estático, exactamente como bioclima. Sin proxy, sin dependencia de un servidor
+estatal en runtime, y analizable (pendiente en grados, exposición). Lo que el
+DEM **no** da es la toponimia rural oficial ni las curvas levantadas por el
+IGM. Son dos capas distintas resolviendo dos necesidades distintas, y conviene
+decidirlas juntas:
+
+| | IGM 50.000 (vía MOP) | DEM libre (SRTM / Copernicus) |
+|---|---|---|
+| Relieve | Curvas oficiales, rasterizadas | Hillshade + pendiente calculable |
+| Toponimia rural | **Sí, canónica** | No |
+| Licencia | IGM, Ley 17.336 — solo visualización vía el servicio oficial | Libre, redistribuible |
+| Runtime | Proxy + ~7 s por viewport | PNG estático, cero dependencias |
+| Esfuerzo | S-M | M (el ETL raster ya se aprendió en bioclima) |
 
 ## Fase 2 — Restricciones del predio (Q3/Q4 2026)
 
@@ -728,9 +863,11 @@ que amplían el uso diario del perito:
       y en el PNG: el informe de tasación la cita.
 - [ ] **Medición** de distancias y superficies (m/km, m²/ha), fijable para
       que salga en el PNG exportado.
-- [ ] **Opacidad por capa** en `LayersControl`. Hoy suelos agrológicos +
-      límites comunales dejan el mapa base ilegible y no hay forma de
-      atenuarlos.
+- [ ] **Opacidad por capa** en `LayersControl` — ⭐ **siguiente en la cola
+      (acordado 2026-09-07)**. Hoy suelos agrológicos + límites comunales
+      dejan el mapa base ilegible y no hay forma de atenuarlos. Es una S que
+      desbloquea cuatro capas: suelos, límites comunales, bioclima (opacidad
+      fija en 0,6) y la carta IGM de § 1.4, que no es usable sin esto.
 - [ ] **Reordenar capas** (o al menos «traer al frente»): el apilado de
       `reorderOverlays()` es fijo.
 
@@ -855,6 +992,7 @@ próxima revisión:
 | **CIREN** | Productos Propiedades Rurales Vectoriales | <https://www.ciren.cl/productos/propiedades-rurales/> | De pago ("Cotizar"). Derivado de SII. |
 | **SIMEF** (Minagri-INFOR-CONAF) | Monitoreo ecosistemas forestales nativos | <https://simef.minagri.gob.cl/> | Datos de uso/cambio de uso de la tierra e incendios al 31/12/2025. |
 | **DGA / SNIA** | Catastro Público de Aguas + Visualizadores | <https://dga.mop.gob.cl/servicios-de-informacion/catastro-publico-de-aguas/> · <https://snia.mop.gob.cl/observatorio/> | 12 registros públicos. Cobertura variable: glaciares como vector, derechos individuales por expediente. |
+| **IGM** (vía MOP-IDEMOP) | Carta regular 1:50.000 como MapServer | <https://rest-sit.mop.gob.cl/arcgis/rest/services/MAPA_BASE/IGM50/MapServer> | Curvas de nivel, cotas y **toponimia rural oficial**. Solo visualización: el dato IGM está protegido por Ley 17.336 y se vende. Ver § 1.4. |
 | **ODEPA** | Biblioteca Digital abierta | <https://bibliotecadigital.odepa.gob.cl/> | Bases de datos infraestructura frutícola (1999–2025) y directorio agroindustria (2017–2019) descargables en XLSX. |
 | **ODEPA** | Reportes interactivos | <https://reportes.odepa.gob.cl/> | Catastros regionales, infraestructura frutícola. Visor público. |
 
