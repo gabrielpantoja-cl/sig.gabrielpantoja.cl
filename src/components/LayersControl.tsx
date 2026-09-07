@@ -165,10 +165,9 @@ function LayerRow({
         </label>
       </div>
 
-      {checked && controls && <div className="ml-5 mt-2">{controls}</div>}
       {open && children && (
         <div className="ml-5 mt-1.5 border-l border-black/10 pb-1 pl-2.5 dark:border-white/10">
-          {checked ? <p className="text-xs opacity-70">Escala y controles en «Leyendas activas». En móvil, cierra este panel para verlos.</p> : children}
+          {checked ? <p className="text-xs opacity-70">Escala y controles en «Capas activas».</p> : children}
         </div>
       )}
     </div>
