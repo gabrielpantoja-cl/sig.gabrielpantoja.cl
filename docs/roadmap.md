@@ -578,14 +578,13 @@ para la tasación rural, y base de análisis para la ecoinformática.
 - [x] **Opacidad ajustable**: valor inicial 0,6, control en la leyenda activa y
       restablecimiento de valores originales (2026-09-07).
 - [x] **El selector de variable estaba escondido.** Corregido el 2026-09-07:
-      aparece en «Leyendas activas» al encender Bioclima, sin abrir su detalle.
+      aparece en «Capas activas» al encender Bioclima, sin abrir su detalle.
       Antecedente: detectado al diagnosticar
       producción: el `<select>` solo existe en el DOM con el detalle de la capa
       desplegado, así que quien enciende la capa ve precipitación y no tiene
       señal de que puede cambiar a temperatura. Para una capa con leyenda sola
       el colapso está bien; para una con control, esconde funcionalidad. Se
-      resuelve junto con la «leyenda flotante que muestra solo las capas
-      encendidas» del § Leyendas de la auditoría.
+      se resolvió integrando catálogo y lectura activa en un mismo inspector.
 - [ ] **En el sur, la precipitación se confunde con el mar.** Los tramos altos
       de la rampa (2.000–3.000 y >3.000 mm) son azules, y el agua de
       OpenStreetMap también: en Chiloé o Aysén cuesta separar isla de canal. No
@@ -868,7 +867,7 @@ que amplían el uso diario del perito:
       que salga en el PNG exportado.
 - [x] **Opacidad por capa** — implementada el 2026-09-07 para suelos,
       comunas (solo relleno), bioclima, vegetacional, propiedades rurales y
-      catastro frutícola (solo relleno). Controles en «Leyendas activas», con
+      catastro frutícola (solo relleno). Controles en «Capas activas», con
       restablecimiento; no reinician descargas ni reconstruyen capas. No se
       modifica el alfa del mapa de calor, que codifica soporte de datos.
 - [ ] **Reordenar capas** (o al menos «traer al frente»): el apilado de
@@ -876,10 +875,11 @@ que amplían el uso diario del perito:
 
 ### Leyendas (auditoría 2026-08-28)
 
-- [x] **Leyenda flotante sobre el mapa**, colapsable, con **solo las capas
-      temáticas encendidas** (2026-09-07). Reutiliza el mismo catálogo de
-      escalas, controles y atribuciones; altura limitada y scroll en móvil.
-- [x] **El mapa de calor muestra su leyenda por defecto** en «Leyendas activas»
+- [x] **Lectura de capas activas integrada al inspector**, con **solo las capas
+      temáticas encendidas** (2026-09-07). Catálogo y lectura comparten una
+      tarjeta en dos columnas de escritorio y dos pestañas en móvil; reutiliza
+      el mismo catálogo de escalas, controles y atribuciones.
+- [x] **El mapa de calor muestra su leyenda por defecto** en «Capas activas»
       (2026-09-07). Antecedente: un mapa de
       calor sin escala de color no significa nada, y la que tiene —cortes de
       cuantiles, n, opacidad como cobertura, descargo de «señal de mercado,
