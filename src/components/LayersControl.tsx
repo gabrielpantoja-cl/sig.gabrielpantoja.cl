@@ -533,6 +533,7 @@ export function LayersControl({
   exporting: boolean;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mobileView, setMobileView] = useState<'catalogue' | 'active'>('catalogue');
 
   const opacityControl = (key: keyof LayerOpacity, fillOnly = false) => (
     <OpacityControl value={layerOpacity[key]} onChange={(value) => onLayerOpacity(key, value)} fillOnly={fillOnly} />
@@ -554,6 +555,9 @@ export function LayersControl({
   const hasActiveLegend = showHexbins || showProtected || showUrbanLimit || showComunas ||
     showRedVial || showRedDrenaje || showLineasTransmision || showSuelos || showBioclima ||
     showCatastroFruticola || showVegetacional || showPropiedadesRurales;
+  const activeLayerCount = [showHexbins, showProtected, showUrbanLimit, showComunas,
+    showRedVial, showRedDrenaje, showLineasTransmision, showSuelos, showBioclima,
+    showCatastroFruticola, showVegetacional, showPropiedadesRurales].filter(Boolean).length;
   const catalogue = (
       <div className="space-y-2">
         <LayerRow
@@ -967,9 +971,9 @@ export function LayersControl({
   );
 
   return (
-    <>
     <MapPanel id="layers" activeId={activeId} onActivate={onActivate}
-      widthClassName="w-64" align="right" label="Capas"
+      widthClassName="w-[min(38rem,calc(100vw-1.5rem))]" align="right" label="Capas"
+      badge={activeLayerCount}
       icon={
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <polygon points="12 2 2 7 12 12 22 7 12 2" />
@@ -977,8 +981,24 @@ export function LayersControl({
           <polyline points="2 12 12 17 22 12" />
         </svg>
       }>
-      {catalogue}
-      {/* Capas KML del usuario */}
+      <div className="mb-3 grid grid-cols-2 rounded-md bg-black/5 p-1 text-xs dark:bg-white/10 md:hidden" role="tablist" aria-label="Inspector de capas">
+        <button type="button" role="tab" aria-selected={mobileView === 'catalogue'}
+          onClick={() => setMobileView('catalogue')}
+          className={`rounded px-2 py-1.5 font-medium ${mobileView === 'catalogue' ? 'bg-[var(--background)] shadow-sm' : 'opacity-60'}`}>
+          Catálogo
+        </button>
+        <button type="button" role="tab" aria-selected={mobileView === 'active'}
+          onClick={() => setMobileView('active')}
+          className={`rounded px-2 py-1.5 font-medium ${mobileView === 'active' ? 'bg-[var(--background)] shadow-sm' : 'opacity-60'}`}>
+          Activas ({activeLayerCount})
+        </button>
+      </div>
+
+      <div className="md:grid md:grid-cols-[16rem_1fr] md:gap-3">
+        <section className={`${mobileView === 'catalogue' ? 'block' : 'hidden'} md:block md:pr-3`} aria-label="Catálogo de capas">
+          <h2 className="mb-2 hidden text-xs font-semibold uppercase tracking-wide opacity-55 md:block">Catálogo</h2>
+          {catalogue}
+          {/* Capas KML del usuario */}
       <div className="mt-3 border-t border-black/10 pt-2.5 dark:border-white/10">
         <p className="text-xs font-semibold uppercase tracking-wide opacity-50">Mis capas</p>
 
@@ -1095,20 +1115,30 @@ export function LayersControl({
           anexo de un informe de tasación.
         </p>
       </div>
-    </MapPanel>
-    {hasActiveLegend && (
-      <details open className={`fixed bottom-20 right-3 z-[600] w-72 max-w-[calc(100vw-1.5rem)] rounded-lg border border-black/15 bg-[var(--background)] text-[var(--foreground)] shadow-xl dark:border-white/20 ${activeId === 'layers' ? 'hidden lg:block lg:right-80' : ''}`}>
-        <summary className="cursor-pointer px-3 py-2 text-sm font-semibold focus-visible:outline-2">Leyendas activas</summary>
-        <div className="max-h-[40vh] space-y-3 overflow-y-auto overscroll-contain px-3 pb-3">
+        </section>
+
+        <section className={`${mobileView === 'active' ? 'block' : 'hidden'} md:block md:border-l md:border-black/10 md:pl-3 dark:md:border-white/15`} aria-label="Lectura de capas activas">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide opacity-55">Capas activas</h2>
+            {hasActiveLegend && (
+              <button type="button" className="text-[0.65rem] underline opacity-70 hover:opacity-100 focus-visible:outline-2"
+                onClick={() => (Object.keys(DEFAULT_LAYER_OPACITY) as (keyof LayerOpacity)[]).forEach((key) => onLayerOpacity(key, DEFAULT_LAYER_OPACITY[key]))}>
+                Restablecer
+              </button>
+            )}
+          </div>
+          {!hasActiveLegend ? (
+            <div className="rounded-md border border-dashed border-black/15 px-3 py-6 text-center text-xs leading-relaxed opacity-55 dark:border-white/20">
+              Activa una capa temática para ver aquí su escala, opacidad y fuente.
+            </div>
+          ) : (
+            <div className="space-y-3">
           <p className="text-xs opacity-65">Opacidad visual; no modifica los datos. Los bordes vectoriales se conservan.</p>
-          <button type="button" className="text-xs underline focus-visible:outline-2"
-            onClick={() => (Object.keys(DEFAULT_LAYER_OPACITY) as (keyof LayerOpacity)[]).forEach((key) => onLayerOpacity(key, DEFAULT_LAYER_OPACITY[key]))}>
-            Restablecer opacidades
-          </button>
-          <ActiveLegendContext.Provider value={true}>{catalogue}</ActiveLegendContext.Provider>
-        </div>
-      </details>
-    )}
-    </>
+              <ActiveLegendContext.Provider value={true}>{catalogue}</ActiveLegendContext.Provider>
+            </div>
+          )}
+        </section>
+      </div>
+    </MapPanel>
   );
 }

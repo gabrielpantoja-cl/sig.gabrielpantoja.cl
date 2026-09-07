@@ -128,10 +128,11 @@ restringido a Chile), que no es una capa sino navegación espacial.
 
 ### Lectura multicapa (2026-09-07)
 
-`LayersControl` presenta un único catálogo en dos modos: selección de capas y
-leyendas activas flotantes (`ActiveLegendContext`). Cada `LayerRow` activo
-publica sus controles, escala y fuente fuera del panel; no copiar sus rampas
-en otro componente. El contenedor es colapsable y tiene scroll en móvil.
+`LayersControl` presenta un único catálogo en dos modos dentro de un mismo
+inspector: selección de capas y lectura activa (`ActiveLegendContext`). En
+escritorio son dos columnas de una sola tarjeta; en móvil son dos pestañas.
+Cada `LayerRow` activo publica sus controles, escala y fuente en la segunda
+vista; no copiar sus rampas en otro componente.
 
 Las opacidades viven en `page.tsx`; sus defaults están en
 `src/lib/layer-opacity.ts`. `MapView` aplica cambios en un efecto de estilo
