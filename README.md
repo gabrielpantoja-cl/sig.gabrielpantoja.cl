@@ -55,13 +55,16 @@ Browser → /api/propiedades-rurales/{export,identify,feature,search} → SII/CI
 
 Shared filters are defined in `src/lib/filters.ts`. They use parameterised SQL
 placeholders and include `comuna`, `anio_min/max`, `monto_min/max`,
-`sup_min/max`, `predio` (`ILIKE`), and `rol` (`ILIKE`).
+`sup_min/max`, `predio` (`ILIKE`), and `rol` (`ILIKE`). `fecha_desde/hasta`
+filter by escritura and only fall back to inscripción where the escritura date
+is absent; `anio_min/max` use that same explicit temporal rule.
 
 ## Data and privacy
 
 Public fields returned for each point are `lat`, `lng`, `monto`, `anio`,
 `comuna`, `predio`, `superficie`, `rol`, `destino`, `fechaEscritura`, `fojas`,
-`numero`, and `conservador`.
+`fechaInscripcion`, `numero`, and `conservador`. Both dates are calendar dates
+(`YYYY-MM-DD`), never timestamps; `anio` may be null.
 
 - **The SII property identifier (`rol`) is intentionally public.** It is a
   public property identifier issued by Chile's Internal Revenue Service

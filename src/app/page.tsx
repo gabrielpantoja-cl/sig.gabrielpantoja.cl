@@ -172,6 +172,8 @@ type BuildMetadataInput = {
   hexbinStatus: HexbinStatus;
   comuna: string;
   anioFrom: number | null;
+  fechaDesde: string;
+  fechaHasta: string;
   montoMin: string;
   montoMax: string;
   supMin: string;
@@ -205,7 +207,10 @@ function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEntry[] {
   if (input.showPoints) {
     const filtrosLineas: string[] = [];
     if (input.comuna !== 'todas') filtrosLineas.push(`Comuna: ${input.comuna}`);
-    if (input.anioFrom != null) filtrosLineas.push(`Año desde: ${input.anioFrom}`);
+    if (input.anioFrom != null) filtrosLineas.push(`Año desde (fecha disponible): ${input.anioFrom}`);
+    if (input.fechaDesde || input.fechaHasta) {
+      filtrosLineas.push(`Fecha disponible: ${input.fechaDesde || 'sin mínimo'} – ${input.fechaHasta || 'sin máximo'}`);
+    }
 
     const minD = fmtMoney(input.montoMin);
     const maxD = fmtMoney(input.montoMax);
@@ -374,6 +379,8 @@ export default function Home() {
 
   const [comuna, setComuna] = useState('todas');
   const [anioFrom, setAnioFrom] = useState<number | null>(null);
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
   const [montoMin, setMontoMin] = useState('');
   const [montoMax, setMontoMax] = useState('');
   const [supMin, setSupMin] = useState('');
@@ -615,6 +622,8 @@ export default function Home() {
         hexbinStatus,
         comuna,
         anioFrom,
+        fechaDesde,
+        fechaHasta,
         montoMin,
         montoMax,
         supMin,
@@ -638,7 +647,7 @@ export default function Home() {
     showPoints, showProtected, showUrbanLimit, showComunas, showRedVial,
     showRedDrenaje, showLineasTransmision, showSuelos, showCatastroFruticola, showVegetacional, showPropiedadesRurales,
     showHexbins, hexbinStatus,
-    comuna, anioFrom, montoMin, montoMax, supMin, supMax, predio, rol,
+    comuna, anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol,
     stats, kmlLayers,
   ]);
 
@@ -656,6 +665,8 @@ export default function Home() {
     const p = new URLSearchParams();
     if (comuna !== 'todas') p.set('comuna', comuna);
     if (anioFrom != null) p.set('anio_min', String(anioFrom));
+    if (fechaDesde) p.set('fecha_desde', fechaDesde);
+    if (fechaHasta) p.set('fecha_hasta', fechaHasta);
     if (montoMin) p.set('monto_min', montoMin);
     if (montoMax) p.set('monto_max', montoMax);
     if (supMin) p.set('sup_min', supMin);
@@ -663,11 +674,13 @@ export default function Home() {
     if (predio.trim()) p.set('predio', predio.trim());
     if (rol.trim()) p.set('rol', rol.trim());
     return p.toString();
-  }, [comuna, anioFrom, montoMin, montoMax, supMin, supMax, predio, rol]);
+  }, [comuna, anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol]);
 
   const activeFilters = [
     comuna !== 'todas',
     anioFrom != null,
+    fechaDesde,
+    fechaHasta,
     montoMin,
     montoMax,
     supMin,
@@ -736,6 +749,10 @@ export default function Home() {
       facets={facets}
       setAnioFrom={setAnioFrom}
       effectiveAnioFrom={effectiveAnioFrom}
+      fechaDesde={fechaDesde}
+      setFechaDesde={setFechaDesde}
+      fechaHasta={fechaHasta}
+      setFechaHasta={setFechaHasta}
       montoMin={montoMin}
       setMontoMin={setMontoMin}
       montoMax={montoMax}

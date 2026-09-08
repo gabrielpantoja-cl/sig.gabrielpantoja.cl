@@ -16,9 +16,9 @@ const MAX_ROWS = 120000;
 // SELECT expression (maps the camelCase Neon column to a clean output key) and
 // the output keys used for CSV headers / GeoJSON properties / row access.
 const SELECT_EXPR =
-  'lat, lng, monto, anio, comuna, predio, "superficieTerreno" AS superficie, rol, destino, fechaescritura';
+  'lat, lng, monto, anio, comuna, predio, "superficieTerreno" AS superficie, rol, destino, fechaescritura::text AS fechaescritura, "fechaInscripcion"::text AS "fechaInscripcion"';
 const COLUMNS = [
-  'lat', 'lng', 'monto', 'anio', 'comuna', 'predio', 'superficie', 'rol', 'destino', 'fechaescritura',
+  'lat', 'lng', 'monto', 'anio', 'comuna', 'predio', 'superficie', 'rol', 'destino', 'fechaescritura', 'fechaInscripcion',
 ] as const;
 
 function csvCell(value: unknown): string {
@@ -50,21 +50,11 @@ export async function GET(req: Request) {
       `SELECT ${SELECT_EXPR}
        FROM referenciales
        WHERE ${where}
-       ORDER BY anio DESC
+       ORDER BY COALESCE(fechaescritura, "fechaInscripcion") DESC NULLS LAST,
+                anio DESC NULLS LAST
        LIMIT ${MAX_ROWS}`,
       params,
     )) as Record<string, unknown>[];
-
-    // Normaliza fechaescritura: la columna llega como Date y queremos serializar
-    // un ISO date (YYYY-MM-DD) tanto en CSV como en GeoJSON. Sin esto, CSV
-    // muestra "Thu Jan 15 2026 …" por culpa de Date.prototype.toString.
-    for (const r of rows) {
-      if (r.fechaescritura instanceof Date) {
-        r.fechaescritura = r.fechaescritura.toISOString().slice(0, 10);
-      } else if (r.fechaescritura) {
-        r.fechaescritura = String(r.fechaescritura).slice(0, 10);
-      }
-    }
 
     if (format === 'geojson') {
       const features = rows.map((r) => ({
@@ -75,15 +65,14 @@ export async function GET(req: Request) {
         },
         properties: {
           monto: r.monto != null ? Number(r.monto) : null,
-          anio: r.anio,
+          anio: r.anio != null ? Number(r.anio) : null,
           comuna: r.comuna,
           predio: r.predio,
           superficie: r.superficie != null ? Number(r.superficie) : null,
           rol: r.rol,
           destino: r.destino,
-          fechaescritura: r.fechaescritura
-            ? new Date(r.fechaescritura as string).toISOString().slice(0, 10)
-            : null,
+          fechaescritura: r.fechaescritura ?? null,
+          fechaInscripcion: r.fechaInscripcion ?? null,
         },
       }));
       const fc = { type: 'FeatureCollection' as const, features };

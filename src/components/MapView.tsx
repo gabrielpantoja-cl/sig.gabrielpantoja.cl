@@ -152,9 +152,8 @@ const formatCLP = (value: number | null): string =>
       }).format(value);
 
 /**
- * Fecha de la escritura en formato chileno DD/MM/YYYY. Acepta el ISO 8601
- * (YYYY-MM-DD) que entrega el API o un `Date` ya parseado. Devuelve string
- * vacío si el dato es null/undefined (el popup ya omite la fila en ese caso).
+ * Formatea una fecha calendario ISO sin crear un `Date`, para no desplazarla
+ * por zona horaria.
  */
 const formatDateCL = (iso: string | null | undefined): string => {
   if (!iso) return '';
@@ -208,8 +207,8 @@ function waitForImage(url: string): Promise<void> {
 
 /**
  * Popup HTML for a single transaction. Leads with the predio/comuna and price,
- * then the CBR registry citation (Fojas N° / año), the conservador it belongs to
- * and the remaining public attributes (ROL, superficie, fecha de escritura).
+ * then the CBR registry citation, its two independent legal dates when known,
+ * the conservador it belongs to and the remaining public attributes.
  * El código de destino SII se omite a propósito: aporta poco al perito fuera
  * del informe catastral y compite con la fecha de la escritura, que es la
  * pieza temporal clave para el cruce de inscripciones.
@@ -221,12 +220,19 @@ function buildPopup(p: MapPoint): string {
   ]
     .filter(Boolean)
     .join(' ');
-  const inscripcion = cite ? `${cite} · ${p.anio}` : `Año ${p.anio}`;
+  const inscripcion = cite
+    ? [cite, p.anio != null ? `Año de referencia ${p.anio}` : null].filter(Boolean).join(' · ')
+    : p.anio != null
+      ? `Año de referencia ${p.anio}`
+      : null;
 
-  const rows: [string, string][] = [['Inscripción', inscripcion]];
+  const rows: [string, string][] = [];
+  if (inscripcion) rows.push(['Inscripción', inscripcion]);
   if (p.conservador) rows.push(['Conservador', `CBR ${esc(p.conservador)}`]);
   if (p.rol) rows.push(['ROL', esc(p.rol)]);
   if (p.superficie) rows.push(['Superficie de terreno', `${p.superficie.toLocaleString('es-CL')} m²`]);
+  const fechaIns = formatDateCL(p.fechaInscripcion);
+  if (fechaIns) rows.push(['Fecha de inscripción', fechaIns]);
   const fechaEsc = formatDateCL(p.fechaEscritura);
   if (fechaEsc) rows.push(['Fecha de escritura', fechaEsc]);
 

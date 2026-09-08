@@ -10,17 +10,17 @@ export interface MapPoint {
   lat: number;
   lng: number;
   monto: number | null;
-  anio: number;
+  /** Campo histórico de año; puede no estar informado. */
+  anio: number | null;
   comuna: string;
   predio: string | null;
   superficie: number | null; // superficieTerreno (m²) en Neon
   rol: string | null;
   destino: string | null; // uso SII (Habitacional, Agrícola, etc.)
-  /** Fecha de la escritura (firmada en notaría), no la fecha de inscripción
-   *  en el CBR. La columna en la DB es `fechaescritura` (todojunto, sin
-   *  guion bajo) y se expone como ISO 8601 (YYYY-MM-DD). No es PII: es la
-   *  fecha del acto jurídico inscrito, no del comprador/vendedor. */
+  /** Fecha de la escritura firmada en notaría, como fecha calendario ISO. */
   fechaEscritura: string | null;
+  /** Fecha de inscripción en el CBR, como fecha calendario ISO. */
+  fechaInscripcion: string | null;
   fojas: string | null; // foja de la inscripción en el CBR
   numero: number | null; // número de la inscripción en el CBR
   conservador: string | null; // nombre del CBR (conservadores.nombre)
