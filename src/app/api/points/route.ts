@@ -11,7 +11,7 @@ import { getSql } from '@/lib/neon';
  */
 
 // Upper bound against runaway payloads. The frontend clusters, so it can handle
-// the full geolocated dataset (~74k); narrower filters return far fewer rows.
+// the full geolocated dataset (~86k); narrower filters return far fewer rows.
 const MAX_POINTS = 120000;
 
 export async function OPTIONS(req: Request) {
@@ -31,20 +31,23 @@ export async function GET(req: Request) {
     // Filter referenciales inside a CTE (where the unqualified filter columns are
     // unambiguous), then LEFT JOIN conservadores for the human-readable CBR name.
     // Both tables have a `comuna` column, so a direct join would be ambiguous.
-    // `fechaescritura` (sin espacios, así en la DB) aliasa a fechaEscritura para
-    // mantener el camelCase en el JSON que consume el frontend.
+    // Both legal dates are serialized as PostgreSQL date text so JavaScript
+    // never applies a timezone conversion to a calendar date.
     const rows = (await sql.query(
       `WITH r AS (
          SELECT lat, lng, monto, anio, comuna, predio,
                 "superficieTerreno" AS superficie, rol, destino,
-                fechaescritura, fojas, numero, "conservadorId"
+                fechaescritura::text AS "fechaEscritura",
+                "fechaInscripcion"::text AS "fechaInscripcion",
+                fojas, numero, "conservadorId"
          FROM referenciales
          WHERE ${where}
-         ORDER BY anio DESC
+         ORDER BY COALESCE(fechaescritura, "fechaInscripcion") DESC NULLS LAST,
+                  anio DESC NULLS LAST
          LIMIT ${MAX_POINTS}
        )
        SELECT r.lat, r.lng, r.monto, r.anio, r.comuna, r.predio, r.superficie,
-              r.rol, r.destino, r.fechaescritura, r.fojas, r.numero,
+              r.rol, r.destino, r."fechaEscritura", r."fechaInscripcion", r.fojas, r.numero,
               c.nombre AS conservador
        FROM r
        LEFT JOIN conservadores c ON c.id = r."conservadorId"`,
@@ -55,13 +58,14 @@ export async function GET(req: Request) {
       lat: Number(r.lat),
       lng: Number(r.lng),
       monto: r.monto != null ? Number(r.monto) : null,
-      anio: r.anio,
+      anio: r.anio != null ? Number(r.anio) : null,
       comuna: r.comuna,
       predio: r.predio,
       superficie: r.superficie != null ? Number(r.superficie) : null,
       rol: r.rol,
       destino: r.destino,
-      fechaEscritura: r.fechaescritura ? new Date(r.fechaescritura as string).toISOString().slice(0, 10) : null,
+      fechaEscritura: typeof r.fechaEscritura === 'string' ? r.fechaEscritura : null,
+      fechaInscripcion: typeof r.fechaInscripcion === 'string' ? r.fechaInscripcion : null,
       fojas: r.fojas,
       numero: r.numero != null ? Number(r.numero) : null,
       conservador: r.conservador,

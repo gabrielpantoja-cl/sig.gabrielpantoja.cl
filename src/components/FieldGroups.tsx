@@ -133,6 +133,10 @@ export function FilterFields({
   facets,
   setAnioFrom,
   effectiveAnioFrom,
+  fechaDesde,
+  setFechaDesde,
+  fechaHasta,
+  setFechaHasta,
   montoMin,
   setMontoMin,
   montoMax,
@@ -148,6 +152,10 @@ export function FilterFields({
   facets: Facets | null;
   setAnioFrom: (v: number) => void;
   effectiveAnioFrom: number;
+  fechaDesde: string;
+  setFechaDesde: (v: string) => void;
+  fechaHasta: string;
+  setFechaHasta: (v: string) => void;
   montoMin: string;
   setMontoMin: (v: string) => void;
   montoMax: string;
@@ -178,7 +186,7 @@ export function FilterFields({
 
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">
-          Desde el año: <span className="opacity-70">{effectiveAnioFrom}</span>
+          Desde el año de la fecha disponible: <span className="opacity-70">{effectiveAnioFrom}</span>
         </span>
         <input
           type="range"
@@ -190,6 +198,28 @@ export function FilterFields({
           disabled={!facets}
         />
       </label>
+
+      <fieldset className="flex flex-col gap-1 text-sm">
+        <legend className="font-medium">Fecha disponible</legend>
+        <p className="text-xs opacity-60">Escritura; si falta, inscripción.</p>
+        <div className="flex items-center gap-1">
+          <input
+            type="date"
+            aria-label="Fecha disponible desde"
+            value={fechaDesde}
+            onChange={(e) => setFechaDesde(e.target.value)}
+            className={`${inputClass} min-w-0 flex-1`}
+          />
+          <span className="opacity-50">–</span>
+          <input
+            type="date"
+            aria-label="Fecha disponible hasta"
+            value={fechaHasta}
+            onChange={(e) => setFechaHasta(e.target.value)}
+            className={`${inputClass} min-w-0 flex-1`}
+          />
+        </div>
+      </fieldset>
 
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Monto (CLP)</span>
