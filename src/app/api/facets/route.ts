@@ -27,8 +27,8 @@ export async function GET(req: Request) {
 
     const rangeRows = (await sql.query(
       `SELECT
-         min(anio)::int AS min_anio,
-         max(anio)::int AS max_anio,
+         min(EXTRACT(YEAR FROM COALESCE(fechaescritura, "fechaInscripcion")))::int AS min_anio,
+         max(EXTRACT(YEAR FROM COALESCE(fechaescritura, "fechaInscripcion")))::int AS max_anio,
          min(monto)::float8 AS min_monto,
          max(monto)::float8 AS max_monto
        FROM referenciales
