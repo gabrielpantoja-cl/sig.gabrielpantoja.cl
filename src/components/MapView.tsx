@@ -221,9 +221,9 @@ function buildPopup(p: MapPoint): string {
     .filter(Boolean)
     .join(' ');
   const inscripcion = cite
-    ? [cite, p.anio != null ? `Año de referencia ${p.anio}` : null].filter(Boolean).join(' · ')
+    ? [cite, p.anio != null ? `Año ${p.anio}` : null].filter(Boolean).join(' · ')
     : p.anio != null
-      ? `Año de referencia ${p.anio}`
+      ? `Año ${p.anio}`
       : null;
 
   const rows: [string, string][] = [];
