@@ -46,6 +46,8 @@
  */
 import L from 'leaflet';
 import 'leaflet.markercluster';
+import { NDVI_DESCARGO, NDVI_SOL_BAJO, ndviAtribucion, type NdviSerie } from '@/lib/ndvi';
+import { anioPorDefecto, colorDeAnio, layoutGrafico } from '@/lib/ndvi-grafico';
 import { cbrPinSvg } from '@/lib/cbr-points';
 import {
   BASEMAP_FILTER,
@@ -793,6 +795,8 @@ function drawFrame(
     drawMetadataCard(ctx, opts.metadata, canvas);
   }
 
+  if (opts.ndvi) drawNdviCard(ctx, opts.ndvi, margin);
+
   drawScaleBar(ctx, map, { x: margin, y: canvas.height - margin - 6 });
 
   const baseAttribution = getBasemap(opts.basemap ?? DEFAULT_BASEMAP_ID).attributionText;
@@ -809,6 +813,7 @@ function drawFrame(
   if (opts.showVegetacional) atts.push(ATTRIBUTION_VEGETACIONAL);
   if (opts.showPropiedadesRurales) atts.push(ATTRIBUTION_PROPIEDADES_RURALES);
   if (opts.showHexbins) atts.push(ATTRIBUTION_HEXBINS);
+  if (opts.ndvi) atts.push(ndviAtribucion(opts.ndvi.serie.anios));
   drawAttributionStrip(ctx, atts);
 }
 
@@ -832,6 +837,113 @@ export type LayerExportFlags = {
    *  bandera existe para la atribución obligatoria del PNG. */
   showHexbins: boolean;
 };
+
+/**
+ * Tarjeta de la serie NDVI en la esquina superior izquierda (la derecha es de
+ * la brújula). Reutiliza `layoutGrafico`, la misma geometría del panel, con la
+ * paleta clara: la tarjeta es blanca como el cajetín, sea cual sea el tema.
+ */
+function drawNdviCard(ctx: CanvasRenderingContext2D, ndvi: NdviExport, margin: number): void {
+  const ancho = 440;
+  const alto = 190;
+  const pad = 10;
+  const cabecera = 30;
+  const pie = 30;
+  const x0 = margin;
+  const y0 = margin;
+  const layout = layoutGrafico(ndvi.serie, ancho, alto);
+  const resaltado = ndvi.resaltado ?? anioPorDefecto(ndvi.serie);
+  const fuente = '"Inter", "Segoe UI", system-ui, sans-serif';
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.96)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(x0, y0, ancho + pad * 2, alto + cabecera + pie + pad, 6);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#171717';
+  ctx.font = `600 11px ${fuente}`;
+  ctx.fillText(ndvi.titulo, x0 + pad, y0 + pad + 10);
+  ctx.font = `10px ${fuente}`;
+  ctx.fillStyle = '#52514e';
+  const anios = layout.series.map((s) => String(s.anio)).join(' · ');
+  ctx.fillText(`Sentinel-2 L2A · mediana mensual · años ${anios}`, x0 + pad, y0 + pad + 23);
+
+  ctx.translate(x0 + pad, y0 + cabecera);
+  ctx.font = `9px ${fuente}`;
+  for (const t of layout.ticksY) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+    ctx.beginPath();
+    ctx.moveTo(layout.area.izq, t.y);
+    ctx.lineTo(layout.area.der, t.y);
+    ctx.stroke();
+    ctx.fillStyle = '#52514e';
+    ctx.textAlign = 'right';
+    ctx.fillText(t.valor.toFixed(2).replace('.', ','), layout.area.izq - 5, t.y + 3);
+  }
+  ctx.textAlign = 'center';
+  for (const t of layout.ticksX) ctx.fillText(t.etiqueta, t.x, alto - 8);
+
+  const serieResaltada = layout.series.find((s) => s.anio === resaltado);
+  if (serieResaltada) {
+    ctx.fillStyle = colorDeAnio(serieResaltada.anio, 'claro');
+    ctx.globalAlpha = 0.12;
+    for (const banda of serieResaltada.bandas) {
+      const pts = banda.split(' ').map((p) => p.split(',').map(Number));
+      ctx.beginPath();
+      pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.textAlign = 'left';
+  for (const s of layout.series) {
+    const color = colorDeAnio(s.anio, 'claro');
+    ctx.globalAlpha = resaltado !== null && resaltado !== s.anio ? 0.45 : 1;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    for (const tramo of s.tramos) {
+      if (tramo.length < 2) continue;
+      ctx.beginPath();
+      tramo.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+      ctx.stroke();
+    }
+    for (const p of s.puntos) {
+      const bajo = (p.mes.elevacionSol ?? 90) < NDVI_SOL_BAJO;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = bajo ? '#ffffff' : color;
+      ctx.fill();
+      ctx.strokeStyle = bajo ? color : '#ffffff';
+      ctx.stroke();
+    }
+    if (s.etiqueta) {
+      ctx.fillStyle = '#171717';
+      ctx.fillText(String(s.anio), s.etiqueta.x, s.etiqueta.y + 3);
+    }
+  }
+  ctx.globalAlpha = 1;
+  ctx.translate(-(x0 + pad), -(y0 + cabecera));
+
+  ctx.fillStyle = '#171717';
+  ctx.font = `600 9px ${fuente}`;
+  ctx.fillText(NDVI_DESCARGO, x0 + pad, y0 + cabecera + alto + 12, ancho);
+  ctx.font = `9px ${fuente}`;
+  ctx.fillStyle = '#52514e';
+  ctx.fillText(
+    `${ndvi.serie.resumen.conDato} de 36 meses con dato; los huecos no se interpolan. Marcador hueco: sol < ${NDVI_SOL_BAJO}°.`,
+    x0 + pad,
+    y0 + cabecera + alto + 24,
+    ancho,
+  );
+  ctx.restore();
+}
 
 /** Forma de la muestra (swatch) que precede al título en el cajetín. Cada
  *  color del swatch se corresponde con la capa real del mapa — el mismo
@@ -879,7 +991,12 @@ export type MapExportOptions = LayerExportFlags & {
    *  inferior izquierda (sobre la escala). Si `undefined` o vacío, no se
    *  dibuja cajetín. */
   metadata?: LayerMetadataEntry[];
+  /** Serie NDVI del panel abierto. Si viene, el PNG la incluye como tarjeta con
+   *  el mismo gráfico de la pantalla y su atribución Copernicus. */
+  ndvi?: NdviExport | null;
 };
+
+export type NdviExport = { serie: NdviSerie; titulo: string; resaltado: number | null };
 
 /**
  * Orquesta las tres pistas: tiles + vectores → pines CBR → marco. Devuelve

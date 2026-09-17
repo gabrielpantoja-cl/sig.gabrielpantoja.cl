@@ -70,3 +70,5 @@ AGENTS.local.md
 # Directorios de investigación y referencias (no versionados)
 .research/
 research/
+# El prototipo de medición de NDVI sí se versiona: sus cifras sostienen § 5.2.
+!scripts/research/
