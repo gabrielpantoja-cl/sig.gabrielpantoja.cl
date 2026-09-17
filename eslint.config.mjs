@@ -15,6 +15,10 @@ const eslintConfig = defineConfig([
     // Artefactos locales del MCP de Playwright (gitignorados): scripts de
     // sondeo desechables, no código del proyecto.
     ".playwright-mcp/**",
+    // Repos de terceros y salidas de investigación (gitignorados): con un
+    // proyecto externo descomprimido ahí el lint local reportaba cientos de
+    // errores ajenos. En CI la carpeta no existe.
+    ".research/**",
   ]),
 ]);
 
