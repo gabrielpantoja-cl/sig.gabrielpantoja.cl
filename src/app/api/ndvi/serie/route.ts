@@ -130,7 +130,10 @@ export async function POST(req: Request) {
   ) {
     return error(req, 400, 'POLIGONO_INVALIDO', 'El polígono necesita al menos un anillo de 4 vértices [lng, lat].');
   }
-  const limpio = (anillos as number[][][]).map((a) => a.map(([lng, lat]) => [redondearCoordenada(lng), redondearCoordenada(lat)]));
+  // Los vértices NO se redondean: redondear a 4 decimales colapsaba vértices
+  // vecinos en aristas duplicadas. Los POST no pasan por la CDN, así que no hay
+  // clave de caché que normalizar.
+  const limpio = (anillos as number[][][]).map((a) => a.map(([lng, lat]) => [lng, lat]));
   const vertices = limpio.reduce((s, a) => s + a.length, 0);
   if (vertices > NDVI_POLIGONO_VERTICES_MAX) {
     return error(req, 400, 'POLIGONO_COMPLEJO', `El polígono supera ${NDVI_POLIGONO_VERTICES_MAX} vértices.`);

@@ -32,6 +32,9 @@ export interface NdviMes {
   escena: string | null;
   /** Nubosidad declarada para la cuadrícula completa de la escena (%). */
   nubesEscena: number | null;
+  /** Elevación del sol en la escena (°). Bajo ~25° las sombras recortan área
+   *  y la lectura corresponde a copas iluminadas. */
+  elevacionSol: number | null;
   /** Píxeles de 10 m dentro del área consultada. */
   pixeles: number;
   /** Píxeles válidos tras la máscara SCL y el filtro de neblina. */
@@ -75,7 +78,12 @@ export const NDVI_RADIO_MAX = 250;
  * escena, y la consulta deja de caber en el tiempo de una función.
  */
 export const NDVI_POLIGONO_LADO_MAX_M = 3000;
-export const NDVI_POLIGONO_VERTICES_MAX = 2000;
+/** La máscara se calcula una vez por zona UTM, así que los vértices ya no
+ *  multiplican por escena; un rodal CONAF de 105 ha trae 3.256. */
+export const NDVI_POLIGONO_VERTICES_MAX = 20000;
+
+/** Por debajo de esta elevación solar la UI advierte sombra de invierno. */
+export const NDVI_SOL_BAJO = 25;
 
 /** Fracción mínima del área que debe quedar válida para aceptar una escena. */
 export const NDVI_FRACCION_MINIMA = 0.5;
