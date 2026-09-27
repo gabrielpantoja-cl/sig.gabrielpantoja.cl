@@ -425,13 +425,18 @@ export default function Home() {
     setBootDone(true);
   }, []);
 
-  // Desktop: paneles flotantes sobre el mapa, solo uno abierto a la vez.
-  const [activePanel, setActivePanel] = useState<PanelId | null>(null);
-  const togglePanel = (id: PanelId) => setActivePanel((p) => (p === id ? null : id));
-
-  // Mobile: drawer consolidado (búsqueda + filtros + estadísticas), cerrado
-  // por defecto para que el mapa sea dueño de la pantalla.
+  // Mobile: consolidated drawer (search + filters + stats), closed by default
+  // so the map owns the screen.
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Desktop: floating panels over the map, only one open at a time.
+  const [activePanel, setActivePanel] = useState<PanelId | null>(null);
+  // Toggling any panel closes the mobile drawer first: both live at
+  // z-[1100]/z-[1101] and would otherwise stack two open layers on screen.
+  const togglePanel = (id: PanelId) => {
+    setDrawerOpen(false);
+    setActivePanel((p) => (p === id ? null : id));
+  };
 
   const clearRuralSearch = useCallback(() => {
     ruralSearchController.current?.abort();
@@ -770,7 +775,12 @@ export default function Home() {
   );
 
   return (
-    <main className="flex flex-1 flex-col">
+    <main className="flex flex-1 flex-col md:max-h-screen md:overflow-hidden">
+      {/* Desktop app shell: the column is capped at the viewport so the layer
+          dock (a flex sibling of the map) can never make the whole page grow
+          and push the map below the fold — its own body scrolls instead.
+          Mobile keeps `min-h` behaviour: the drawer is `fixed` and the page
+          may scroll. */}
       {/* Header — una sola fila delgada para que el mapa domine la pantalla */}
       <header className="flex items-center justify-between border-b border-black/10 px-4 py-2.5 md:px-6 md:py-3 dark:border-white/10">
         <h1 className="text-[0.65rem] uppercase tracking-[0.18em] opacity-60 md:text-xs">
@@ -828,216 +838,226 @@ export default function Home() {
         </button>
       </section>
 
-      {/* Mapa a pantalla completa con paneles flotantes */}
-      <section className="relative min-h-[70vh] flex-1 md:min-h-0">
-        {error && (
-          <div className="absolute inset-0 z-[500] flex items-center justify-center text-sm text-red-600">
-            No se pudieron cargar los datos del mapa.
-          </div>
-        )}
-        <div className="absolute inset-0">
-          <MapView
-            layerOpacity={layerOpacity}
-            points={points}
-            showPoints={showPoints}
-            showProtected={showProtected}
-            showUrbanLimit={showUrbanLimit}
-            showComunas={showComunas}
-            showRedVial={showRedVial}
-            showRedDrenaje={showRedDrenaje}
-            showLineasTransmision={showLineasTransmision}
-            showSuelos={showSuelos}
-            onSuelosStatus={setSuelosStatus}
-            showBioclima={showBioclima}
-            bioclimaVariable={bioclimaVariable}
-            showCatastroFruticola={showCatastroFruticola}
-            showVegetacional={showVegetacional}
-            showPropiedadesRurales={showPropiedadesRurales}
-            onPropiedadesRuralesStatus={setPropiedadesRuralesStatus}
-            selectedRuralFeature={selectedRuralFeature}
-            showHexbins={showHexbins}
-            hexbinDestino={hexbinDestino}
-            hexbinMinN={hexbinMinN}
-            hexbinFiltersQs={debouncedQs}
-            onHexbinStatus={setHexbinStatus}
-            kmlLayers={kmlLayers}
-            basemap={basemap}
-            focus={focus}
-            onRenderProgress={handleRenderProgress}
-            onRenderComplete={handleRenderComplete}
-            mapExportRef={mapExportRef}
-          />
-        </div>
-        {/* Se desmonta solo (gone) tras llegar al 100% y hacer fade-out. */}
-        <RetroLoader progress={bootProgress} done={bootDone} />
+      {/* Layer dock + map: the sidebar lives IN FLOW on the left and pushes
+          the map on desktop; on mobile it is a fixed bottom drawer. Both are
+          siblings so every `absolute`/`fixed` control positions against the
+          right box: map overlays against the section, sidebar controls against
+          this container. */}
+      <div className="relative flex min-h-0 flex-1 overflow-x-clip">
+        <LayersControl
+          layerOpacity={layerOpacity}
+          onLayerOpacity={(key, value) => setLayerOpacity((previous) => ({ ...previous, [key]: value }))}
+          activeId={activePanel}
+          onActivate={togglePanel}
+          showPoints={showPoints}
+          onTogglePoints={setShowPoints}
+          showHexbins={showHexbins}
+          onToggleHexbins={setShowHexbins}
+          hexbinStatus={hexbinStatus}
+          hexbinDestino={hexbinDestino}
+          onHexbinDestino={setHexbinDestino}
+          hexbinMinN={hexbinMinN}
+          onHexbinMinN={setHexbinMinN}
+          showProtected={showProtected}
+          onToggleProtected={setShowProtected}
+          showUrbanLimit={showUrbanLimit}
+          onToggleUrbanLimit={setShowUrbanLimit}
+          showComunas={showComunas}
+          onToggleComunas={setShowComunas}
+          showRedVial={showRedVial}
+          onToggleRedVial={setShowRedVial}
+          showRedDrenaje={showRedDrenaje}
+          onToggleRedDrenaje={setShowRedDrenaje}
+          showLineasTransmision={showLineasTransmision}
+          onToggleLineasTransmision={setShowLineasTransmision}
+          showSuelos={showSuelos}
+          onToggleSuelos={setShowSuelos}
+          suelosStatus={suelosStatus}
+          showBioclima={showBioclima}
+          onToggleBioclima={setShowBioclima}
+          bioclimaVariable={bioclimaVariable}
+          onBioclimaVariable={setBioclimaVariable}
+          showCatastroFruticola={showCatastroFruticola}
+          onToggleCatastroFruticola={setShowCatastroFruticola}
+          showVegetacional={showVegetacional}
+          onToggleVegetacional={setShowVegetacional}
+          showPropiedadesRurales={showPropiedadesRurales}
+          onTogglePropiedadesRurales={setShowPropiedadesRurales}
+          propiedadesRuralesStatus={propiedadesRuralesStatus}
+          kmlLayers={kmlLayers}
+          kmlError={kmlError}
+          onAddKmlFiles={addKmlFiles}
+          onToggleKml={toggleKml}
+          onRemoveKml={removeKml}
+          onRenameKml={renameKml}
+          onExport={handleExportClick}
+          exporting={exporting}
+        />
 
-        {showSuelos && suelosStatus.kind === 'error' && (
-          <div
-            role="alert"
-            className="absolute bottom-8 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs leading-snug text-red-800 shadow-lg backdrop-blur dark:text-red-200"
-          >
-            <strong>Capa de suelos temporalmente no disponible.</strong>{' '}
-            No responde {suelosStatus.service || SUELOS_SERVICE_NAME} (operación{' '}
-            {suelosStatus.operation}). El resto del SIG continúa funcionando normalmente.
-          </div>
-        )}
-        {exportError && (
-          <div
-            role="alert"
-            className="absolute bottom-32 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs leading-snug text-red-800 shadow-lg backdrop-blur dark:text-red-200"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <p>
-                <strong>No se pudo generar el PNG.</strong>{' '}
-                La vista del mapa sigue intacta; puedes reintentar o apagar
-                alguna capa antes de exportar.
-                <span className="mt-1 block opacity-70">Detalle: {exportError}</span>
-              </p>
-              <button
-                type="button"
-                onClick={() => setExportError(null)}
-                aria-label="Descartar el aviso de error de exportación"
-                className="-mr-1 -mt-1 rounded px-1.5 text-base leading-none opacity-60 hover:opacity-100"
-              >
-                ×
-              </button>
+        {/* Mapa a pantalla completa con paneles flotantes */}
+        <section className="relative min-h-[70vh] flex-1 md:min-h-0">
+          {error && (
+            <div className="absolute inset-0 z-[500] flex items-center justify-center text-sm text-red-600">
+              No se pudieron cargar los datos del mapa.
             </div>
-          </div>
-        )}
-        {showPropiedadesRurales && propiedadesRuralesStatus.kind === 'error' && (
-          <div role="alert" className="absolute bottom-20 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs text-red-800 shadow-lg dark:text-red-200">
-            <strong>Capa de propiedades rurales temporalmente no disponible.</strong>{' '}
-            No responde {propiedadesRuralesStatus.service || PROPIEDADES_RURALES_SERVICE_NAME}.
-          </div>
-        )}
-
-        {/* Geocoder mobile: barra flotante sobre el mapa, a la derecha del zoom */}
-        <div className="absolute left-14 right-3 top-3 z-[600] md:hidden">
-          <GeocoderSearch onSelect={setFocus} />
-        </div>
-
-        {/* Clúster de paneles arriba a la izquierda, junto al control de zoom (desktop) */}
-        <div className="absolute left-14 top-3 z-[600] hidden items-start gap-2 md:flex">
-          <GeocoderSearch onSelect={setFocus} className="w-72" />
-
-          <MapPanel
-            id="search"
-            activeId={activePanel}
-            onActivate={togglePanel}
-            icon={SearchIcon}
-            label="Buscar"
-            badge={activeSearch}
-            widthClassName="w-72"
-          >
-            {searchFields}
-          </MapPanel>
-
-          <MapPanel
-            id="filters"
-            activeId={activePanel}
-            onActivate={togglePanel}
-            icon={FilterIcon}
-            label="Filtros"
-            badge={activeFilters}
-            widthClassName="w-80"
-          >
-            {filterFields}
-          </MapPanel>
-
-          <MapPanel
-            id="stats"
-            activeId={activePanel}
-            onActivate={togglePanel}
-            icon={StatsIcon}
-            label="Estadísticas"
-            widthClassName="w-72"
-          >
-            <p className="mb-2 text-xs opacity-60">
-              {loading ? 'Cargando…' : `${fmtInt(stats?.count ?? 0)} transacciones en la selección`}
-            </p>
-            {statsFields}
-          </MapPanel>
-        </div>
-
-        {/* Panel de capas a la derecha: en mobile baja una fila para no chocar
-            con la barra del geocoder */}
-        <div className="absolute right-3 top-[3.75rem] z-[600] w-60 max-w-[calc(100%-1.5rem)] md:top-3">
-          <LayersControl
-            layerOpacity={layerOpacity}
-            onLayerOpacity={(key, value) => setLayerOpacity((previous) => ({ ...previous, [key]: value }))}
-            activeId={activePanel}
-            onActivate={togglePanel}
-            showPoints={showPoints}
-            onTogglePoints={setShowPoints}
-            showHexbins={showHexbins}
-            onToggleHexbins={setShowHexbins}
-            hexbinStatus={hexbinStatus}
-            hexbinDestino={hexbinDestino}
-            onHexbinDestino={setHexbinDestino}
-            hexbinMinN={hexbinMinN}
-            onHexbinMinN={setHexbinMinN}
-            showProtected={showProtected}
-            onToggleProtected={setShowProtected}
-            showUrbanLimit={showUrbanLimit}
-            onToggleUrbanLimit={setShowUrbanLimit}
-            showComunas={showComunas}
-            onToggleComunas={setShowComunas}
-            showRedVial={showRedVial}
-            onToggleRedVial={setShowRedVial}
-            showRedDrenaje={showRedDrenaje}
-            onToggleRedDrenaje={setShowRedDrenaje}
-            showLineasTransmision={showLineasTransmision}
-            onToggleLineasTransmision={setShowLineasTransmision}
-            showSuelos={showSuelos}
-            onToggleSuelos={setShowSuelos}
-            suelosStatus={suelosStatus}
-            showBioclima={showBioclima}
-            onToggleBioclima={setShowBioclima}
-            bioclimaVariable={bioclimaVariable}
-            onBioclimaVariable={setBioclimaVariable}
-            showCatastroFruticola={showCatastroFruticola}
-            onToggleCatastroFruticola={setShowCatastroFruticola}
-            showVegetacional={showVegetacional}
-            onToggleVegetacional={setShowVegetacional}
-            showPropiedadesRurales={showPropiedadesRurales}
-            onTogglePropiedadesRurales={setShowPropiedadesRurales}
-            propiedadesRuralesStatus={propiedadesRuralesStatus}
-            kmlLayers={kmlLayers}
-            kmlError={kmlError}
-            onAddKmlFiles={addKmlFiles}
-            onToggleKml={toggleKml}
-            onRemoveKml={removeKml}
-            onRenameKml={renameKml}
-            onExport={handleExportClick}
-            exporting={exporting}
-          />
-        </div>
-
-        {/* Selector de mapa base: esquina inferior izquierda, sobre la barra
-            de escala de Leaflet — el lugar donde Google Maps y los visores SIG
-            ponen este control. En mobile sube para no chocar con el FAB. */}
-        <div className="absolute bottom-20 left-3 z-[600] md:bottom-9">
-          <BasemapSwitcher value={basemap} onChange={setBasemapPreference} />
-        </div>
-
-        {/* FAB mobile: abre el drawer consolidado */}
-        <button
-          type="button"
-          onClick={() => setDrawerOpen(true)}
-          className="fixed bottom-4 left-1/2 z-[600] inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-black/15 bg-[var(--background)]/95 px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur md:hidden dark:border-white/20"
-        >
-          {FilterIcon}
-          Buscar y filtrar
-          {activeFilters + activeSearch > 0 && (
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[hsl(153_28%_35%)] px-1 text-xs font-semibold text-white">
-              {activeFilters + activeSearch}
-            </span>
           )}
-          <span className="tabular-nums opacity-60">
-            · {loading ? '…' : fmtInt(stats?.count ?? 0)}
-          </span>
-        </button>
-      </section>
+          <div className="absolute inset-0">
+            <MapView
+              layerOpacity={layerOpacity}
+              points={points}
+              showPoints={showPoints}
+              showProtected={showProtected}
+              showUrbanLimit={showUrbanLimit}
+              showComunas={showComunas}
+              showRedVial={showRedVial}
+              showRedDrenaje={showRedDrenaje}
+              showLineasTransmision={showLineasTransmision}
+              showSuelos={showSuelos}
+              onSuelosStatus={setSuelosStatus}
+              showBioclima={showBioclima}
+              bioclimaVariable={bioclimaVariable}
+              showCatastroFruticola={showCatastroFruticola}
+              showVegetacional={showVegetacional}
+              showPropiedadesRurales={showPropiedadesRurales}
+              onPropiedadesRuralesStatus={setPropiedadesRuralesStatus}
+              selectedRuralFeature={selectedRuralFeature}
+              showHexbins={showHexbins}
+              hexbinDestino={hexbinDestino}
+              hexbinMinN={hexbinMinN}
+              hexbinFiltersQs={debouncedQs}
+              onHexbinStatus={setHexbinStatus}
+              kmlLayers={kmlLayers}
+              basemap={basemap}
+              focus={focus}
+              onRenderProgress={handleRenderProgress}
+              onRenderComplete={handleRenderComplete}
+              mapExportRef={mapExportRef}
+            />
+          </div>
+          {/* Se desmonta solo (gone) tras llegar al 100% y hacer fade-out. */}
+          <RetroLoader progress={bootProgress} done={bootDone} />
+
+          {showSuelos && suelosStatus.kind === 'error' && (
+            <div
+              role="alert"
+              className="absolute bottom-8 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs leading-snug text-red-800 shadow-lg backdrop-blur dark:text-red-200"
+            >
+              <strong>Capa de suelos temporalmente no disponible.</strong>{' '}
+              No responde {suelosStatus.service || SUELOS_SERVICE_NAME} (operación{' '}
+              {suelosStatus.operation}). El resto del SIG continúa funcionando normalmente.
+            </div>
+          )}
+          {exportError && (
+            <div
+              role="alert"
+              className="absolute bottom-32 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs leading-snug text-red-800 shadow-lg backdrop-blur dark:text-red-200"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p>
+                  <strong>No se pudo generar el PNG.</strong>{' '}
+                  La vista del mapa sigue intacta; puedes reintentar o apagar
+                  alguna capa antes de exportar.
+                  <span className="mt-1 block opacity-70">Detalle: {exportError}</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setExportError(null)}
+                  aria-label="Descartar el aviso de error de exportación"
+                  className="-mr-1 -mt-1 rounded px-1.5 text-base leading-none opacity-60 hover:opacity-100"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
+          {showPropiedadesRurales && propiedadesRuralesStatus.kind === 'error' && (
+            <div role="alert" className="absolute bottom-20 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs text-red-800 shadow-lg dark:text-red-200">
+              <strong>Capa de propiedades rurales temporalmente no disponible.</strong>{' '}
+              No responde {propiedadesRuralesStatus.service || PROPIEDADES_RURALES_SERVICE_NAME}.
+            </div>
+          )}
+
+          {/* Geocoder mobile: barra flotante sobre el mapa, a la derecha del zoom */}
+          <div className="absolute left-14 right-3 top-3 z-[600] md:hidden">
+            <GeocoderSearch onSelect={setFocus} />
+          </div>
+
+          {/* Panel cluster at top-left, next to the zoom control (desktop).
+              `right-3` bounds the row so `flex-wrap` can drop the chips to a
+              second line when the 320 px layer dock squeezes the map area at
+              the md breakpoint, instead of overflowing off-screen. */}
+          <div className="absolute left-14 right-3 top-3 z-[600] hidden items-start gap-2 flex-wrap md:flex">
+            <GeocoderSearch onSelect={setFocus} className="w-72" />
+
+            <MapPanel
+              id="search"
+              activeId={activePanel}
+              onActivate={togglePanel}
+              icon={SearchIcon}
+              label="Buscar"
+              badge={activeSearch}
+              widthClassName="w-72"
+            >
+              {searchFields}
+            </MapPanel>
+
+            <MapPanel
+              id="filters"
+              activeId={activePanel}
+              onActivate={togglePanel}
+              icon={FilterIcon}
+              label="Filtros"
+              badge={activeFilters}
+              widthClassName="w-80"
+            >
+              {filterFields}
+            </MapPanel>
+
+            <MapPanel
+              id="stats"
+              activeId={activePanel}
+              onActivate={togglePanel}
+              icon={StatsIcon}
+              label="Estadísticas"
+              widthClassName="w-72"
+            >
+              <p className="mb-2 text-xs opacity-60">
+                {loading ? 'Cargando…' : `${fmtInt(stats?.count ?? 0)} transacciones en la selección`}
+              </p>
+              {statsFields}
+            </MapPanel>
+          </div>
+
+          {/* Selector de mapa base: esquina inferior izquierda, sobre la barra
+              de escala de Leaflet — el lugar donde Google Maps y los visores SIG
+              ponen este control. En mobile sube para no chocar con el FAB. */}
+          <div className="absolute bottom-20 left-3 z-[600] md:bottom-9">
+            <BasemapSwitcher value={basemap} onChange={setBasemapPreference} />
+          </div>
+
+          {/* Mobile FAB: opens the consolidated drawer. Any floating panel is
+              closed first so two open layers never stack. */}
+          <button
+            type="button"
+            onClick={() => {
+              setActivePanel(null);
+              setDrawerOpen(true);
+            }}
+            className="fixed bottom-4 left-1/2 z-[600] inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-black/15 bg-[var(--background)]/95 px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur md:hidden dark:border-white/20"
+          >
+            {FilterIcon}
+            Buscar y filtrar
+            {activeFilters + activeSearch > 0 && (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[hsl(153_28%_35%)] px-1 text-xs font-semibold text-white">
+                {activeFilters + activeSearch}
+              </span>
+            )}
+            <span className="tabular-nums opacity-60">
+              · {loading ? '…' : fmtInt(stats?.count ?? 0)}
+            </span>
+          </button>
+        </section>
+      </div>
     </main>
   );
 }

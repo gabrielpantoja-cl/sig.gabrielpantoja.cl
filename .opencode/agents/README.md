@@ -24,8 +24,9 @@ permission:
 ## Roster
 
 - `build` and `plan` are OpenCode's built-in primary agents.
-- `orchestrator` is this project's primary coordinator. It uses GPT-5.6 Sol
-  and has a deny-by-default `task` allowlist for specialist delegation.
+- `orchestrator` is this project's primary coordinator. It pins no model — the
+  session model comes from the machine config — and has a deny-by-default
+  `task` allowlist for specialist delegation.
 - `canvas-export-agent` and `gis-architect-agent` are read-only GIS specialists.
 - `nextjs-architect-agent`, `neon-data-engineer-agent` and
   `etl-pipeline-engineer-agent` are read-only specialists for the application,

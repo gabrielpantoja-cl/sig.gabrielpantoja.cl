@@ -922,7 +922,8 @@ export default function MapView({
   // Initialize the map once.
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
-    const map = L.map(containerRef.current, {
+    const container = containerRef.current;
+    const map = L.map(container, {
       center: MAP_CENTER,
       zoom: 7,
       maxZoom: MAP_MAX_ZOOM,
@@ -933,9 +934,28 @@ export default function MapView({
     // selector: así hay una sola ruta de código que crea capas de tiles.
     L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
     mapRef.current = map;
+
+    // The layer sidebar is an in-flow 320 px dock: opening or closing it
+    // changes this container's size WITHOUT a window resize, and Leaflet would
+    // keep projecting with the old width (tiles offset, clicks landing on the
+    // wrong spot, controls overlapping). A ResizeObserver on the container is
+    // the generic fix — it also covers the mobile drawer, viewport changes and
+    // devtools docking. `pan: true` keeps the geographic center stable while
+    // the viewport widens/narrows; `animate: false` avoids a visible slide.
+    let disposed = false;
+    const resizeObserver = new ResizeObserver(() => {
+      if (disposed || !mapRef.current) return;
+      mapRef.current.invalidateSize({ pan: true, animate: false });
+    });
+    resizeObserver.observe(container);
+
     const kmlById = kmlRef.current;
     const seenIds = seenKmlIds.current;
     return () => {
+      // Stop the observer FIRST: a callback queued after `map.remove()` would
+      // call invalidateSize() on a destroyed map.
+      disposed = true;
+      resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
       clusterRef.current = null;
