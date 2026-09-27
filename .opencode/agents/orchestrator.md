@@ -1,7 +1,6 @@
 ---
 description: Primary coordinator for multi-domain SIG work. Decomposes requests across Next.js, Leaflet/GIS, Neon APIs, ETL and export, delegates read-only analysis to the right specialists, then implements and verifies the resulting changes.
 mode: primary
-model: openai/gpt-5.6-sol
 temperature: 0.1
 color: accent
 permission:
