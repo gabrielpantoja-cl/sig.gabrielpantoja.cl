@@ -1,6 +1,6 @@
 # Arquitectura de capas del SIG: catálogo y receta para agregar una capa nueva
 
-> Documento vivo. Última actualización: 2026-08-27.
+> Documento vivo. Última actualización: 2026-09-27.
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
 > públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
@@ -31,6 +31,7 @@ atribución visible y cita en el popup.
 | Catastro frutícola (CIREN) | CIREN · IDE Minagri · esri.ciren.cl (MapServer `IDEMINAGRI/CATASTRO_FRUTICOLA`, 14 sublayers) | 2019–2025 según región | ~95k productores (especie_01 + ROL + códigos SUBDERE) | **~30 MB** ⚠ | `scripts/build-catastro-fruticola.mjs` |
 | Recursos vegetacionales (CONAF) | CONAF · IDE Minagri · ArcGIS MapServer | 2014–2024 según región | Render oficial + consulta puntual de uso, subuso, estructura, cobertura y especies dominantes | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
 | Propiedades rurales (CIREN) | CIREN · IDE Minagri · `IDEMINAGRI/PROPIEDADES_RURALES` (14 sublayers regionales) | 2004–2023 según región | Polígonos prediales referenciales + ROL SII publicado por la fuente | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
+| NDVI Visual (Sentinel-2) | Copernicus Sentinel-2 L2A · Element 84 Earth Search / AWS Open Data (COG) | escenas de los últimos 45 días, seleccionadas por grilla MGRS | Raster continuo de NDVI por viewport, enmascarado con SCL; rampa compartida leyenda↔pintor | **0 MB (capa dinámica remota)** | — (sin ETL; `/api/ndvi/export` + `lib/ndvi-raster.ts`) |
 | Mapa de calor de valor ($/m²) | Elaboración propia sobre inscripciones de los Conservadores de Bienes Raíces | igual que los puntos CBR (97 % de 2025) | Raster continuo interpolado desde centroides `ST_HexagonGrid` de 60 m–4 km según zoom (máx. 4.000 muestras por respuesta) | **0 MB (agregada en Neon + rasterizada en el cliente)** | — (sin ETL; `/api/hexbins` + `lib/heat-surface.ts`) |
 
 Cada GeoJSON va acompañado de un `*.meta.json` (manifiesto de procedencia:
@@ -118,6 +119,37 @@ silenciosamente. La geometría se solicita recién entonces mediante
 presupuesto máximo de 50.000 coordenadas. `MapView` la mantiene como un
 `L.GeoJSON` independiente del raster para poder resaltarla y limpiarla sin
 reconstruir la cobertura remota.
+
+El **NDVI Visual (Sentinel-2)** es la capa más reciente de la familia: un
+raster continuo de vigor vegetal que el servidor compone desde cero por
+viewport (`/api/ndvi/export` + `src/lib/ndvi-raster.ts`, server-only). El
+cliente solo manda `bbox` y `size`; el servidor busca escenas en Element 84
+Earth Search (45 días, una por cuadrícula MGRS: primero las despejadas ≤ 15 %
+—de ahí la más reciente—, si no la de menos nube de las aceptables ≤ 40 %),
+elige el overview del COG cuyo píxel quede a ≤ 2× la resolución del viewport
+(`geotiff` no lo selecciona solo: `readRasters({width,height})` no ahorra
+bytes), interpola red/nir con SCL como máscara y pinta la rampa de
+`ndvi-ramp.json`, el mismo JSON que lee la leyenda. Decisiones que carga la
+implementación:
+
+- **Grilla de salida lineal en EPSG:3857** (la inversa de Mercator da la
+  latitud de cada fila): `L.ImageOverlay` estira la imagen linealmente en el
+  plano proyectado, no en lat/lng; rasterear en grados desplaza el borde sur
+  cientos de metros en un bbox de 1°.
+- **Zoom mínimo 10** y span acotado server-side (~360 × 340 km): bajo el
+  mínimo no se emite peticiones y la leyenda lo dice; presupuesto de 20 s con
+  504 honesto (nunca un PNG a medio pintar). Todas las bandas de todas las
+  escenas se leen **en paralelo** (en serie costaba ~1,6 s por escena).
+- **Debounce de 250 ms en `moveend` + parámetros cuantizados** (bbox a 4
+  decimales, tamaño múltiplo de 64) para que la CDN reutilice claves entre
+  micro-paneos; las bounds del overlay usan la misma caja cuantizada.
+- **La leyenda distingue estados**: `zoom-required`, `loading`, `ready` con
+  la fecha de la escena (`X-Ndvi-Fecha`), `ready` sin escenas (capa
+  transparente, NO es falla) y `error` con banner — la doctrina de la leyenda
+  de suelos: una caída nunca se presenta como «sin datos».
+- La atribución Copernicus entra al PNG de export por la bandera
+  `showNdviVisual`; los píxeles entran solos (es un `<img>` del
+  `overlayPane` que `drawOverlayPaneToCanvas` compositea con su opacidad).
 
 Además existen las **capas KML del usuario** (subidas en el panel Capas,
 parseadas 100 % en el navegador — `src/lib/kml.ts` — nunca suben a un

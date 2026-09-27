@@ -7,6 +7,7 @@ import { kmlColorFor, kmlDisplayName, parseKmlFile, type KmlLayer } from '@/lib/
 import type { LayerMetadataEntry, NdviExport } from '@/lib/map-export';
 import { ndviTitulo, type NdviConsulta, type NdviSerie } from '@/lib/ndvi';
 import { SUELOS_SERVICE_NAME, type SuelosStatus } from '@/lib/suelos';
+import { NDVI_VISUAL_SERVICE_NAME, type NdviVisualEstado } from '@/lib/ndvi-visual';
 import {
   PROPIEDADES_RURALES_FEATURE_URL,
   PROPIEDADES_RURALES_SEARCH_URL,
@@ -180,6 +181,7 @@ type BuildMetadataInput = {
   showCatastroFruticola: boolean;
   showVegetacional: boolean;
   showPropiedadesRurales: boolean;
+  showNdviVisual: boolean;
   showHexbins: boolean;
   hexbinStatus: HexbinStatus;
   comuna: string;
@@ -342,6 +344,16 @@ function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEntry[] {
   }
   if (input.showPropiedadesRurales) {
     entries.push({ title: 'Propiedades rurales (CIREN)', details: 'Polígonos prediales y ROL referenciales; cobertura y vintage regionales heterogéneos. No acredita dominio ni deslindes legales.\nFuente: CIREN · IDE Minagri', color: '#dc2626', shape: 'square' });
+  }
+  if (input.showNdviVisual) {
+    entries.push({
+      title: 'NDVI Visual (Sentinel-2)',
+      details:
+        'Índice de vigor vegetal por viewport, escala -0,1 a 0,9; escenas de los últimos días con máscara SCL\n' +
+        'Contiene datos modificados de Copernicus Sentinel vía Element 84 / AWS Open Data',
+      color: '#3e8f49', // verde medio de la rampa (parada 0,7)
+      shape: 'square',
+    });
   }
 
   if (input.showHexbins) {
@@ -550,6 +562,8 @@ export default function Home() {
   const [layerOpacity, setLayerOpacity] = useState(DEFAULT_LAYER_OPACITY);
   const [showCatastroFruticola, setShowCatastroFruticola] = useState(false);
   const [showVegetacional, setShowVegetacional] = useState(false);
+  const [showNdviVisual, setShowNdviVisual] = useState(false);
+  const [ndviVisualStatus, setNdviVisualStatus] = useState<NdviVisualEstado>({ kind: 'idle' });
   // Mapa de calor de valor. El destino arranca en habitacional: es el 57 % de
   // la base y el caso urbano que el usuario quiere ver primero.
   const [showHexbins, setShowHexbins] = useState(false);
@@ -682,6 +696,7 @@ export default function Home() {
         showCatastroFruticola,
         showVegetacional,
         showPropiedadesRurales,
+        showNdviVisual,
         showHexbins,
         hexbinStatus,
         comuna,
@@ -710,6 +725,7 @@ export default function Home() {
     showBioclima, bioclimaVariable,
     showPoints, showProtected, showUrbanLimit, showComunas, showRedVial,
     showRedDrenaje, showLineasTransmision, showSuelos, showCatastroFruticola, showVegetacional, showPropiedadesRurales,
+    showNdviVisual,
     showHexbins, hexbinStatus,
     comuna, anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol,
     stats, kmlLayers,
@@ -943,6 +959,9 @@ export default function Home() {
           showPropiedadesRurales={showPropiedadesRurales}
           onTogglePropiedadesRurales={setShowPropiedadesRurales}
           propiedadesRuralesStatus={propiedadesRuralesStatus}
+          showNdviVisual={showNdviVisual}
+          onToggleNdviVisual={setShowNdviVisual}
+          ndviVisualStatus={ndviVisualStatus}
           kmlLayers={kmlLayers}
           kmlError={kmlError}
           onAddKmlFiles={addKmlFiles}
@@ -980,6 +999,8 @@ export default function Home() {
               showCatastroFruticola={showCatastroFruticola}
               showVegetacional={showVegetacional}
               showPropiedadesRurales={showPropiedadesRurales}
+              showNdviVisual={showNdviVisual}
+              onNdviVisualStatus={setNdviVisualStatus}
               onPropiedadesRuralesStatus={setPropiedadesRuralesStatus}
               selectedRuralFeature={selectedRuralFeature}
               showHexbins={showHexbins}
@@ -1039,6 +1060,16 @@ export default function Home() {
             <div role="alert" className="absolute bottom-20 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs text-red-800 shadow-lg dark:text-red-200">
               <strong>Capa de propiedades rurales temporalmente no disponible.</strong>{' '}
               No responde {propiedadesRuralesStatus.service || PROPIEDADES_RURALES_SERVICE_NAME}.
+            </div>
+          )}
+          {showNdviVisual && ndviVisualStatus.kind === 'error' && (
+            <div
+              role="alert"
+              className="absolute bottom-44 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs leading-snug text-red-800 shadow-lg backdrop-blur dark:text-red-200"
+            >
+              <strong>Capa NDVI Visual temporalmente no disponible.</strong>{' '}
+              No responde {NDVI_VISUAL_SERVICE_NAME}. El resto del SIG continúa
+              funcionando normalmente.
             </div>
           )}
 

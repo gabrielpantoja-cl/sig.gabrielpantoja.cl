@@ -1,4 +1,5 @@
 import { COMUNAS_STYLE } from './comunas';
+import { NDVI_VISUAL_OPACITY } from './ndvi-visual';
 import { SUELOS_OPACITY } from './suelos';
 import { VEGETACIONAL_OPACITY } from './vegetacional';
 import { PROPIEDADES_RURALES_OPACITY } from './propiedades-rurales';
@@ -11,6 +12,7 @@ export const DEFAULT_LAYER_OPACITY = {
   vegetacional: VEGETACIONAL_OPACITY,
   propiedadesRurales: PROPIEDADES_RURALES_OPACITY,
   catastroFruticola: 0.32,
+  ndviVisual: NDVI_VISUAL_OPACITY,
 };
 
 export type LayerOpacity = typeof DEFAULT_LAYER_OPACITY;

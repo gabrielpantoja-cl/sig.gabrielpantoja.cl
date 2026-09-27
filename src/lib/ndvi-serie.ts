@@ -30,6 +30,7 @@
  *    informa además la elevación solar, para que la UI advierta.
  */
 
+import 'server-only';
 import { fromUrl, type GeoTIFFImage } from 'geotiff';
 import {
   NDVI_FRACCION_MINIMA,
@@ -44,11 +45,12 @@ const STAC_SEARCH = 'https://earth-search.aws.element84.com/v1/search';
 /** 0 nodata · 1 saturado · 2 área oscura/sombra topográfica · 3 sombra de nube ·
  *  7 no clasificado · 8/9 nube · 10 cirro · 11 nieve. La 7 es donde Sen2Cor deja
  *  la nube fina de baja probabilidad: en un pino adulto sumó 3.468 píxeles con
- *  NDVI 0,42 en una escena del 63 % nublada. */
-const SCL_INVALIDAS = new Set([0, 1, 2, 3, 7, 8, 9, 10, 11]);
+ *  NDVI 0,42 en una escena del 63 % nublada. Compartida con `ndvi-raster.ts`
+ *  (NDVI Visual): la misma máscara en serie y en el raster continuo. */
+export const SCL_INVALIDAS = new Set([0, 1, 2, 3, 7, 8, 9, 10, 11]);
 /** Rojo por debajo de esto es el piso del sensor tras la corrección atmosférica
  *  en sombra, no una medición: con rojo ≈ 0 el NDVI satura en 1. */
-const ROJO_DN_MINIMO = 20;
+export const ROJO_DN_MINIMO = 20;
 const AZUL_NEBLINA = 0.1;
 
 /** Escenas a validar por mes para el compuesto de máximo valor. */
@@ -60,16 +62,19 @@ const MESES_EN_PARALELO = 6;
  *  requests por banda); con 256 KB son 2 y el tiempo baja a la mitad. */
 const BLOQUE_BYTES = 1 << 18;
 
-interface StacAsset {
+export interface StacAsset {
   href: string;
   'proj:transform': number[];
   'proj:shape': number[];
 }
 
-interface StacItem {
+export interface StacItem {
   id: string;
   properties: Record<string, unknown> & { datetime: string };
   assets: Record<string, StacAsset>;
+  /** Caja WGS84 de la escena; la usa `ndvi-raster.ts` como prefiltro barato
+   *  antes de proyectar píxel a píxel. */
+  bbox?: [number, number, number, number];
 }
 
 // ── Proyección UTM (WGS84, series de Krüger) ────────────────────────────────
@@ -135,23 +140,15 @@ export function ventanaDeMeses(hoy = new Date()): string[] {
 }
 
 async function buscarEscenas(
-  geo: NdviGeometria,
+  espacial: Record<string, unknown>,
   desde: string,
   hasta: string,
   signal: AbortSignal,
 ): Promise<StacItem[]> {
-  // Al catálogo se le manda un punto o la caja del polígono, nunca la geometría
-  // del usuario: un anillo con aristas coincidentes lo rechaza con 400
+  // Al catálogo se le manda un punto o una caja, nunca la geometría del
+  // usuario: un anillo con aristas coincidentes lo rechaza con 400
   // («Cannot determine orientation»), y las escenas miden 110 km de lado, así
   // que la caja selecciona exactamente las mismas.
-  let espacial: Record<string, unknown>;
-  if (geo.tipo === 'punto') {
-    espacial = { intersects: { type: 'Point', coordinates: [geo.lng, geo.lat] } };
-  } else {
-    const lngs = geo.anillos[0].map((v) => v[0]);
-    const lats = geo.anillos[0].map((v) => v[1]);
-    espacial = { bbox: [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)] };
-  }
   const base = {
     collections: ['sentinel-2-l2a'],
     ...espacial,
@@ -383,6 +380,18 @@ async function conLimite<T>(tareas: (() => Promise<T>)[], limite: number): Promi
   return salida;
 }
 
+/** Escenas que intersectan una caja [oeste, sur, este, norte] en la ventana de
+ *  fechas dada. La usa `ndvi-raster.ts` (NDVI Visual) para componer el PNG por
+ *  viewport con exactamente el mismo paginado y filtros que la serie. */
+export async function buscarEscenasPorCaja(
+  bbox: readonly [number, number, number, number],
+  desde: string,
+  hasta: string,
+  signal: AbortSignal,
+): Promise<StacItem[]> {
+  return buscarEscenas({ bbox: [...bbox] }, desde, hasta, signal);
+}
+
 export async function calcularSerieNdvi(
   geo: NdviGeometria,
   opciones: { signal: AbortSignal; presupuestoMs: number },
@@ -393,7 +402,15 @@ export async function calcularSerieNdvi(
   const [ay, am] = meses[meses.length - 1].split('-').map(Number);
   const hasta = new Date(Date.UTC(ay, am, 0)).toISOString().slice(0, 10);
 
-  const items = await buscarEscenas(geo, desde, hasta, opciones.signal);
+  let espacial: Record<string, unknown>;
+  if (geo.tipo === 'punto') {
+    espacial = { intersects: { type: 'Point', coordinates: [geo.lng, geo.lat] } };
+  } else {
+    const lngs = geo.anillos[0].map((v) => v[0]);
+    const lats = geo.anillos[0].map((v) => v[1]);
+    espacial = { bbox: [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)] };
+  }
+  const items = await buscarEscenas(espacial, desde, hasta, opciones.signal);
   const porMes = new Map<string, StacItem[]>();
   for (const it of items) {
     const mes = it.properties.datetime.slice(0, 7);

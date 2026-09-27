@@ -18,7 +18,12 @@ import {
 } from '@/lib/basemap';
 import type { Feature, FeatureCollection, Geometry, Point } from 'geojson';
 import { downloadCanvas, exportFilename, exportMapToPng, type LayerMetadataEntry, type NdviExport } from '@/lib/map-export';
-import type { NdviConsulta } from '@/lib/ndvi';
+import { NdviConsulta, redondearCoordenada } from '@/lib/ndvi';
+import {
+  NDVI_VISUAL_EXPORT_URL,
+  NDVI_VISUAL_MIN_ZOOM,
+  type NdviVisualEstado,
+} from '@/lib/ndvi-visual';
 import { categoryColor, type ProtectedAreaProps } from '@/lib/protected-areas';
 import {
   URBAN_LIMIT_ATTRIBUTION,
@@ -684,6 +689,7 @@ export default function MapView({
   showCatastroFruticola = false,
   showVegetacional = false,
   showPropiedadesRurales = false,
+  showNdviVisual = false,
   showHexbins = false,
   hexbinDestino,
   hexbinMinN,
@@ -695,6 +701,7 @@ export default function MapView({
   onRenderComplete,
   onSuelosStatus,
   onPropiedadesRuralesStatus,
+  onNdviVisualStatus,
   selectedRuralFeature = null,
   onHexbinStatus,
   mapExportRef,
@@ -722,6 +729,8 @@ export default function MapView({
   showCatastroFruticola?: boolean;
   showVegetacional?: boolean;
   showPropiedadesRurales?: boolean;
+  /** NDVI Visual: raster continuo por viewport (Sentinel-2 vía /api/ndvi/export). */
+  showNdviVisual?: boolean;
   /** Mapa de calor de valor: hexbins de $/m² agregados en Neon por viewport. */
   showHexbins?: boolean;
   /** Código de destino SII sobre el que se agrega. Obligatorio: la mediana de
@@ -746,6 +755,8 @@ export default function MapView({
   /** Disponibilidad operacional de la capa remota de suelos para el panel UI. */
   onSuelosStatus?: (status: SuelosStatus) => void;
   onPropiedadesRuralesStatus?: (status: PropiedadesRuralesStatus) => void;
+  /** Disponibilidad operacional del raster NDVI Visual para la leyenda. */
+  onNdviVisualStatus?: (status: NdviVisualEstado) => void;
   /** Geometría exacta elegida desde el buscador de ROL CIREN. Se mantiene
    * separada del raster remoto para resaltarla sin reconstruir la cobertura. */
   selectedRuralFeature?: PropiedadRuralFeatureResponse | null;
@@ -783,6 +794,7 @@ export default function MapView({
   const bioclimaRef = useRef<L.ImageOverlay | null>(null);
   const catastroFruticolaRef = useRef<L.GeoJSON | null>(null);
   const vegetacionalRef = useRef<L.ImageOverlay | null>(null);
+  const ndviVisualRef = useRef<L.ImageOverlay | null>(null);
   const propiedadesRuralesRef = useRef<L.ImageOverlay | null>(null);
   const propiedadRuralHighlightRef = useRef<L.GeoJSON | null>(null);
   const hexbinsRef = useRef<L.ImageOverlay | null>(null);
@@ -805,6 +817,7 @@ export default function MapView({
     if (previous.suelos !== layerOpacity.suelos) suelosRef.current?.setOpacity(layerOpacity.suelos);
     if (previous.bioclima !== layerOpacity.bioclima) bioclimaRef.current?.setOpacity(layerOpacity.bioclima);
     if (previous.vegetacional !== layerOpacity.vegetacional) vegetacionalRef.current?.setOpacity(layerOpacity.vegetacional);
+    if (previous.ndviVisual !== layerOpacity.ndviVisual) ndviVisualRef.current?.setOpacity(layerOpacity.ndviVisual);
     if (previous.propiedadesRurales !== layerOpacity.propiedadesRurales) propiedadesRuralesRef.current?.setOpacity(layerOpacity.propiedadesRurales);
   }, [layerOpacity]);
   // Muestras de la superficie vigente. El raster no es clicable, así que el
@@ -834,6 +847,7 @@ export default function MapView({
   const onRenderCompleteRef = useRef(onRenderComplete);
   const onSuelosStatusRef = useRef(onSuelosStatus);
   const onPropiedadesRuralesStatusRef = useRef(onPropiedadesRuralesStatus);
+  const onNdviVisualStatusRef = useRef(onNdviVisualStatus);
   const onHexbinStatusRef = useRef(onHexbinStatus);
   // Modo NDVI en ref: los handlers de clic de otras capas (declarados en
   // effects con deps estables) deben poder consultar el estado vigente del
@@ -845,10 +859,11 @@ export default function MapView({
     onRenderCompleteRef.current = onRenderComplete;
     onSuelosStatusRef.current = onSuelosStatus;
     onPropiedadesRuralesStatusRef.current = onPropiedadesRuralesStatus;
+    onNdviVisualStatusRef.current = onNdviVisualStatus;
     onHexbinStatusRef.current = onHexbinStatus;
     ndviModeRef.current = ndviMode;
     onNdviPointRef.current = onNdviPoint;
-  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onPropiedadesRuralesStatus, onHexbinStatus, ndviMode, onNdviPoint]);
+  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onHexbinStatus, ndviMode, onNdviPoint]);
 
   // Publica el método de export en el ref entregado por la página. La closure
   // se re-bindea en cada cambio de flags para que la captura refleje siempre
@@ -879,6 +894,7 @@ export default function MapView({
         showCatastroFruticola,
          showVegetacional,
          showPropiedadesRurales,
+        showNdviVisual,
         showHexbins,
         basemap,
         cluster: clusterRef.current,
@@ -904,6 +920,7 @@ export default function MapView({
     showCatastroFruticola,
     showVegetacional,
     showPropiedadesRurales,
+    showNdviVisual,
     showHexbins,
     basemap,
     ndvi,
@@ -974,9 +991,15 @@ export default function MapView({
     // Comunas al fondo de todo (contexto), luego áreas protegidas.
     protectedRef.current?.bringToBack();
     comunasRef.current?.bringToBack();
+    // NDVI Visual se hunde AQUÍ y bioclima se hunde después: como `bringToBack`
+    // es absoluto (al fondo del pane), la secuencia ndvi → bioclima deja el
+    // orden final bioclima | ndvi | comunas | resto. La capa va encima de la
+    // superficie climática y debajo de todo vector, que es donde un ráster de
+    // contexto debe estar.
+    ndviVisualRef.current?.bringToBack();
     // Bioclima queda por debajo incluso de comunas: es una superficie continua
     // que cubre todo el territorio, así que sobre cualquier otra capa las
-    // taparía por completo. Va justo encima del mapa base.
+    // taparía por completo. Va justo encima del mapa base (y del NDVI Visual).
     bioclimaRef.current?.bringToBack();
     urbanLimitRef.current?.bringToFront();
     // Catastro frutícola sobre los polígonos administrativos (los huertos
@@ -1050,6 +1073,7 @@ export default function MapView({
       suelosRef.current = null;
       catastroFruticolaRef.current = null;
       vegetacionalRef.current = null;
+      ndviVisualRef.current = null;
       propiedadesRuralesRef.current = null;
       propiedadRuralHighlightRef.current = null;
       hexbinsRef.current = null;
@@ -1901,6 +1925,147 @@ export default function MapView({
       if (vegetacionalRef.current === overlay) vegetacionalRef.current = null;
     };
   }, [showVegetacional, reorderOverlays]);
+
+  // NDVI Visual (Sentinel-2) — capa dinámica remota por viewport, misma familia
+  // que suelos/vegetacional: UN PNG compuesto en el servidor (`/api/ndvi/export`
+  // pinta las escenas COG de cada cuadrícula MGRS con la rampa de `ndvi-ramp.json`)
+  // colgado en un L.ImageOverlay y refrescado en moveend. Dos diferencias con
+  // sus vecinas, ambas por el costo de componer (~5 s por viewport):
+  //   1. debounce de 250 ms — un paneo genera muchos moveend y cada uno obliga
+  //      a releer pirámides de Sentinel-2;
+  //   2. cuantización de parámetros (bbox a 4 decimales, tamaño múltiplo de 64)
+  //      para que el CDN de Vercel reutilice claves entre micro-paneos y entre
+  //      recargas de la misma vista; las bounds del overlay usan la MISMA caja
+  //      cuantizada, así la imagen queda georreferenciada exactamente donde se
+  //      pidió (desfase máximo ~11 m, invisible a esta escala).
+  // La máquina de estados (loading/ready+fecha/error/zoom-required) viaja por
+  // `onNdviVisualStatus` para que la leyenda no presente una falla del servicio
+  // como "sin datos" — la doctrina de la leyenda de suelos.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (ndviVisualRef.current) {
+      map.removeLayer(ndviVisualRef.current);
+      ndviVisualRef.current = null;
+    }
+    if (!showNdviVisual) {
+      onNdviVisualStatusRef.current?.({ kind: 'idle' });
+      return;
+    }
+
+    const overlay = L.imageOverlay(TRANSPARENT_PIXEL, map.getBounds(), {
+      opacity: opacityRef.current.ndviVisual,
+      interactive: false,
+      attribution: 'Copernicus Sentinel-2 vía Element 84 / AWS Open Data',
+    }).addTo(map);
+    ndviVisualRef.current = overlay;
+
+    let exportSequence = 0;
+    let exportController: AbortController | null = null;
+    let activeBlobUrl: string | null = null;
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+
+    const clearRaster = (bounds: L.LatLngBounds) => {
+      overlay.setUrl(TRANSPARENT_PIXEL);
+      overlay.setBounds(bounds);
+      if (activeBlobUrl) {
+        URL.revokeObjectURL(activeBlobUrl);
+        activeBlobUrl = null;
+      }
+    };
+
+    const refresh = async () => {
+      const id = ++exportSequence;
+      exportController?.abort();
+      exportController = null;
+      const bounds = map.getBounds();
+      // Zoom bajo el mínimo: el servidor rechazaría la caja por span — aquí no
+      // se emite peticiones y la leyenda lo dice explícitamente.
+      if (map.getZoom() < NDVI_VISUAL_MIN_ZOOM) {
+        clearRaster(bounds);
+        onNdviVisualStatusRef.current?.({ kind: 'zoom-required', minZoom: NDVI_VISUAL_MIN_ZOOM });
+        return;
+      }
+      clearRaster(bounds);
+      onNdviVisualStatusRef.current?.({ kind: 'loading' });
+      const controller = new AbortController();
+      exportController = controller;
+      const oeste = redondearCoordenada(bounds.getWest());
+      const sur = redondearCoordenada(bounds.getSouth());
+      const este = redondearCoordenada(bounds.getEast());
+      const norte = redondearCoordenada(bounds.getNorth());
+      const ancho = Math.min(1600, Math.max(64, Math.ceil(map.getSize().x / 64) * 64));
+      const alto = Math.min(1600, Math.max(64, Math.ceil(map.getSize().y / 64) * 64));
+      const cajaCuantizada = L.latLngBounds([sur, oeste], [norte, este]);
+      const params = new URLSearchParams({
+        bbox: `${oeste},${sur},${este},${norte}`,
+        size: `${ancho},${alto}`,
+      });
+      let candidateBlobUrl: string | null = null;
+      try {
+        const response = await fetch(`${NDVI_VISUAL_EXPORT_URL}?${params}`, {
+          signal: controller.signal,
+        });
+        if (id !== exportSequence || controller.signal.aborted) return;
+        if (response.status === 204) {
+          // Ninguna escena útil en la caja (borde costero, sin cobertura): la
+          // capa queda transparente y el mapa base se ve solo. No es falla.
+          clearRaster(cajaCuantizada);
+          onNdviVisualStatusRef.current?.({ kind: 'ready', fecha: null });
+          return;
+        }
+        if (!response.ok) {
+          clearRaster(cajaCuantizada);
+          onNdviVisualStatusRef.current?.({ kind: 'error' });
+          return;
+        }
+        const blob = await response.blob();
+        if (blob.type !== 'image/png') throw new Error('Respuesta NDVI Visual no es PNG');
+        candidateBlobUrl = URL.createObjectURL(blob);
+        await waitForImage(candidateBlobUrl);
+        if (id !== exportSequence || controller.signal.aborted || !ndviVisualRef.current) {
+          URL.revokeObjectURL(candidateBlobUrl);
+          return;
+        }
+        if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
+        activeBlobUrl = candidateBlobUrl;
+        candidateBlobUrl = null;
+        overlay.setBounds(cajaCuantizada);
+        overlay.setUrl(activeBlobUrl);
+        reorderOverlays();
+        onNdviVisualStatusRef.current?.({
+          kind: 'ready',
+          fecha: response.headers.get('X-Ndvi-Fecha'),
+        });
+      } catch (error) {
+        if (candidateBlobUrl) URL.revokeObjectURL(candidateBlobUrl);
+        if (controller.signal.aborted || id !== exportSequence) return;
+        console.error('NDVI Visual: no se pudo componer el raster del viewport.', error);
+        clearRaster(cajaCuantizada);
+        onNdviVisualStatusRef.current?.({ kind: 'error' });
+      }
+    };
+
+    const scheduleRefresh = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => void refresh(), 250);
+    };
+
+    void refresh();
+    map.on('moveend', scheduleRefresh);
+    return () => {
+      if (debounce) clearTimeout(debounce);
+      exportController?.abort();
+      // Invalida respuestas en vuelo que ya no tienen dónde pintarse.
+      exportSequence++;
+      map.off('moveend', scheduleRefresh);
+      if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
+      if (map.hasLayer(overlay)) map.removeLayer(overlay);
+      if (ndviVisualRef.current === overlay) ndviVisualRef.current = null;
+      onNdviVisualStatusRef.current?.({ kind: 'idle' });
+    };
+  }, [showNdviVisual, reorderOverlays]);
 
   // Bioclima (WorldClim). Es la capa remota más simple del mapa y a propósito:
   // el raster recortado a Chile son 224×924 px (25-50 KB), así que el ETL lo

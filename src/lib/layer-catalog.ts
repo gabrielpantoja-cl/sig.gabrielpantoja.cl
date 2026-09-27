@@ -105,7 +105,7 @@ export const LAYER_CATALOG = [
   {
     id: 'remote',
     title: 'Capas dinámicas remotas',
-    keywords: 'capas dinamicas remotas servicios arcgis bajo demanda',
+    keywords: 'capas dinamicas remotas servicios arcgis bajo demanda sentinel ndvi vegetacion',
     layers: [
       {
         id: 'suelos',
@@ -121,6 +121,11 @@ export const LAYER_CATALOG = [
         id: 'propiedadesRurales',
         label: 'Propiedades rurales (CIREN)',
         description: 'Polígonos prediales con ROL y comuna; búsqueda por ROL, 14 regiones',
+      },
+      {
+        id: 'ndviVisual',
+        label: 'NDVI Visual (Sentinel-2)',
+        description: 'Raster continuo de vigor vegetal por viewport, Sentinel-2 L2A con máscara de nubes SCL; escala divergente',
       },
     ],
   },
