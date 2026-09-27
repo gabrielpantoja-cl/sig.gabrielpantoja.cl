@@ -47,6 +47,7 @@
 import L from 'leaflet';
 import 'leaflet.markercluster';
 import { NDVI_DESCARGO, NDVI_SOL_BAJO, ndviAtribucion, type NdviSerie } from '@/lib/ndvi';
+import { NDVI_VISUAL_ATTRIBUTION } from '@/lib/ndvi-visual';
 import { anioPorDefecto, colorDeAnio, layoutGrafico } from '@/lib/ndvi-grafico';
 import { cbrPinSvg } from '@/lib/cbr-points';
 import {
@@ -813,6 +814,7 @@ function drawFrame(
   if (opts.showVegetacional) atts.push(ATTRIBUTION_VEGETACIONAL);
   if (opts.showPropiedadesRurales) atts.push(ATTRIBUTION_PROPIEDADES_RURALES);
   if (opts.showHexbins) atts.push(ATTRIBUTION_HEXBINS);
+  if (opts.showNdviVisual) atts.push(NDVI_VISUAL_ATTRIBUTION);
   if (opts.ndvi) atts.push(ndviAtribucion(opts.ndvi.serie.anios));
   drawAttributionStrip(ctx, atts);
 }
@@ -836,6 +838,10 @@ export type LayerExportFlags = {
    *  captura de vectores (es un L.geoJSON sobre el canvas compartido); esta
    *  bandera existe para la atribución obligatoria del PNG. */
   showHexbins: boolean;
+  /** NDVI Visual. Los píxeles entran solos al export (es un L.ImageOverlay
+   *  del overlayPane que `drawOverlayPaneToCanvas` compositea con su
+   *  opacidad); la bandera solo exige la atribución Copernicus del PNG. */
+  showNdviVisual: boolean;
 };
 
 /**

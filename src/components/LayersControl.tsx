@@ -52,6 +52,16 @@ import {
   VEGETACIONAL_REGIONS,
   VEGETACIONAL_SOURCE_URL,
 } from '@/lib/vegetacional';
+import {
+  NDVI_VISUAL_ATTRIBUTION,
+  NDVI_VISUAL_DESCARGO,
+  NDVI_VISUAL_MIN_ZOOM,
+  NDVI_VISUAL_SERVICE_NAME,
+  NDVI_VISUAL_SOURCE_URL,
+  ndviRampCssGradient,
+  ndviRampTicks,
+  type NdviVisualEstado,
+} from '@/lib/ndvi-visual';
 import { KML_MAX_FILE_MB, kmlDisplayName, type KmlLayer } from '@/lib/kml';
 import { PROPIEDADES_RURALES_ATTRIBUTION, PROPIEDADES_RURALES_COLOR, PROPIEDADES_RURALES_DISCLAIMER, PROPIEDADES_RURALES_MIN_ZOOM, PROPIEDADES_RURALES_REGIONS, PROPIEDADES_RURALES_SOURCE_URL, type PropiedadesRuralesStatus } from '@/lib/propiedades-rurales';
 import {
@@ -257,6 +267,58 @@ function SuelosStatusNotice({ status }: { status: SuelosStatus }) {
           tone: 'border-red-500/30 bg-red-500/10 text-red-800 dark:text-red-200',
           icon: '!',
           text: `Servicio sin respuesta: ${status.service} (operación ${status.operation}). Se reintentará al mover el mapa o al reactivar la capa.`,
+        };
+    }
+  })();
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={`ml-5 mt-1.5 rounded-md border px-2 py-1.5 text-[0.65rem] leading-snug ${content.tone}`}
+    >
+      <span className="mr-1 font-bold" aria-hidden="true">{content.icon}</span>
+      {content.text}
+    </div>
+  );
+}
+
+function NdviVisualStatusNotice({ status }: { status: NdviVisualEstado }) {
+  const activeLegend = useContext(ActiveLegendContext);
+  if (!activeLegend) return null;
+  if (status.kind === 'idle') return null;
+
+  const content = (() => {
+    switch (status.kind) {
+      case 'zoom-required':
+        return {
+          tone: 'border-sky-500/25 bg-sky-500/10 text-sky-800 dark:text-sky-200',
+          icon: '↗',
+          text: `Acerca el mapa hasta zoom ${status.minZoom} o superior para solicitar el raster NDVI.`,
+        };
+      case 'loading':
+        return {
+          tone: 'border-amber-500/25 bg-sky-500/10 text-amber-900 dark:text-amber-100',
+          icon: '◌',
+          text: 'Componiendo el NDVI de la vista con las escenas Sentinel-2 más despejadas…',
+        };
+      case 'ready':
+        return status.fecha
+          ? {
+              tone: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100',
+              icon: '✓',
+              text: `Raster Sentinel-2 del ${status.fecha.split('-').reverse().join('-')} operativo en esta vista.`,
+            }
+          : {
+              tone: 'border-sky-500/25 bg-sky-500/10 text-sky-800 dark:text-sky-200',
+              icon: '○',
+              text: 'Sin escenas despejadas en esta vista: el raster queda transparente y se ve el mapa base.',
+            };
+      case 'error':
+        return {
+          tone: 'border-red-500/30 bg-red-500/10 text-red-800 dark:text-red-200',
+          icon: '!',
+          text: `Servicio sin respuesta: ${NDVI_VISUAL_SERVICE_NAME}. Se reintentará al mover el mapa o al reactivar la capa.`,
         };
     }
   })();
@@ -525,6 +587,9 @@ export function LayersControl({
   showPropiedadesRurales,
   onTogglePropiedadesRurales,
   propiedadesRuralesStatus,
+  showNdviVisual,
+  onToggleNdviVisual,
+  ndviVisualStatus,
   kmlLayers,
   kmlError,
   onAddKmlFiles,
@@ -575,6 +640,11 @@ export function LayersControl({
   showPropiedadesRurales: boolean;
   onTogglePropiedadesRurales: (v: boolean) => void;
   propiedadesRuralesStatus: PropiedadesRuralesStatus;
+  showNdviVisual: boolean;
+  onToggleNdviVisual: (v: boolean) => void;
+  /** Estado del raster por viewport: la leyenda lo muestra para no presentar
+   *  una falla del servicio como "sin datos". */
+  ndviVisualStatus: NdviVisualEstado;
   kmlLayers: KmlLayer[];
   kmlError: string | null;
   onAddKmlFiles: (files: FileList) => void;
@@ -646,10 +716,10 @@ export function LayersControl({
   );
   const hasActiveLegend = showHexbins || showProtected || showUrbanLimit || showComunas ||
     showRedVial || showRedDrenaje || showLineasTransmision || showSuelos || showBioclima ||
-    showCatastroFruticola || showVegetacional || showPropiedadesRurales;
+    showCatastroFruticola || showVegetacional || showPropiedadesRurales || showNdviVisual;
   const activeLayerCount = [showHexbins, showProtected, showUrbanLimit, showComunas,
     showRedVial, showRedDrenaje, showLineasTransmision, showSuelos, showBioclima,
-    showCatastroFruticola, showVegetacional, showPropiedadesRurales].filter(Boolean).length;
+    showCatastroFruticola, showVegetacional, showPropiedadesRurales, showNdviVisual].filter(Boolean).length;
   const catalogue = (
       <div className="space-y-2">
         <LayerGroupHeader id="cbr" />
@@ -1031,6 +1101,55 @@ export function LayersControl({
           </p>
           {propiedadesRuralesStatus.kind === 'zoom-required' && <p className="mt-1 text-[0.6rem] opacity-50">Acerca el mapa para consultar ROL y comuna.</p>}
         </LayerRow>
+
+        <div>
+          <LayerRow
+            checked={showNdviVisual}
+            onChange={onToggleNdviVisual}
+            layerId="ndviVisual"
+            label="NDVI Visual (Sentinel-2)"
+            controls={opacityControl('ndviVisual')}
+            swatch={
+              <span
+                className="inline-block h-2.5 w-4 rounded-sm"
+                style={{ background: ndviRampCssGradient() }}
+              />
+            }
+          >
+            {/* Misma rampa JSON que el pintor del PNG (padre bioclima-ramp):
+                leyenda y capa no pueden divergir por construcción. */}
+            <div className="h-2.5 w-full rounded-sm" style={{ background: ndviRampCssGradient() }} aria-hidden />
+            <div className="relative mt-0.5 h-3.5" aria-label="Escala NDVI de -0,1 a 0,9">
+              {ndviRampTicks().map((tick) => (
+                <span
+                  key={tick.label}
+                  className="absolute top-0 text-[0.6rem] opacity-60"
+                  style={{
+                    left: `${tick.t * 100}%`,
+                    transform: tick.t <= 0 ? 'none' : tick.t >= 1 ? 'translateX(-100%)' : 'translateX(-50%)',
+                  }}
+                >
+                  {tick.label}
+                </span>
+              ))}
+            </div>
+            <p className="mt-1 text-[0.6rem] leading-snug opacity-50">
+              {NDVI_VISUAL_ATTRIBUTION}. Composición por viewport con las escenas
+              Sentinel-2 más despejadas de los últimos días; la máscara SCL quita
+              nubes y sombras. <strong>{NDVI_VISUAL_DESCARGO}</strong>{' '}
+              <strong>Visible desde zoom {NDVI_VISUAL_MIN_ZOOM}.</strong>{' '}
+              <a
+                href={NDVI_VISUAL_SOURCE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:opacity-100"
+              >
+                Ver fuente oficial →
+              </a>
+            </p>
+          </LayerRow>
+          {showNdviVisual && <NdviVisualStatusNotice status={ndviVisualStatus} />}
+        </div>
 
         <LayerGroupHeader id="climate" />
         <LayerRow
