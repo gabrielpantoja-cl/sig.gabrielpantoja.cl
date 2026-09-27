@@ -5,10 +5,13 @@
  * cálculo vive en `ndvi-serie.ts` (solo servidor). Diseño y cifras medidas en
  * `docs/roadmap.md` § 5.2.
  *
- * No es una capa ráster: no se dibuja NDVI sobre el mapa. Una sola fecha de
- * NDVI es engañosa —separa nativo de plantación con ~70 % de exactitud
- * balanceada en la costa valdiviana—; lo informativo es la curva estacional
- * de un lugar, con su variabilidad y la calidad del dato de cada mes.
+ * Esta herramienta NO dibuja nada sobre el mapa: una sola fecha de NDVI es
+ * engañosa —separa nativo de plantación con ~70 % de exactitud balanceada en
+ * la costa valdiviana—; lo informativo de un punto es su curva estacional, con
+ * variabilidad y calidad del dato. La capa raster CONTINUA es un contrato
+ * distinto (`ndvi-visual.ts` + `ndvi-raster.ts`, ruta `/api/ndvi/export`): allí
+ * la escala divergente y la fecha visible de la leyenda cumplen el rol que aquí
+ * cumple la serie.
  */
 
 export type NdviGeometria =
