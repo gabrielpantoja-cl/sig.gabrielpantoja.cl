@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import dynamic from 'next/dynamic';
 import type { Facets, GeocodeResult, MapPoint, Stats } from '@/lib/types';
 import { kmlColorFor, kmlDisplayName, parseKmlFile, type KmlLayer } from '@/lib/kml';
-import type { LayerMetadataEntry } from '@/lib/map-export';
+import type { LayerMetadataEntry, NdviExport } from '@/lib/map-export';
+import { ndviTitulo, type NdviConsulta, type NdviSerie } from '@/lib/ndvi';
 import { SUELOS_SERVICE_NAME, type SuelosStatus } from '@/lib/suelos';
 import {
   PROPIEDADES_RURALES_FEATURE_URL,
@@ -40,6 +41,7 @@ import {
 import { SearchFields, FilterFields, StatsFields, type RuralRolSearchState } from '@/components/FieldGroups';
 import { GeocoderSearch } from '@/components/GeocoderSearch';
 import { InfoPanel } from '@/components/InfoPanel';
+import { NdviPanel } from '@/components/NdviPanel';
 
 // El RetroLoader de page.tsx cubre también la carga del módulo, así que el
 // dynamic no necesita fallback propio (evita dos loaders superpuestos).
@@ -124,6 +126,16 @@ const StatsIcon = (
     <line x1="5" y1="20" x2="5" y2="12" />
     <line x1="12" y1="20" x2="12" y2="4" />
     <line x1="19" y1="20" x2="19" y2="9" />
+  </svg>
+);
+
+const CrosshairIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="7" />
+    <line x1="12" y1="2" x2="12" y2="5" />
+    <line x1="12" y1="19" x2="12" y2="22" />
+    <line x1="2" y1="12" x2="5" y2="12" />
+    <line x1="19" y1="12" x2="22" y2="12" />
   </svg>
 );
 
@@ -545,6 +557,53 @@ export default function Home() {
   const [hexbinMinN, setHexbinMinN] = useState(HEXBIN_MIN_N_DEFAULT);
   const [hexbinStatus, setHexbinStatus] = useState<HexbinStatus>({ kind: 'idle' });
 
+  // Herramienta NDVI: consulta puntual sobre Sentinel-2 (no es una capa del
+  // catálogo, no se enciende ni se apaga — se consulta). `ndviMode` arma el
+  // modo cruceta del mapa; `ndviConsulta` es el punto vigente y `ndviExport`
+  // la serie + título que alimenta el cajetín del PNG exportado.
+  const [ndviMode, setNdviMode] = useState(false);
+  const [ndviConsulta, setNdviConsulta] = useState<NdviConsulta | null>(null);
+  const [ndviExport, setNdviExport] = useState<NdviExport | null>(null);
+
+  // El clic con el modo armado llega desde MapView: desarma y abre el panel
+  // en la misma transición, cerrando antes los paneles flotantes para que dos
+  // superficies no queden apiladas sobre el mismo punto.
+  const handleNdviPoint = useCallback((lat: number, lng: number) => {
+    setNdviMode(false);
+    setNdviConsulta({ tipo: 'punto', lat, lng });
+    setActivePanel(null);
+    setDrawerOpen(false);
+  }, []);
+
+  // serie y título se fijan juntos: el cajetín del PNG nunca puede citar una
+  // consulta vieja con una serie nueva.
+  const handleNdviSerie = useCallback((serie: NdviSerie | null) => {
+    setNdviExport(serie && ndviConsulta ? { serie, titulo: ndviTitulo(ndviConsulta), resaltado: null } : null);
+  }, [ndviConsulta]);
+
+  const handleNdviResaltado = useCallback((anio: number) => {
+    setNdviExport((prev) => (prev ? { ...prev, resaltado: anio } : prev));
+  }, []);
+
+  const cerrarNdvi = useCallback(() => {
+    setNdviConsulta(null);
+    setNdviExport(null);
+    setNdviMode(false);
+  }, []);
+
+  // Escape: primero desarma la consulta pendiente; si no hay modo armado,
+  // cierra el panel. Sin leaflet de por medio, así vive en la página.
+  useEffect(() => {
+    if (!ndviMode && !ndviConsulta) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (ndviMode) setNdviMode(false);
+      else if (ndviConsulta) cerrarNdvi();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [ndviMode, ndviConsulta, cerrarNdvi]);
+
   // Mapa base. La preferencia vive en localStorage y se lee por
   // `useSyncExternalStore` (ver lib/basemap-store.ts): el servidor pinta el
   // fondo por defecto, el cliente el guardado, sin hidratación rota ni
@@ -892,6 +951,8 @@ export default function Home() {
           onRenameKml={renameKml}
           onExport={handleExportClick}
           exporting={exporting}
+          ndviMode={ndviMode}
+          onToggleNdviMode={() => setNdviMode((m) => !m)}
         />
 
         {/* Mapa a pantalla completa con paneles flotantes */}
@@ -932,6 +993,10 @@ export default function Home() {
               onRenderProgress={handleRenderProgress}
               onRenderComplete={handleRenderComplete}
               mapExportRef={mapExportRef}
+              ndviMode={ndviMode}
+              ndviConsulta={ndviConsulta}
+              onNdviPoint={handleNdviPoint}
+              ndvi={ndviExport}
             />
           </div>
           {/* Se desmonta solo (gone) tras llegar al 100% y hacer fade-out. */}
@@ -1026,7 +1091,53 @@ export default function Home() {
               </p>
               {statsFields}
             </MapPanel>
+
+            {/* Herramienta NDVI (chip escritorio): arma el modo cruceta; el
+                móvil entra por «Herramientas de consulta» en el sidebar. */}
+            <button
+              type="button"
+              onClick={() => {
+                setActivePanel(null);
+                setDrawerOpen(false);
+                setNdviMode((m) => !m);
+              }}
+              aria-pressed={ndviMode}
+              className={`flex items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-medium shadow-lg backdrop-blur transition-colors ${
+                ndviMode
+                  ? 'border-[hsl(153_28%_35%)]/70 bg-[var(--background)] text-[hsl(153_28%_25%)]'
+                  : 'border-black/15 bg-[var(--background)]/95 hover:bg-[var(--background)] dark:border-white/20'
+              }`}
+            >
+              {CrosshairIcon}
+              {ndviMode ? 'Cancelar consulta' : 'Consulta NDVI'}
+            </button>
           </div>
+
+          {/* Serie NDVI: panel flotante arriba a la derecha. z-[700] = igual
+              que los dropdowns; la pestaña de capas (850) y el drawer móvil
+              (1100) siguen por sobre él y siguen siendo clicables. */}
+          {ndviConsulta && (
+            <div className="absolute right-3 top-24 z-[700] max-h-[calc(100vh-7rem)] w-[min(30rem,calc(100%-1.5rem))] overflow-y-auto md:top-14">
+              <NdviPanel
+                consulta={ndviConsulta}
+                mostrarConaf={showVegetacional}
+                onSerie={handleNdviSerie}
+                onResaltado={handleNdviResaltado}
+                onCerrar={cerrarNdvi}
+              />
+            </div>
+          )}
+
+          {/* Aviso del modo armado: visible en todas las pantallas, sobre el
+              FAB móvil y la barra de escala, hasta que se arma el clic o Esc. */}
+          {ndviMode && (
+            <div
+              role="status"
+              className="absolute bottom-28 left-1/2 z-[650] -translate-x-1/2 rounded-full border border-black/15 bg-[var(--background)]/95 px-3 py-1.5 text-xs shadow-lg backdrop-blur dark:border-white/20"
+            >
+              Haz clic en el punto a consultar · Esc para cancelar
+            </div>
+          )}
 
           {/* Selector de mapa base: esquina inferior izquierda, sobre la barra
               de escala de Leaflet — el lugar donde Google Maps y los visores SIG

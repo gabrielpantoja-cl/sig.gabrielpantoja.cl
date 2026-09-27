@@ -15,6 +15,12 @@ export type NdviGeometria =
   | { tipo: 'punto'; lat: number; lng: number; radio: number }
   | { tipo: 'poligono'; anillos: number[][][] };
 
+/** Lo que el usuario eligió consultar. Vive acá (no en el panel) para que la
+ *  página, el panel y el cajetín del PNG compartan un solo contrato. */
+export type NdviConsulta =
+  | { tipo: 'punto'; lat: number; lng: number }
+  | { tipo: 'poligono'; anillos: number[][][]; nombre: string };
+
 export type NdviEstadoMes = 'ok' | 'hueco' | 'sin-escenas' | 'tiempo';
 
 export interface NdviMes {
@@ -109,3 +115,14 @@ export function ndviAtribucion(anios: number[]): string {
  * reutiliza la respuesta cacheada en la CDN.
  */
 export const redondearCoordenada = (v: number): number => Math.round(v * 1e4) / 1e4;
+
+/**
+ * Título de la consulta: lo muestra el panel flotante y lo repite el cajetín
+ * de la serie dentro del PNG exportado, así los dos nunca citan títulos
+ * distintos para la misma consulta.
+ */
+export function ndviTitulo(consulta: NdviConsulta): string {
+  return consulta.tipo === 'punto'
+    ? `NDVI · punto ${consulta.lat.toFixed(4)}, ${consulta.lng.toFixed(4)} (radio ${NDVI_RADIO_DEFECTO} m)`
+    : `NDVI · ${consulta.nombre}`;
+}

@@ -533,6 +533,8 @@ export function LayersControl({
   onRenameKml,
   onExport,
   exporting,
+  ndviMode,
+  onToggleNdviMode,
 }: {
   layerOpacity: LayerOpacity;
   onLayerOpacity: (key: keyof LayerOpacity, value: number) => void;
@@ -589,6 +591,10 @@ export function LayersControl({
   /** True mientras canvas.toBlob está corriendo; deshabilita el botón y
    *  muestra "Generando…" para feedback al usuario. */
   exporting: boolean;
+  /** Herramienta NDVI armada (modo cruceta en el mapa). */
+  ndviMode: boolean;
+  /** Arma/desarma la consulta NDVI por punto en el mapa. */
+  onToggleNdviMode: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Tab shown inside the panel. Was `mobileView` when the two columns only
@@ -1244,6 +1250,48 @@ export function LayersControl({
         <p className="mt-1.5 text-[0.6rem] leading-snug opacity-50">
           Captura la vista con flecha norte, escala y atribuciones. Ideal como
           anexo de un informe de tasación.
+        </p>
+      </div>
+
+      {/* Herramienta NDVI: entrada móvil de la consulta por punto (el chip del
+          cluster de escritorio vive en page.tsx). NDVI no es una capa del
+          catálogo — no se enciende ni se apaga, se consulta — por eso vive en
+          su propio bloque, al nivel de «Mis capas» y «Exportar». */}
+      <div className="mt-3 border-t border-black/10 pt-2.5 dark:border-white/10">
+        <p className="text-xs font-semibold uppercase tracking-wide opacity-50">Herramientas de consulta</p>
+
+        <button
+          type="button"
+          onClick={onToggleNdviMode}
+          aria-pressed={ndviMode}
+          className={`mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border py-1.5 text-xs font-medium transition-colors ${
+            ndviMode
+              ? 'border-[hsl(153_28%_35%)]/70 bg-[hsl(153_28%_35%)]/10 text-[hsl(153_28%_25%)]'
+              : 'border-black/20 opacity-90 hover:opacity-100 dark:border-white/25'
+          }`}
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="7" />
+            <line x1="12" y1="2" x2="12" y2="5" />
+            <line x1="12" y1="19" x2="12" y2="22" />
+            <line x1="2" y1="12" x2="5" y2="12" />
+            <line x1="19" y1="12" x2="22" y2="12" />
+          </svg>
+          {ndviMode ? 'Cancelar consulta NDVI' : 'Consultar NDVI en el mapa'}
+        </button>
+
+        <p className="mt-1.5 text-[0.6rem] leading-snug opacity-50">
+          Serie mensual de Sentinel-2 (36 meses) para un punto: arma la
+          consulta y haz clic en el mapa. La primera vez tarda 20–45 s.
         </p>
       </div>
 
