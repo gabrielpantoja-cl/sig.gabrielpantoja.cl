@@ -220,10 +220,13 @@ These must never be violated:
 ## AI tooling
 
 This repo is read by Claude Code, OpenCode, Codex and other agents. The
-`opencode.json` at the repo root is **committed with the maintainer's defaults**
-(`model: openai/gpt-5.6-sol` + `enabled_providers: ["openai"]`).
+`opencode.json` at the repo root is **committed with permissions and instruction
+wiring only** — it deliberately carries no `model` or `enabled_providers` keys,
+so the model comes from each machine's global `~/.config/opencode/opencode.json`
+(this maintainer's per-machine defaults are described in `AGENTS.local.md`).
 Project-level config overrides the global `~/.config/opencode/opencode.json`
-on merge, so any OpenCode session opened in this directory starts with GPT-5.6 Sol.
+on merge, so permissions and instructions apply to every session while the
+model stays a per-machine choice.
 
 Other operators can override locally without touching the committed file via
 any of:
@@ -253,7 +256,7 @@ convention.
 
 | Path | Purpose |
 |---|---|
-| `.opencode/agents/orchestrator.md` | Primary GPT-5.6 Sol coordinator with a deny-by-default specialist allowlist |
+| `.opencode/agents/orchestrator.md` | Primary coordinator with a deny-by-default specialist allowlist (no model pinned; the session's model comes from the machine config) |
 | `.opencode/agents/*-agent.md` | Read-only GIS, Next.js, Neon and ETL specialists invoked by the orchestrator |
 | `.opencode/commands/*.md` | Custom `/slash` commands (markdown form) |
 | `.opencode/skills/<name>/SKILL.md` | On-demand skills (one folder per skill) |

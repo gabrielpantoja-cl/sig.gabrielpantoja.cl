@@ -224,7 +224,11 @@ dirección o lugar». Un lector de pantalla anuncia dos buscadores idénticos.
   inferior.
 - El chip del mapa base queda apretado entre la barra de escala y el FAB.
 
-- [ ] Panel de capas como drawer inferior en mobile, igual que los filtros.
+- [x] Panel de capas como drawer inferior en mobile, igual que los filtros.
+      *Done 2026-09-27*: the panel was rebuilt as `LayerSidebar.tsx` — an
+      in-flow 320 px dock on desktop (it pushes the map instead of covering
+      it) and a fixed bottom drawer capped at `70vh` on mobile, with a layer
+      search field and category groups on top of the existing toggles.
 - [ ] Reservar el borde inferior: atribución, escala, chip de mapa base y FAB
       necesitan un reparto explícito, no superponerse.
 
