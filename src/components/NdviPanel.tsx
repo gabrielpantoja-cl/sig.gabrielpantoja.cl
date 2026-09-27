@@ -20,14 +20,20 @@ export type NdviConsulta =
   | { tipo: 'poligono'; anillos: number[][][]; nombre: string };
 
 type Estado =
-  | { tipo: 'cargando'; desde: number }
+  | { tipo: 'cargando' }
   | { tipo: 'listo'; serie: NdviSerie }
   | { tipo: 'error'; mensaje: string };
+
+/** Resultado de UNA consulta, guardado junto a la `clave` que lo produjo.
+ *  Descartar por comparación de clave permite derivar «cargando» durante el
+ *  render cuando la consulta cambia, sin reiniciar estado dentro de un effect
+ *  (regla `react-hooks/set-state-in-effect`). */
+type Resultado = { clave: string; estado: Estado; resaltado: number | null };
 
 const ANCHO = 440;
 const ALTO = 190;
 
-function usarTemaOscuro(): boolean {
+function useTemaOscuro(): boolean {
   const [oscuro, setOscuro] = useState(false);
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
@@ -72,28 +78,42 @@ export function NdviPanel({
   onSerie: (serie: NdviSerie | null) => void;
   onCerrar: () => void;
 }) {
-  const [estado, setEstado] = useState<Estado>({ tipo: 'cargando', desde: Date.now() });
-  const [resaltado, setResaltado] = useState<number | null>(null);
-  const [mesHover, setMesHover] = useState<number | null>(null);
-  const [verTabla, setVerTabla] = useState(false);
-  const [segundos, setSegundos] = useState(0);
-  const [conaf, setConaf] = useState<VegetacionalProps | null | 'sin-clase'>(null);
-  const oscuro = usarTemaOscuro();
-  const tema = oscuro ? 'oscuro' : 'claro';
-  const idTitulo = useId();
-  const svgRef = useRef<SVGSVGElement>(null);
-  const onSerieRef = useRef(onSerie);
-  onSerieRef.current = onSerie;
-
   const clave = consulta.tipo === 'punto'
     ? `p:${redondearCoordenada(consulta.lat)},${redondearCoordenada(consulta.lng)}`
     : `g:${JSON.stringify(consulta.anillos)}`;
 
+  const [resultado, setResultado] = useState<Resultado | null>(null);
+  const [mesHover, setMesHover] = useState<number | null>(null);
+  const [verTabla, setVerTabla] = useState(false);
+  // `tick.clave` llava el contador al query vigente: ver `segundos` abajo.
+  const [tick, setTick] = useState<{ clave: string; s: number }>({ clave, s: 0 });
+  const [conafEstado, setConafEstado] = useState<{
+    clave: string;
+    valor: VegetacionalProps | 'sin-clase';
+  } | null>(null);
+  const oscuro = useTemaOscuro();
+  const tema = oscuro ? 'oscuro' : 'claro';
+  const idTitulo = useId();
+  const svgRef = useRef<SVGSVGElement>(null);
+  const inicioRef = useRef(0);
+  const onSerieRef = useRef(onSerie);
+  // El callback vive en un ref actualizado por effect: el fetch no debe
+  // reintentarse solo porque el padre recreó la función.
+  useEffect(() => {
+    onSerieRef.current = onSerie;
+  }, [onSerie]);
+
+  // Si `resultado` corresponde a otra consulta, no está vigente y el panel
+  // muestra «cargando» derivado — sin setState en el effect.
+  const vigente = resultado !== null && resultado.clave === clave ? resultado : null;
+  const estado: Estado = vigente !== null ? vigente.estado : { tipo: 'cargando' };
+  const resaltado = vigente !== null ? vigente.resaltado : null;
+  const cargando = estado.tipo === 'cargando';
+  const segundos = tick.clave === clave ? tick.s : 0;
+
   useEffect(() => {
     const controller = new AbortController();
-    const desde = Date.now();
-    setEstado({ tipo: 'cargando', desde });
-    setResaltado(null);
+    inicioRef.current = Date.now();
     onSerieRef.current(null);
     (async () => {
       try {
@@ -109,17 +129,17 @@ export function NdviPanel({
               signal: controller.signal,
             });
         const json = await res.json();
+        if (controller.signal.aborted) return;
         if (!res.ok) {
-          setEstado({ tipo: 'error', mensaje: json?.error?.mensaje ?? `Error ${res.status}` });
+          setResultado({ clave, estado: { tipo: 'error', mensaje: json?.error?.mensaje ?? `Error ${res.status}` }, resaltado: null });
           return;
         }
         const serie = json as NdviSerie;
-        setEstado({ tipo: 'listo', serie });
-        setResaltado(anioPorDefecto(serie));
+        setResultado({ clave, estado: { tipo: 'listo', serie }, resaltado: anioPorDefecto(serie) });
         onSerieRef.current(serie);
       } catch {
         if (!controller.signal.aborted) {
-          setEstado({ tipo: 'error', mensaje: 'No se pudo contactar al servidor.' });
+          setResultado({ clave, estado: { tipo: 'error', mensaje: 'No se pudo contactar al servidor.' }, resaltado: null });
         }
       }
     })();
@@ -129,18 +149,22 @@ export function NdviPanel({
   }, [clave]);
 
   // Contador visible mientras carga: la consulta tarda decenas de segundos y
-  // un spinner sin tiempo parece colgado.
+  // un spinner sin tiempo parece colgado. El tick escribe `{clave, s}` y
+  // `segundos` solo se lee si la clave coincide, así una consulta nueva arranca
+  // en 0 sin reiniciar estado desde el effect.
   useEffect(() => {
-    if (estado.tipo !== 'cargando') return;
-    const id = setInterval(() => setSegundos(Math.round((Date.now() - estado.desde) / 1000)), 1000);
+    if (!cargando) return;
+    const id = setInterval(
+      () => setTick({ clave, s: Math.round((Date.now() - inicioRef.current) / 1000) }),
+      1000,
+    );
     return () => clearInterval(id);
-  }, [estado]);
+  }, [cargando, clave]);
 
   useEffect(() => {
-    if (!mostrarConaf) {
-      setConaf(null);
-      return;
-    }
+    // Sin setState al apagar: `conaf` se deriva de `mostrarConaf` abajo, así
+    // que basta con no seguir consultando.
+    if (!mostrarConaf) return;
     const controller = new AbortController();
     let lat: number;
     let lng: number;
@@ -161,12 +185,19 @@ export function NdviPanel({
     fetch(`${VEGETACIONAL_IDENTIFY_URL}?${params}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { results?: { attributes: VegetacionalProps }[] } | null) => {
-        setConaf(data?.results?.[0]?.attributes ?? 'sin-clase');
+        if (controller.signal.aborted) return;
+        setConafEstado({ clave, valor: data?.results?.[0]?.attributes ?? 'sin-clase' });
       })
       .catch(() => {});
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clave, mostrarConaf]);
+
+  // Solo visible con la capa CONAF encendida y con la clase de la consulta
+  // vigente; cualquier otra combinación se lee como «sin clase consultada».
+  const conaf = mostrarConaf && conafEstado !== null && conafEstado.clave === clave
+    ? conafEstado.valor
+    : null;
 
   const serie = estado.tipo === 'listo' ? estado.serie : null;
   const layout = useMemo(() => (serie ? layoutGrafico(serie, ANCHO, ALTO) : null), [serie]);
@@ -184,6 +215,11 @@ export function NdviPanel({
     const i = Math.floor(((x - layout.area.izq) / (layout.area.der - layout.area.izq)) * 12);
     setMesHover(i >= 0 && i < 12 ? i : null);
   };
+
+  // Resaltar un año escribe sobre el resultado vigente; si la consulta cambió
+  // en medio, el año nuevo pertenece a una serie que ya no existe y se ignora.
+  const cambiarResaltado = (anio: number) =>
+    setResultado((r) => (r !== null && r.clave === clave ? { ...r, resaltado: anio } : r));
 
   return (
     <section
@@ -226,7 +262,7 @@ export function NdviPanel({
               <button
                 key={s.anio}
                 type="button"
-                onClick={() => setResaltado(s.anio)}
+                onClick={() => cambiarResaltado(s.anio)}
                 aria-pressed={resaltado === s.anio}
                 className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${
                   resaltado === s.anio ? 'border-current font-semibold' : 'border-black/15 opacity-75 dark:border-white/20'
