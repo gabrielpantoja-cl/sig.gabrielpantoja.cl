@@ -17,7 +17,8 @@ import {
   type BasemapId,
 } from '@/lib/basemap';
 import type { Feature, FeatureCollection, Geometry, Point } from 'geojson';
-import { downloadCanvas, exportFilename, exportMapToPng, type LayerMetadataEntry } from '@/lib/map-export';
+import { downloadCanvas, exportFilename, exportMapToPng, type LayerMetadataEntry, type NdviExport } from '@/lib/map-export';
+import type { NdviConsulta } from '@/lib/ndvi';
 import { categoryColor, type ProtectedAreaProps } from '@/lib/protected-areas';
 import {
   URBAN_LIMIT_ATTRIBUTION,
@@ -697,6 +698,10 @@ export default function MapView({
   selectedRuralFeature = null,
   onHexbinStatus,
   mapExportRef,
+  ndviMode = false,
+  ndviConsulta = null,
+  onNdviPoint,
+  ndvi = null,
 }: {
   layerOpacity?: LayerOpacity;
   points: MapPoint[];
@@ -755,6 +760,15 @@ export default function MapView({
   mapExportRef?: MutableRefObject<
     ((args?: { metadata?: LayerMetadataEntry[] }) => Promise<void>) | null
   >;
+  /** Herramienta NDVI armada: el siguiente clic en el mapa consulta ese punto
+   *  (cursor de cruceta, los identify de otras capas se suspenden). */
+  ndviMode?: boolean;
+  /** Consulta NDVI vigente; MapView dibuja el punto consultado en el mapa. */
+  ndviConsulta?: NdviConsulta | null;
+  /** Punto elegido por el usuario con la herramienta armada. */
+  onNdviPoint?: (lat: number, lng: number) => void;
+  /** Serie NDVI actual: entra al cajetín del PNG exportado. */
+  ndvi?: NdviExport | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -772,6 +786,9 @@ export default function MapView({
   const propiedadesRuralesRef = useRef<L.ImageOverlay | null>(null);
   const propiedadRuralHighlightRef = useRef<L.GeoJSON | null>(null);
   const hexbinsRef = useRef<L.ImageOverlay | null>(null);
+  // Punto consultado por la herramienta NDVI: marcador de cruceta en el
+  // markerPane, separado del cluster CBR para no reconstruir 85k pines.
+  const ndviMarkerRef = useRef<L.Marker | null>(null);
   const opacityRef = useRef(layerOpacity);
   // Estilo separado de la carga: ningún slider reinicia fetch/identify ni capas.
   // La ref también cubre las capas cuyo fetch termina después del ajuste.
@@ -818,13 +835,20 @@ export default function MapView({
   const onSuelosStatusRef = useRef(onSuelosStatus);
   const onPropiedadesRuralesStatusRef = useRef(onPropiedadesRuralesStatus);
   const onHexbinStatusRef = useRef(onHexbinStatus);
+  // Modo NDVI en ref: los handlers de clic de otras capas (declarados en
+  // effects con deps estables) deben poder consultar el estado vigente del
+  // modo sin re-registrarse en cada toggle.
+  const ndviModeRef = useRef(ndviMode);
+  const onNdviPointRef = useRef(onNdviPoint);
   useEffect(() => {
     onRenderProgressRef.current = onRenderProgress;
     onRenderCompleteRef.current = onRenderComplete;
     onSuelosStatusRef.current = onSuelosStatus;
     onPropiedadesRuralesStatusRef.current = onPropiedadesRuralesStatus;
     onHexbinStatusRef.current = onHexbinStatus;
-  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onPropiedadesRuralesStatus, onHexbinStatus]);
+    ndviModeRef.current = ndviMode;
+    onNdviPointRef.current = onNdviPoint;
+  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onPropiedadesRuralesStatus, onHexbinStatus, ndviMode, onNdviPoint]);
 
   // Publica el método de export en el ref entregado por la página. La closure
   // se re-bindea en cada cambio de flags para que la captura refleje siempre
@@ -859,6 +883,7 @@ export default function MapView({
         basemap,
         cluster: clusterRef.current,
         metadata: args?.metadata,
+        ndvi,
       });
       downloadCanvas(canvas, exportFilename());
     };
@@ -881,7 +906,64 @@ export default function MapView({
     showPropiedadesRurales,
     showHexbins,
     basemap,
+    ndvi,
   ]);
+
+  // Herramienta NDVI: con el modo armado el clic en el mapa captura la
+  // coordenada en lugar de disparar identify/popups, el cursor es cruceta y
+  // cualquier popup de capa que se abra en el mismo evento se cierra en el
+  // microtask siguiente — la herramienta "pasa por encima" de la selección
+  // normal y al desarmarse el mapa queda exactamente como estaba.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ndviMode) return;
+    const container = map.getContainer();
+    const cursorPrevio = container.style.cursor;
+    container.style.cursor = 'crosshair';
+    const onClick = (event: L.LeafletMouseEvent) => {
+      onNdviPointRef.current?.(event.latlng.lat, event.latlng.lng);
+    };
+    const onPopupOpen = () => {
+      queueMicrotask(() => {
+        if (ndviModeRef.current) map.closePopup();
+      });
+    };
+    map.on('click', onClick);
+    map.on('popupopen', onPopupOpen);
+    return () => {
+      map.off('click', onClick);
+      map.off('popupopen', onPopupOpen);
+      container.style.cursor = cursorPrevio;
+    };
+  }, [ndviMode]);
+
+  // Punto consultado vigente: cruceta en el markerPane mientras el panel
+  // muestre esa consulta. La limpieza simétrica cubre el doble montaje de
+  // StrictMode y el cambio a otra consulta.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (ndviMarkerRef.current) {
+      map.removeLayer(ndviMarkerRef.current);
+      ndviMarkerRef.current = null;
+    }
+    if (!ndviConsulta || ndviConsulta.tipo !== 'punto') return;
+    const marker = L.marker([ndviConsulta.lat, ndviConsulta.lng], {
+      interactive: false,
+      keyboard: false,
+      icon: L.divIcon({
+        className: 'ndvi-punto-icono',
+        html: '<span style="display:block;width:14px;height:14px;border:2px solid #16a34a;border-radius:50%;background:rgba(255,255,255,.7);box-shadow:0 0 0 1px rgba(0,0,0,.4)"></span>',
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+      }),
+    }).addTo(map);
+    ndviMarkerRef.current = marker;
+    return () => {
+      if (map.hasLayer(marker)) map.removeLayer(marker);
+      if (ndviMarkerRef.current === marker) ndviMarkerRef.current = null;
+    };
+  }, [ndviConsulta]);
 
   // Con varias capas asíncronas compartiendo el overlayPane (preferCanvas), el
   // orden de apilado debe re-imponerse tras cada mutación de capa, sin
@@ -1679,6 +1761,9 @@ export default function MapView({
     // cercana al clic, dentro de un radio de una celda y media. Fuera de eso el
     // clic pertenece a otra capa (o al mapa) y no se intercepta.
     const onClick = (event: L.LeafletMouseEvent) => {
+      // Con la herramienta NDVI armada el clic pertenece a la consulta, no al
+      // mapa de calor.
+      if (ndviModeRef.current) return;
       const state = hexbinSamplesRef.current;
       if (!state || !state.samples.length) return;
       let best: HexbinSample | null = null;
@@ -1776,6 +1861,7 @@ export default function MapView({
     };
 
     const identify = async (event: L.LeafletMouseEvent) => {
+      if (ndviModeRef.current) return;
       if (map.getZoom() < VEGETACIONAL_MIN_ZOOM) return;
       identifyController?.abort();
       const controller = new AbortController();
@@ -1991,6 +2077,8 @@ export default function MapView({
       // Un feature vectorial puede abrir su popup durante el mismo evento. No
       // disparamos identify en ese caso ni reemplazamos popups abiertos después.
       if (popupOpenedThisTurn) return;
+      // Herramienta NDVI armada: el clic no es una consulta de suelo.
+      if (ndviModeRef.current) return;
       const expectedPopupGeneration = popupGeneration;
       // Bajo el zoom mínimo la capa no está visible: no consultar identify.
       if (map.getZoom() < SUELOS_MIN_ZOOM) return;
@@ -2163,6 +2251,7 @@ export default function MapView({
     let popupGeneration = 0;
     const onPopupOpen = () => { popupGeneration++; };
     const onClick = async (e: L.LeafletMouseEvent) => {
+      if (ndviModeRef.current) return;
       if (map.getZoom() < PROPIEDADES_RURALES_MIN_ZOOM) return;
       const expectedPopupGeneration = popupGeneration;
       const id = ++identifySequence;

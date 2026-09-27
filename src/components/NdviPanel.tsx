@@ -7,17 +7,19 @@ import {
   NDVI_RADIO_DEFECTO,
   NDVI_SOL_BAJO,
   ndviAtribucion,
+  ndviTitulo,
   redondearCoordenada,
+  type NdviConsulta,
   type NdviMes,
   type NdviSerie,
 } from '@/lib/ndvi';
 import { MESES_CORTOS, anioPorDefecto, colorDeAnio, layoutGrafico } from '@/lib/ndvi-grafico';
 import { VEGETACIONAL_IDENTIFY_URL, type VegetacionalProps } from '@/lib/vegetacional';
 
-/** Lo que el usuario eligió consultar. */
-export type NdviConsulta =
-  | { tipo: 'punto'; lat: number; lng: number }
-  | { tipo: 'poligono'; anillos: number[][][]; nombre: string };
+// El contrato de la consulta vive en `lib/ndvi` (fuente única con la página);
+// se re-exporta aquí para que los consumidores del panel no dependan de dos
+// rutas distintas para el mismo tipo.
+export type { NdviConsulta };
 
 type Estado =
   | { tipo: 'cargando' }
@@ -68,6 +70,7 @@ export function NdviPanel({
   consulta,
   mostrarConaf,
   onSerie,
+  onResaltado,
   onCerrar,
 }: {
   consulta: NdviConsulta;
@@ -76,6 +79,8 @@ export function NdviPanel({
   mostrarConaf: boolean;
   /** Serie vigente, para que el export PNG pueda incluir el gráfico. */
   onSerie: (serie: NdviSerie | null) => void;
+  /** Año resaltado, para que el cajetín del PNG muestre el mismo que la pantalla. */
+  onResaltado?: (anio: number) => void;
   onCerrar: () => void;
 }) {
   const clave = consulta.tipo === 'punto'
@@ -204,9 +209,7 @@ export function NdviPanel({
   const serieResaltada = layout?.series.find((s) => s.anio === resaltado) ?? null;
   const solBajo = serieResaltada?.puntos.some((p) => (p.mes.elevacionSol ?? 90) < NDVI_SOL_BAJO) ?? false;
 
-  const titulo = consulta.tipo === 'punto'
-    ? `NDVI · punto ${consulta.lat.toFixed(4)}, ${consulta.lng.toFixed(4)} (radio ${NDVI_RADIO_DEFECTO} m)`
-    : `NDVI · ${consulta.nombre}`;
+  const titulo = ndviTitulo(consulta);
 
   const alMover = (event: React.PointerEvent<SVGSVGElement>) => {
     if (!layout || !svgRef.current) return;
@@ -218,8 +221,10 @@ export function NdviPanel({
 
   // Resaltar un año escribe sobre el resultado vigente; si la consulta cambió
   // en medio, el año nuevo pertenece a una serie que ya no existe y se ignora.
-  const cambiarResaltado = (anio: number) =>
+  const cambiarResaltado = (anio: number) => {
+    onResaltado?.(anio);
     setResultado((r) => (r !== null && r.clave === clave ? { ...r, resaltado: anio } : r));
+  };
 
   return (
     <section
