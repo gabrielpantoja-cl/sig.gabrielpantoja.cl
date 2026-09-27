@@ -901,8 +901,11 @@ que amplían el uso diario del perito:
       precisamente el que está oculto por CSS. Un lector de pantalla anuncia dos
       buscadores idénticos, y cualquier automatización que tome «el primero»
       toma el invisible.
-- [ ] **Panel de capas como drawer inferior en mobile**, igual que el de
+- [x] **Panel de capas como drawer inferior en mobile**, igual que el de
       filtros: hoy tapa ~80 % de la pantalla.
+      *Done 2026-09-27*: `LayerSidebar.tsx` — 320 px in-flow dock on desktop,
+      fixed bottom drawer capped at `70vh` on mobile, plus a layer search bar
+      and category groups (`src/lib/layer-catalog.ts`).
 - [ ] **Repartir el borde inferior en mobile**: atribución, escala, chip de
       mapa base y FAB se superponen.
 

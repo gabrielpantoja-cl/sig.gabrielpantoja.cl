@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useDeferredValue, useRef, useState, type ReactNode } from 'react';
 import { DEFAULT_LAYER_OPACITY, type LayerOpacity } from '@/lib/layer-opacity';
 import { CATEGORY_COLORS } from '@/lib/protected-areas';
 import { URBAN_LIMIT_COLOR } from '@/lib/urban-limit';
@@ -60,7 +60,50 @@ import {
   bioclimaRamp,
   type BioclimaVariable,
 } from '@/lib/bioclima';
-import { MapPanel, type PanelId } from '@/components/MapPanel';
+import { type PanelId } from '@/components/MapPanel';
+import { LayerSidebar, type LayerSidebarView } from '@/components/LayerSidebar';
+import {
+  LAYER_CATALOG,
+  countLayerMatches,
+  groupMatches,
+  layerMatches,
+  normalizeLayerQuery,
+  type CatalogLayerId,
+  type LayerGroupId,
+} from '@/lib/layer-catalog';
+
+// Rendering mode of a layer list. `query` is the (deferred) search text rows
+// filter themselves against; `grouped` tells <LayerGroupHeader> whether to
+// draw category headers. The "Capas activas" column is a flat list of checked
+// layers — it draws no headers and filters nothing, so its badge and its
+// "Restablecer" action keep describing the real map, never a filtered view.
+const LayerListContext = createContext<{ query: string; grouped: boolean }>({
+  query: '',
+  grouped: false,
+});
+
+/**
+ * Category header inside the catalogue. It hides itself when no member of its
+ * group matches the search — the rows below already filter individually with
+ * the SAME predicate, so a query never leaves a heading over an empty list. In
+ * the active-legends column it draws nothing: that column is a flat report of
+ * what is on the map (headerless, unfiltered) exactly as it was before.
+ *
+ * A bare heading rather than a wrapping <section> keeps the diff surgical: no
+ * row moves, and `LayerRow` keeps owning its own visibility.
+ */
+function LayerGroupHeader({ id }: { id: LayerGroupId }) {
+  const { query, grouped } = useContext(LayerListContext);
+  if (!grouped) return null;
+  if (!groupMatches(id, query)) return null;
+  const group = LAYER_CATALOG.find((entry) => entry.id === id);
+  if (!group) return null;
+  return (
+    <h3 className="mt-3 border-b border-black/10 pb-1 pt-1 text-[0.65rem] font-semibold uppercase tracking-wide opacity-50 first:mt-0 dark:border-white/10">
+      {group.title}
+    </h3>
+  );
+}
 
 // Dos presentaciones de un único catálogo: selector y leyendas activas.
 // Las escalas, fuentes y controles se definen una sola vez, más abajo.
@@ -97,6 +140,7 @@ function LayerRow({
   readOnly = false,
   swatch,
   label,
+  layerId,
   children,
   controls,
 }: {
@@ -105,11 +149,15 @@ function LayerRow({
   readOnly?: boolean;
   swatch: ReactNode;
   label: string;
+  /** Id of this layer in the search manifest (`layer-catalog.ts`). Required,
+   *  so renaming or adding a layer without indexing it fails to compile. */
+  layerId: CatalogLayerId;
   children?: ReactNode;
   controls?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const activeLegend = useContext(ActiveLegendContext);
+  const { query } = useContext(LayerListContext);
 
   if (activeLegend) {
     if (!checked || !children) return null;
@@ -121,6 +169,11 @@ function LayerRow({
       </section>
     );
   }
+
+  // Filter AFTER the active-legends branch above: that column is a report of
+  // what is on the map and never hides a row. Same predicate as
+  // `countLayerMatches`, so the empty state cannot disagree with these rows.
+  if (!layerMatches(layerId, query)) return null;
 
   return (
     <div>
@@ -221,17 +274,23 @@ function SuelosStatusNotice({ status }: { status: SuelosStatus }) {
 }
 
 /**
- * Panel de capas del mapa. Separa la activación/desactivación de capas de los
- * botones de descarga (CSV/GeoJSON), que viven en el panel de filtros. Cada
- * capa temática lleva su leyenda y atribución detrás de un triángulo de
- * despliegue (LayerRow), colapsadas por defecto. La capa de transacciones CBR
- * —la principal— está activada por defecto pero también es ocultable: el
- * perito la quita cuando quiere componer una vista limpia, por ejemplo para
- * exportar el mapa como PNG con flecha norte y adjuntarlo a un informe de
- * tasación. Incluye la sección «Mis capas», donde el usuario sube archivos
- * .kml que se procesan localmente (ver lib/kml.ts) y se listan con visibilidad,
- * borrado, renombrado y swatch de color por capa. El estado abierto/cerrado
- * del panel lo controla page.tsx vía MapPanel (uno a la vez).
+ * Layer panel of the map. Toggling layers is kept apart from the download
+ * buttons (CSV/GeoJSON), which live in the filters panel. Every thematic layer
+ * carries its own legend and attribution behind a disclosure triangle
+ * (`LayerRow`), collapsed by default. The CBR transaction layer — the primary
+ * one — ships enabled but can still be switched off: the appraiser hides it to
+ * compose a clean view, for instance before exporting the map as a PNG with a
+ * north arrow to attach to an appraisal report. It also holds the «Mis capas»
+ * section, where the user uploads `.kml` files processed locally (see
+ * lib/kml.ts) and lists them with visibility, delete, inline rename and a
+ * colour swatch per layer, plus the PNG export button.
+ *
+ * Presentation lives in `LayerSidebar` (320 px dock on desktop, bottom drawer
+ * on mobile, search field and tabs). This component owns every piece of layer
+ * STATE — toggles, opacity, hexbin settings, KML, the search query — and only
+ * renders it. Open/closed is still decided by `page.tsx` through
+ * `activeId === 'layers'`, so only one panel (search/filters/stats/layers) is
+ * ever open at a time.
  */
 
 /**
@@ -532,7 +591,35 @@ export function LayersControl({
   exporting: boolean;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [mobileView, setMobileView] = useState<'catalogue' | 'active'>('catalogue');
+  // Tab shown inside the panel. Was `mobileView` when the two columns only
+  // existed on small screens; now the sidebar is 320 px wide at every
+  // breakpoint, so the tabs replace the old `md:grid-cols-[16rem_1fr]`.
+  const [view, setView] = useState<LayerSidebarView>('catalogue');
+  const [query, setQuery] = useState('');
+  // Deferred so typing stays responsive: the value used for FILTERING and for
+  // COUNTING is the same one, so rows and the empty state cannot disagree.
+  const deferredQuery = useDeferredValue(query);
+
+  const open = activeId === 'layers';
+  const handleToggle = () => {
+    // Forgetting the filter on close keeps a reopened panel from looking
+    // broken ("why is everything missing?").
+    if (open) setQuery('');
+    onActivate('layers');
+  };
+
+  const normalizedQuery = normalizeLayerQuery(deferredQuery);
+  const visibleKmlLayers = normalizedQuery === ''
+    ? kmlLayers
+    : kmlLayers.filter((layer) =>
+        normalizeLayerQuery(`${kmlDisplayName(layer)} ${layer.name}`).includes(normalizedQuery),
+      );
+  // null = no search in flight (and always null on the active tab, which does
+  // not filter): the sidebar renders its single status region only then.
+  const matchCount =
+    view === 'catalogue' && deferredQuery !== ''
+      ? countLayerMatches(deferredQuery) + visibleKmlLayers.length
+      : null;
 
   const opacityControl = (key: keyof LayerOpacity, fillOnly = false) => (
     <OpacityControl value={layerOpacity[key]} onChange={(value) => onLayerOpacity(key, value)} fillOnly={fillOnly} />
@@ -559,9 +646,11 @@ export function LayersControl({
     showCatastroFruticola, showVegetacional, showPropiedadesRurales].filter(Boolean).length;
   const catalogue = (
       <div className="space-y-2">
+        <LayerGroupHeader id="cbr" />
         <LayerRow
           checked={showPoints}
           onChange={onTogglePoints}
+          layerId="points"
           label="Transacciones CBR"
           swatch={
             <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CBR_POINT_COLOR }} />
@@ -571,6 +660,7 @@ export function LayersControl({
         <LayerRow
           checked={showHexbins}
           onChange={onToggleHexbins}
+          layerId="hexbins"
           label="Mapa de calor de valor ($/m²)"
           swatch={
             <span
@@ -639,17 +729,11 @@ export function LayersControl({
           </div>
         </LayerRow>
 
-        <LayerRow checked={showPropiedadesRurales} onChange={onTogglePropiedadesRurales} controls={opacityControl('propiedadesRurales')} label="Propiedades rurales (CIREN)" swatch={<span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: `${PROPIEDADES_RURALES_COLOR}22`, border: `1.5px solid ${PROPIEDADES_RURALES_COLOR}` }} />}>
-          <p className="text-[0.6rem] leading-snug opacity-50">
-            {PROPIEDADES_RURALES_ATTRIBUTION}. 14 regiones, sin Antofagasta ni Magallanes; levantamientos {PROPIEDADES_RURALES_REGIONS[0][1]}–{PROPIEDADES_RURALES_REGIONS.at(-1)?.[1]}. <strong>Visible desde zoom {PROPIEDADES_RURALES_MIN_ZOOM}.</strong> {PROPIEDADES_RURALES_DISCLAIMER}{' '}
-            <a href={PROPIEDADES_RURALES_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-100">Ver fuente oficial →</a>
-          </p>
-          {propiedadesRuralesStatus.kind === 'zoom-required' && <p className="mt-1 text-[0.6rem] opacity-50">Acerca el mapa para consultar ROL y comuna.</p>}
-        </LayerRow>
-
+        <LayerGroupHeader id="static" />
         <LayerRow
           checked={showProtected}
           onChange={onToggleProtected}
+          layerId="protected"
           label="Áreas protegidas (RNAP)"
           swatch={
             <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: CATEGORY_COLORS['Parque Nacional'] }} />
@@ -671,6 +755,7 @@ export function LayersControl({
         <LayerRow
           checked={showUrbanLimit}
           onChange={onToggleUrbanLimit}
+          layerId="urbanLimit"
           label="Límite urbano (PRC)"
           swatch={
             <span
@@ -687,6 +772,7 @@ export function LayersControl({
         <LayerRow
           checked={showComunas}
           onChange={onToggleComunas}
+          layerId="comunas"
           label="Límites comunales (DPA)"
           controls={opacityControl('comunas', true)}
           swatch={
@@ -713,6 +799,7 @@ export function LayersControl({
         <LayerRow
           checked={showRedVial}
           onChange={onToggleRedVial}
+          layerId="redVial"
           label="Red caminera (MOP)"
           swatch={
             <span
@@ -749,6 +836,7 @@ export function LayersControl({
         <LayerRow
           checked={showRedDrenaje}
           onChange={onToggleRedDrenaje}
+          layerId="redDrenaje"
           label="Red de drenaje (DGA)"
           swatch={
             <span
@@ -786,6 +874,7 @@ export function LayersControl({
         <LayerRow
           checked={showCatastroFruticola}
           onChange={onToggleCatastroFruticola}
+          layerId="catastroFruticola"
           label="Catastro frutícola (CIREN)"
           controls={opacityControl('catastroFruticola', true)}
           swatch={
@@ -827,6 +916,7 @@ export function LayersControl({
         <LayerRow
           checked={showLineasTransmision}
           onChange={onToggleLineasTransmision}
+          layerId="lineasTransmision"
           label="Líneas de transmisión eléctrica"
           swatch={
             <span
@@ -863,9 +953,11 @@ export function LayersControl({
           </p>
         </LayerRow>
 
+        <LayerGroupHeader id="remote" />
         <LayerRow
           checked={showVegetacional}
           onChange={onToggleVegetacional}
+          layerId="vegetacional"
           label="Recursos vegetacionales (CONAF)"
           controls={opacityControl('vegetacional')}
           swatch={<span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: VEGETACIONAL_COLOR }} />}
@@ -885,6 +977,7 @@ export function LayersControl({
           <LayerRow
             checked={showSuelos}
             onChange={onToggleSuelos}
+            layerId="suelos"
             label="Suelos agrológicos (CIREN)"
             controls={opacityControl('suelos')}
             swatch={
@@ -925,9 +1018,19 @@ export function LayersControl({
           {showSuelos && <SuelosStatusNotice status={suelosStatus} />}
         </div>
 
+        <LayerRow checked={showPropiedadesRurales} onChange={onTogglePropiedadesRurales} layerId="propiedadesRurales" controls={opacityControl('propiedadesRurales')} label="Propiedades rurales (CIREN)" swatch={<span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: `${PROPIEDADES_RURALES_COLOR}22`, border: `1.5px solid ${PROPIEDADES_RURALES_COLOR}` }} />}>
+          <p className="text-[0.6rem] leading-snug opacity-50">
+            {PROPIEDADES_RURALES_ATTRIBUTION}. 14 regiones, sin Antofagasta ni Magallanes; levantamientos {PROPIEDADES_RURALES_REGIONS[0][1]}–{PROPIEDADES_RURALES_REGIONS.at(-1)?.[1]}. <strong>Visible desde zoom {PROPIEDADES_RURALES_MIN_ZOOM}.</strong> {PROPIEDADES_RURALES_DISCLAIMER}{' '}
+            <a href={PROPIEDADES_RURALES_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-100">Ver fuente oficial →</a>
+          </p>
+          {propiedadesRuralesStatus.kind === 'zoom-required' && <p className="mt-1 text-[0.6rem] opacity-50">Acerca el mapa para consultar ROL y comuna.</p>}
+        </LayerRow>
+
+        <LayerGroupHeader id="climate" />
         <LayerRow
           checked={showBioclima}
           onChange={onToggleBioclima}
+          layerId="bioclima"
           label="Bioclima (WorldClim)"
           controls={bioclimaControls}
           swatch={
@@ -970,34 +1073,63 @@ export function LayersControl({
   );
 
   return (
-    <MapPanel id="layers" activeId={activeId} onActivate={onActivate}
-      widthClassName="w-[min(38rem,calc(100vw-1.5rem))]" align="right" label="Capas"
+    <LayerSidebar
+      open={open}
+      onToggle={handleToggle}
       badge={activeLayerCount}
-      icon={
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <polygon points="12 2 2 7 12 12 22 7 12 2" />
-          <polyline points="2 17 12 22 22 17" />
-          <polyline points="2 12 12 17 22 12" />
-        </svg>
-      }>
-      <div className="mb-3 grid grid-cols-2 rounded-md bg-black/5 p-1 text-xs dark:bg-white/10 md:hidden" role="tablist" aria-label="Inspector de capas">
-        <button type="button" role="tab" aria-selected={mobileView === 'catalogue'}
-          onClick={() => setMobileView('catalogue')}
-          className={`rounded px-2 py-1.5 font-medium ${mobileView === 'catalogue' ? 'bg-[var(--background)] shadow-sm' : 'opacity-60'}`}>
-          Catálogo
-        </button>
-        <button type="button" role="tab" aria-selected={mobileView === 'active'}
-          onClick={() => setMobileView('active')}
-          className={`rounded px-2 py-1.5 font-medium ${mobileView === 'active' ? 'bg-[var(--background)] shadow-sm' : 'opacity-60'}`}>
-          Activas ({activeLayerCount})
-        </button>
-      </div>
-
-      <div className="md:grid md:grid-cols-[16rem_1fr] md:gap-3">
-        <section className={`${mobileView === 'catalogue' ? 'block' : 'hidden'} md:block md:pr-3`} aria-label="Catálogo de capas">
-          <h2 className="mb-2 hidden text-xs font-semibold uppercase tracking-wide opacity-55 md:block">Catálogo</h2>
+      query={query}
+      onQuery={setQuery}
+      view={view}
+      onViewChange={setView}
+      matchCount={matchCount}
+    >
+      <section
+        id="layer-panel-catalogue"
+        role="tabpanel"
+        aria-labelledby="layer-tab-catalogue"
+        className={view === 'catalogue' ? 'block' : 'hidden'}
+      >
+        <h2 className="sr-only">Catálogo de capas</h2>
+        {/* One context for BOTH filtering and counting (see `matchCount` above):
+            the rows below and the sidebar's status line read the same deferred
+            query, so the empty state can never disagree with what is visible. */}
+        <LayerListContext.Provider value={{ query: deferredQuery, grouped: true }}>
           {catalogue}
-          {/* Capas KML del usuario */}
+        </LayerListContext.Provider>
+      </section>
+
+      <section
+        id="layer-panel-active"
+        role="tabpanel"
+        aria-labelledby="layer-tab-active"
+        className={view === 'active' ? 'block' : 'hidden'}
+      >
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide opacity-55">Capas activas</h2>
+          {hasActiveLegend && (
+            <button type="button" className="text-[0.65rem] underline opacity-70 hover:opacity-100 focus-visible:outline-2"
+              onClick={() => (Object.keys(DEFAULT_LAYER_OPACITY) as (keyof LayerOpacity)[]).forEach((key) => onLayerOpacity(key, DEFAULT_LAYER_OPACITY[key]))}>
+              Restablecer
+            </button>
+          )}
+        </div>
+        {!hasActiveLegend ? (
+          <div className="rounded-md border border-dashed border-black/15 px-3 py-6 text-center text-xs leading-relaxed opacity-55 dark:border-white/20">
+            Activa una capa temática para ver aquí su escala, opacidad y fuente.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs opacity-65">Opacidad visual; no modifica los datos. Los bordes vectoriales se conservan.</p>
+            <ActiveLegendContext.Provider value={true}>{catalogue}</ActiveLegendContext.Provider>
+          </div>
+        )}
+      </section>
+
+      {/* User KML layers. Deliberately OUTSIDE both tab panels: uploading a
+          layer, renaming it or exporting a PNG must not depend on which tab
+          happens to be open. The list itself is still filtered by the search
+          (`visibleKmlLayers`) and counted in `matchCount`. */}
+
       <div className="mt-3 border-t border-black/10 pt-2.5 dark:border-white/10">
         <p className="text-xs font-semibold uppercase tracking-wide opacity-50">Mis capas</p>
 
@@ -1114,30 +1246,7 @@ export function LayersControl({
           anexo de un informe de tasación.
         </p>
       </div>
-        </section>
 
-        <section className={`${mobileView === 'active' ? 'block' : 'hidden'} md:block md:border-l md:border-black/10 md:pl-3 dark:md:border-white/15`} aria-label="Lectura de capas activas">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wide opacity-55">Capas activas</h2>
-            {hasActiveLegend && (
-              <button type="button" className="text-[0.65rem] underline opacity-70 hover:opacity-100 focus-visible:outline-2"
-                onClick={() => (Object.keys(DEFAULT_LAYER_OPACITY) as (keyof LayerOpacity)[]).forEach((key) => onLayerOpacity(key, DEFAULT_LAYER_OPACITY[key]))}>
-                Restablecer
-              </button>
-            )}
-          </div>
-          {!hasActiveLegend ? (
-            <div className="rounded-md border border-dashed border-black/15 px-3 py-6 text-center text-xs leading-relaxed opacity-55 dark:border-white/20">
-              Activa una capa temática para ver aquí su escala, opacidad y fuente.
-            </div>
-          ) : (
-            <div className="space-y-3">
-          <p className="text-xs opacity-65">Opacidad visual; no modifica los datos. Los bordes vectoriales se conservan.</p>
-              <ActiveLegendContext.Provider value={true}>{catalogue}</ActiveLegendContext.Provider>
-            </div>
-          )}
-        </section>
-      </div>
-    </MapPanel>
+    </LayerSidebar>
   );
 }
