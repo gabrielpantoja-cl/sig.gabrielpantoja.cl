@@ -888,6 +888,15 @@ que amplían el uso diario del perito:
       superficie se dibuja igual de suave que con miles. Degradar el render
       o avisar sobre el mapa bajo cierto umbral.
 
+### Analítica y producto
+
+- [ ] **Sistema de Analítica y Telemetría Interna (Privacy-First)**: medir uso
+      agregado, interacción con funciones (por ejemplo, consultas NDVI y
+      exportaciones) y ubicación general mediante un sistema interno,
+      independiente, sin cookies y sin dependencia de proveedores externos.
+      Diseñar la recopilación y retención conforme a la Ley 19.628 y preparar
+      el cumplimiento de la próxima Ley 21.719.
+
 ### Accesibilidad y mobile (auditoría 2026-08-28)
 
 - [ ] **Completar el patrón combobox del geocoder**: las sugerencias no
