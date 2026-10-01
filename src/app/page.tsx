@@ -862,7 +862,6 @@ export default function Home() {
           SIG de suelo · Datos abiertos
         </h1>
         <div className="flex items-center gap-3">
-          <InfoPanel />
           <a
             href="https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl"
             target="_blank"
@@ -882,6 +881,7 @@ export default function Home() {
               Código abierto
             </span>
           </a>
+          <InfoPanel />
         </div>
       </header>
 
