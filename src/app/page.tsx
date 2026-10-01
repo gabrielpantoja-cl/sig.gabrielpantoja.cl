@@ -1144,6 +1144,28 @@ export default function Home() {
             </button>
           </div>
 
+          {/* Acceso discreto al código fuente; el texto se despliega solo en
+              pantallas grandes para no competir con el buscador móvil. */}
+          <a
+            href="https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Ver el código fuente en GitHub"
+            className="group absolute right-3 top-3 z-[600] inline-flex h-10 items-center gap-2 overflow-hidden rounded-full border border-black/15 bg-[var(--background)]/80 px-2.5 text-sm shadow-md backdrop-blur transition-colors hover:bg-[var(--background)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(153_28%_35%)] dark:border-white/20 md:max-w-40 md:hover:gap-2.5"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-5 w-5 shrink-0 motion-safe:transition-transform motion-safe:group-hover:rotate-12 motion-safe:group-focus-visible:rotate-12"
+              fill="currentColor"
+            >
+              <path d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.55.1.76-.24.76-.53v-2.08c-3.1.68-3.76-1.32-3.76-1.32-.5-1.3-1.23-1.65-1.23-1.65-1.01-.7.08-.69.08-.69 1.12.08 1.71 1.15 1.71 1.15 1 .1.78 2.4 3.77 1.7.1-.72.4-1.21.72-1.49-2.48-.28-5.09-1.24-5.09-5.52 0-1.22.44-2.22 1.15-3-.12-.28-.5-1.42.11-2.96 0 0 .94-.3 3.05 1.15a10.6 10.6 0 0 1 5.55 0c2.11-1.45 3.05-1.15 3.05-1.15.61 1.54.23 2.68.11 2.96.72.78 1.15 1.78 1.15 3 0 4.29-2.61 5.24-5.1 5.51.4.35.76 1.03.76 2.08V22c0 .29.2.63.76.53A11.1 11.1 0 0 0 12 .9Z" />
+            </svg>
+            <span className="hidden max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover:max-w-xs group-hover:opacity-100 group-focus-visible:max-w-xs group-focus-visible:opacity-100 md:inline">
+              Código abierto
+            </span>
+          </a>
+
           {/* Serie NDVI: panel flotante arriba a la derecha. z-[700] = igual
               que los dropdowns; la pestaña de capas (850) y el drawer móvil
               (1100) siguen por sobre él y siguen siendo clicables. */}
