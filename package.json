@@ -34,6 +34,7 @@
     "neon-postgres"
   ],
   "scripts": {
+    "analytics:report": "node scripts/analytics-report.mjs",
     "build": "next build",
     "data:build": "npm run data:build:protected && npm run data:build:urban && npm run data:build:comunas && npm run data:build:red-vial && npm run data:build:red-drenaje && npm run data:build:lineas-transmision && npm run data:build:catastro-fruticola && npm run data:build:bioclima",
     "data:build:bioclima": "node scripts/build-bioclima.mjs",

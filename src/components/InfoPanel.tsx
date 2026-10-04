@@ -48,6 +48,12 @@ export function InfoPanel() {
             Fuente: recopilación propia de inscripciones del Conservador de Bienes
             Raíces. Datos públicos y anonimizados.
           </p>
+          <p className="mt-2 border-t border-black/10 pt-2 text-xs opacity-60 dark:border-white/10">
+            Medimos el uso del sitio de forma agregada y sin cookies: no
+            guardamos tu IP ni lo que buscas, solo la región aproximada, el tipo
+            de dispositivo y qué herramientas se usan. Si tu navegador envía Do
+            Not Track o GPC, no registramos nada.
+          </p>
         </div>
       )}
     </div>

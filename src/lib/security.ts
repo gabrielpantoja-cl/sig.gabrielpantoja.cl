@@ -39,7 +39,29 @@ export function corsHeaders(req: Request): Record<string, string> {
   };
 }
 
-function clientIp(req: Request): string {
+// Bucket separado para la analítica: un usuario activo genera varios eventos
+// por minuto y no deben gastar el presupuesto de las consultas al mapa.
+const analyticsCounts = new Map<string, number[]>();
+const MAX_ANALYTICS_PER_WINDOW = 120;
+
+export function isAllowedOrigin(req: Request): boolean {
+  const origin = req.headers.get('origin') || '';
+  return !isProd() || ALLOWED_ORIGINS.includes(origin);
+}
+
+export function analyticsRateLimited(req: Request): boolean {
+  const ip = clientIp(req);
+  const now = Date.now();
+  const recent = (analyticsCounts.get(ip) || []).filter(
+    (t) => now - t < RATE_LIMIT_WINDOW,
+  );
+  if (recent.length >= MAX_ANALYTICS_PER_WINDOW) return true;
+  recent.push(now);
+  analyticsCounts.set(ip, recent);
+  return false;
+}
+
+export function clientIp(req: Request): string {
   const xff = req.headers.get('x-forwarded-for');
   return xff ? xff.split(',')[0].trim() : 'unknown';
 }

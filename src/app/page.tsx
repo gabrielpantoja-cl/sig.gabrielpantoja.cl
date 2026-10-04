@@ -43,6 +43,7 @@ import { SearchFields, FilterFields, StatsFields, type RuralRolSearchState } fro
 import { GeocoderSearch } from '@/components/GeocoderSearch';
 import { InfoPanel } from '@/components/InfoPanel';
 import { NdviPanel } from '@/components/NdviPanel';
+import { track } from '@/lib/analytics';
 
 // El RetroLoader de page.tsx cubre también la carga del módulo, así que el
 // dynamic no necesita fallback propio (evita dos loaders superpuestos).
@@ -428,6 +429,10 @@ export default function Home() {
 
   // Resultado del geocoder: MapView vuela ahí y deja un marcador pulsante.
   const [focus, setFocus] = useState<GeocodeResult | null>(null);
+  const handleGeocode = useCallback((result: GeocodeResult) => {
+    track('geocode');
+    setFocus(result);
+  }, []);
 
   // Arranque con progreso real, en dos fases: descarga del dataset (5–60%) y
   // render de los marcadores en el mapa (64–99%). `bootDone` recién se activa
@@ -447,6 +452,8 @@ export default function Home() {
     booting.current = false;
     setBootProgress(100);
     setBootDone(true);
+    // Tiempo real hasta el mapa usable: la métrica a optimizar (21 MB de puntos).
+    track('boot', { ms: Math.round(performance.now()) });
   }, []);
 
   // Mobile: consolidated drawer (search + filters + stats), closed by default
@@ -510,6 +517,7 @@ export default function Home() {
   }, [ruralRolSearch]);
 
   const locateRuralRol = useCallback(async () => {
+    track('rol_search');
     const normalizedRol = normalizePropiedadRuralRol(rol);
     if (!normalizedRol) return;
     ruralSearchController.current?.abort();
@@ -583,6 +591,7 @@ export default function Home() {
   // en la misma transición, cerrando antes los paneles flotantes para que dos
   // superficies no queden apiladas sobre el mismo punto.
   const handleNdviPoint = useCallback((lat: number, lng: number) => {
+    track('ndvi_query');
     setNdviMode(false);
     setNdviConsulta({ tipo: 'punto', lat, lng });
     setActivePanel(null);
@@ -627,6 +636,43 @@ export default function Home() {
     getBasemapSnapshot,
     getBasemapServerSnapshot,
   );
+  const handleBasemap = useCallback((id: Parameters<typeof setBasemapPreference>[0]) => {
+    track('basemap', { basemap: id });
+    setBasemapPreference(id);
+  }, []);
+
+  // Analítica: qué capas se encienden. Se compara contra el render anterior
+  // en vez de envolver cada uno de los quince `onToggle*`, así una capa nueva
+  // queda medida con solo sumarla a este objeto. El estado inicial no cuenta
+  // (los puntos CBR vienen encendidos por defecto).
+  const layerFlags = useMemo(() => ({
+    puntos: showPoints,
+    mapa_calor: showHexbins,
+    areas_protegidas: showProtected,
+    limite_urbano: showUrbanLimit,
+    comunas: showComunas,
+    red_vial: showRedVial,
+    red_drenaje: showRedDrenaje,
+    lineas_transmision: showLineasTransmision,
+    suelos: showSuelos,
+    bioclima: showBioclima,
+    catastro_fruticola: showCatastroFruticola,
+    vegetacional: showVegetacional,
+    propiedades_rurales: showPropiedadesRurales,
+    ndvi_visual: showNdviVisual,
+  }), [
+    showPoints, showHexbins, showProtected, showUrbanLimit, showComunas,
+    showRedVial, showRedDrenaje, showLineasTransmision, showSuelos, showBioclima,
+    showCatastroFruticola, showVegetacional, showPropiedadesRurales, showNdviVisual,
+  ]);
+  const prevLayerFlags = useRef(layerFlags);
+  useEffect(() => {
+    const prev = prevLayerFlags.current;
+    prevLayerFlags.current = layerFlags;
+    for (const [layer, on] of Object.entries(layerFlags)) {
+      if (on && !prev[layer as keyof typeof prev]) track('layer_on', { layer });
+    }
+  }, [layerFlags]);
 
   // Capas KML subidas por el usuario: parseo 100% en el navegador (lib/kml),
   // el archivo nunca sale del dispositivo. El contador de colores es un ref
@@ -642,6 +688,7 @@ export default function Home() {
       try {
         const layer = await parseKmlFile(file, kmlColorFor(kmlColorCount.current++));
         setKmlLayers((prev) => [...prev, layer]);
+        track('kml_upload', { features: layer.featureCount });
       } catch (e) {
         errors.push(e instanceof Error ? e.message : `No se pudo leer «${file.name}».`);
       }
@@ -713,7 +760,9 @@ export default function Home() {
         kmlLayers,
       });
       await mapExportRef.current({ metadata });
+      track('export_png', { ok: true });
     } catch (err) {
+      track('export_png', { ok: false });
       // El mensaje del error va al detalle porque identifica la pista que
       // falló (tiles, vectores, pines CBR) y ahorra abrir la consola.
       setExportError(err instanceof Error ? err.message : String(err));
@@ -770,6 +819,16 @@ export default function Home() {
   const activeSearch = [predio.trim(), rol.trim()].filter(Boolean).length;
 
   const debouncedQs = useDebounced(queryString, 400);
+
+  // Analítica: qué filtros se usan. Solo los NOMBRES de los campos, nunca sus
+  // valores (un ROL o un monto no deben salir del navegador hacia la tabla).
+  const lastFilterKeys = useRef('');
+  useEffect(() => {
+    const keys = Array.from(new URLSearchParams(debouncedQs).keys()).sort().join(',');
+    if (keys === lastFilterKeys.current) return;
+    lastFilterKeys.current = keys;
+    if (keys) track('filter', { fields: keys });
+  }, [debouncedQs]);
   const error = errorQs != null && errorQs === debouncedQs;
   const loading = !error && loadedQs !== debouncedQs;
 
@@ -799,6 +858,7 @@ export default function Home() {
         if (ctrl.signal.aborted || id !== reqId.current) return;
         setErrorQs(debouncedQs);
         // Cierra el loader para que el mensaje de error quede visible.
+        if (booting.current) track('boot_error');
         booting.current = false;
         setBootDone(true);
       });
@@ -1096,7 +1156,7 @@ export default function Home() {
 
           {/* Geocoder mobile: barra flotante sobre el mapa, a la derecha del zoom */}
           <div className="absolute left-14 right-3 top-3 z-[600] md:hidden">
-            <GeocoderSearch onSelect={setFocus} />
+            <GeocoderSearch onSelect={handleGeocode} />
           </div>
 
           {/* Panel cluster at top-left, next to the zoom control (desktop).
@@ -1104,7 +1164,7 @@ export default function Home() {
               second line when the 320 px layer dock squeezes the map area at
               the md breakpoint, instead of overflowing off-screen. */}
           <div className="absolute left-14 right-3 top-3 z-[600] hidden items-start gap-2 flex-wrap md:flex">
-            <GeocoderSearch onSelect={setFocus} className="w-72" />
+            <GeocoderSearch onSelect={handleGeocode} className="w-72" />
 
             <MapPanel
               id="search"
@@ -1195,7 +1255,7 @@ export default function Home() {
               de escala de Leaflet — el lugar donde Google Maps y los visores SIG
               ponen este control. En mobile sube para no chocar con el FAB. */}
           <div className="absolute bottom-20 left-3 z-[600] md:bottom-9">
-            <BasemapSwitcher value={basemap} onChange={setBasemapPreference} />
+            <BasemapSwitcher value={basemap} onChange={handleBasemap} />
           </div>
 
           {/* Mobile FAB: opens the consolidated drawer. Any floating panel is
