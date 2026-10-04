@@ -890,12 +890,21 @@ que amplían el uso diario del perito:
 
 ### Analítica y producto
 
-- [ ] **Sistema de Analítica y Telemetría Interna (Privacy-First)**: medir uso
+- [x] **Sistema de Analítica y Telemetría Interna (Privacy-First)**: medir uso
       agregado, interacción con funciones (por ejemplo, consultas NDVI y
       exportaciones) y ubicación general mediante un sistema interno,
       independiente, sin cookies y sin dependencia de proveedores externos.
       Diseñar la recopilación y retención conforme a la Ley 19.628 y preparar
       el cumplimiento de la próxima Ley 21.719.
+      *Hecho 2026-10-04*: `POST /api/analytics` + `track()` por `sendBeacon`,
+      esquema aislado `analytics` con rol propio (`db/analytics.sql`), hash
+      diario de visitante sin guardar IP, ubicación país/región/ciudad,
+      DNT/GPC respetados, retención 13 meses. Eventos: página vista, tiempo
+      activo, tiempo de carga, capas encendidas, filtros (solo nombres),
+      geocoder, ROL, mapa base, exports, NDVI, KML. Reporte:
+      `npm run analytics:report`.
+      *Pendiente*: panel web del reporte (hoy es CLI) y usar las cifras de
+      `boot` para priorizar «Aligerar la carga».
 
 ### Accesibilidad y mobile (auditoría 2026-08-28)
 

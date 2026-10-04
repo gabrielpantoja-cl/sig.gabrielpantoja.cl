@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { UpdateNotice } from "@/components/UpdateNotice";
+import { Analytics } from "@/components/Analytics";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,6 +36,8 @@ export default function RootLayout({
         {/* Monitor de despliegues: vive en el layout, no en la página, para
             que siga vigilando en cualquier ruta que se agregue después. */}
         <UpdateNotice />
+        {/* Analítica interna sin cookies (ver lib/analytics-events.ts). */}
+        <Analytics />
       </body>
     </html>
   );

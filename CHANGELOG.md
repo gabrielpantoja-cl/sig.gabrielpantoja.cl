@@ -21,6 +21,15 @@ versionado.
 
 ## No publicado
 
+### Añadido
+
+- **Analítica interna sin cookies.** Registra visitas, ubicación general
+  (país/región/ciudad), dispositivo, tiempo de carga del mapa, tiempo activo y
+  qué funciones se usan (capas, filtros, exports, NDVI…), en un esquema propio
+  de Neon con un rol de solo escritura. No guarda IP ni valores de filtros,
+  respeta Do Not Track / GPC y purga a los 13 meses. Reporte con
+  `npm run analytics:report`.
+
 ### Corregido
 
 - **El export a PNG vuelve a funcionar.** Estaba roto por **tres** fallos

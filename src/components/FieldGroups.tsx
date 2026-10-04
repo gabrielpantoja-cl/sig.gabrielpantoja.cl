@@ -2,6 +2,7 @@
 
 import type { Facets, Stats } from '@/lib/types';
 import { normalizePropiedadRuralRol, type PropiedadRuralSearchMatch } from '@/lib/propiedades-rurales';
+import { track } from '@/lib/analytics';
 
 /**
  * Grupos de campos presentacionales, sin estado propio. El estado vive en
@@ -271,12 +272,14 @@ export function FilterFields({
         <span className="text-xs opacity-60">Exportar:</span>
         <a
           href={exportHref('csv')}
+          onClick={() => track('export_data', { format: 'csv' })}
           className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
         >
           CSV
         </a>
         <a
           href={exportHref('geojson')}
+          onClick={() => track('export_data', { format: 'geojson' })}
           className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
         >
           GeoJSON

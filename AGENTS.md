@@ -1,7 +1,11 @@
 <!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
 <!-- END:nextjs-agent-rules -->
 
 # sig.gabrielpantoja.cl — SIG de suelo
@@ -33,6 +37,7 @@ Single-page Next.js 16 App Router app. One route (`/`), one page. Maps ~85k CBR 
 | `npm run data:build:catastro-fruticola` | Regenerate `public/data/catastro-fruticola.{geojson,meta.json}` from CIREN-ODEPA |
 | `npm run data:build:bioclima` | Regenerate `public/data/bioclima-{temperatura,precipitacion}.png` + meta from WorldClim 2.1 (downloads a 628 MiB package the first time) |
 | `npm run data:build` | Run all data:build sub-tasks |
+| `npm run analytics:report [-- días]` | Print the internal usage report (visits, location, devices, features, load time) from `analytics.events` |
 
 No test framework is configured.
 
@@ -41,6 +46,7 @@ No test framework is configured.
 ```
 Browser → /api/{points,stats,export,facets,hexbins} → Neon (web_readonly, SELECT)
 Browser → /api/geocode → Nominatim/OSM (address search, Chile only, cached proxy)
+Browser → /api/analytics (sendBeacon) → Neon analytics.events (analytics_writer, INSERT)
 ```
 
 - **No client-side DB access**. All data arrives through route handlers in `src/app/api/`.
@@ -88,6 +94,7 @@ Browser → /api/geocode → Nominatim/OSM (address search, Chile only, cached p
 - **NDVI Visual (Sentinel-2)** is a REMOTE DYNAMIC raster layer (no static file, no ETL): the map requests ONE PNG per viewport through `/api/ndvi/export`, which composes it server-side from Sentinel-2 L2A COGs (Element 84 Earth Search / AWS Open Data) and returns it as an `L.ImageOverlay` refreshed on `moveend`. The server picks one scene per MGRS grid (clearest <=15% cloud preferred over freshest-but-hazy <=40%), chooses the COG overview whose pixel is <= 2x the output resolution, masks with SCL, interpolates red/nir, and paints the ramp in `src/lib/ndvi-ramp.json` — the same file the legend reads, so map and legend cannot drift apart. Output grid is linear in EPSG:3857 (inverse Mercator gives each row's latitude); min zoom 10 with a server-side span cap; 20 s budget with honest 504s; scene bands read in PARALLEL (serial was ~1.6 s/scene). Client debounces `moveend` 250 ms and quantizes bbox/size so the CDN reuses keys; legend distinguishes `zoom-required|loading|ready(+fecha)|ready-without-scenes (transparent, NOT a failure)|error`. NDVI pixels enter the PNG export automatically (generic overlayPane `<img>` capture); `showNdviVisual` only adds the Copernicus attribution. Full design rationale in `docs/arquitectura-capas.md` § Capas dinámicas remotas.
 - **Basemap selector**: the user picks the canvas from a Google-Maps-style thumbnail control in the bottom-left (`src/components/BasemapSwitcher.tsx`), backed by the catalog in `src/lib/basemap.ts`. Five options: **OpenStreetMap (default, raw colours)**, **Neutro** (the same OSM tiles desaturated/inverted by CSS — the correct canvas for the value heat map), **Satélite** (Esri World Imagery + the transparent World_Boundaries_and_Places label layer), **Topográfico** (OpenTopoMap, contours + SRTM hillshade), and **Sin fondo** (no tile layer at all, for clean PNG plates). Do NOT add CARTO Positron/Dark Matter or Stadia/Stamen: verified 2026-08-27, CARTO stamps "API KEY REQUIRED" on every tile and Stadia returns 401 without a key; all five current sources were re-verified 2026-08-28 for HTTP 200 + CORS `*`. The `data-basemap` attribute on the map container names the FILTER in force (`none|light|dark`), not the provider, and the same filter is replicated with `ctx.filter` in `map-export.ts` so the exported PNG matches the screen — along with the per-provider attribution, which is a licence obligation and differs per basemap (ODbL, CC-BY-SA, the Esri formula). Per-layer `maxNativeZoom` under a shared `MAP_MAX_ZOOM` is what keeps the viewport from going blank when switching from a z19 base to OpenTopoMap (z17). The preference persists in `localStorage` and is read through `useSyncExternalStore` (`src/lib/basemap-store.ts`) so SSR and hydration agree — do NOT move it back to `useState` + `useEffect`.
 - **Update monitor**: `src/components/UpdateNotice.tsx` (mounted in the root layout) polls `GET /api/version` every 5 minutes while the tab is visible and shows a dismissible banner with an **Actualizar** button when the served `build` differs from the one the tab loaded. It compares the build, not the version, so a fix-only deploy still notifies. `/api/version` is the one route that skips `enforce()` (polling must not eat the rate-limit budget of real map queries) and must stay `no-store`.
+- **Internal analytics (privacy-first)**: `src/components/Analytics.tsx` (root layout) sends `pageview` + `leave` (active seconds); `page.tsx` sends feature events via `track()` from `src/lib/analytics.ts`. The event list is CLOSED in `src/lib/analytics-events.ts` — the server drops anything else. `POST /api/analytics` always answers 204 and writes in `after()` to the isolated `analytics` schema (`db/analytics.sql`) with its own role `analytics_writer` — never `web_readonly`, which stays SELECT-only and gets nothing on that schema. No cookies, no localStorage: session = random in-memory id; visitor = daily-rotating HMAC of IP+UA (`ANALYTICS_SALT`), IP never stored; location only country/region/city from Vercel geo headers; DNT/GPC and bots dropped; 13-month retention purge. Props must NEVER carry filter values or user text (ROL, predio, search queries) — field NAMES only. Without `ANALYTICS_DATABASE_URL` the whole thing is a no-op.
 - **Communal limits styling**: each comuna gets a distinct translucent pastel fill assigned by `CUT_COM % palette` (`comunaFillColor` in `src/lib/comunas.ts`) over the dashed slate border.
 
 ## Key files
@@ -120,6 +127,12 @@ Browser → /api/geocode → Nominatim/OSM (address search, Chile only, cached p
 | `src/lib/version.ts` | `APP_VERSION`, `BUILD_ID`, and the SemVer policy for this project |
 | `src/app/api/version/route.ts` | Deployment identity for the update monitor (no auth gate, `no-store`) |
 | `src/components/UpdateNotice.tsx` | Update monitor: polls `/api/version`, offers «Actualizar» |
+| `src/lib/analytics-events.ts` | Closed catalog of analytics events + privacy design (shared client/server) |
+| `src/lib/analytics.ts` | Client `track()` via `sendBeacon`, no cookies, honours DNT/GPC |
+| `src/lib/analytics-server.ts` | Payload validation, daily visitor HMAC, geo/UA enrichment, insert + retention purge |
+| `src/app/api/analytics/route.ts` | `POST` ingest: origin check, own rate-limit bucket, always 204, write in `after()` |
+| `db/analytics.sql` | One-off, idempotent: `analytics` schema, `events` table, views, `analytics_writer` role |
+| `scripts/analytics-report.mjs` | `npm run analytics:report` — usage report from the CLI |
 | `src/app/api/hexbins/route.ts` | PostGIS `ST_HexagonGrid` aggregation of $/m² per viewport |
 | `src/lib/kml.ts` | User-uploaded KML layers: browser-side parse (@tmcw/togeojson) + validation |
 | `src/lib/protected-areas.ts` | Protected area category colors & config |
@@ -147,6 +160,8 @@ Browser → /api/geocode → Nominatim/OSM (address search, Chile only, cached p
 ## Environment
 
 `NEON_DATABASE_URL` in `.env.local` (and Vercel). Never prefixed `NEXT_PUBLIC_`.
+
+Optional, for internal analytics: `ANALYTICS_DATABASE_URL` (role `analytics_writer`, see `db/analytics.sql`) and `ANALYTICS_SALT` (32+ random chars). Same rules: server-only, never `NEXT_PUBLIC_`.
 
 ## Data & privacy
 
