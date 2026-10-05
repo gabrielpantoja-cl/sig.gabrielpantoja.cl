@@ -7,8 +7,9 @@
  * almacén arbitrario. Agregar un evento = agregarlo a esta lista.
  *
  * Diseño de privacidad (Ley 19.628, preparado para Ley 21.719):
- * - Sin cookies ni almacenamiento en el navegador: la sesión es un id
- *   aleatorio que vive en memoria y muere al recargar la pestaña.
+ * - Sin cookies de seguimiento: la sesión es un id aleatorio que vive en
+ *   memoria y muere al recargar la pestaña. La única cookie es la de
+ *   exclusión (`ANALYTICS_OPT_OUT_COOKIE`), que apaga el registro.
  * - El visitante se cuenta con un hash diario (HMAC de IP + user agent con
  *   un secreto que rota por día). La IP nunca se guarda y el hash no permite
  *   seguir a nadie de un día al siguiente.
@@ -34,7 +35,26 @@ export const ANALYTICS_EVENTS = [
   'kml_upload', // el usuario cargó un KML propio
 ] as const;
 
-export type AnalyticsEvent = (typeof ANALYTICS_EVENTS)[number];
+/**
+ * Eventos que emite SOLO el servidor (`src/proxy.ts`), por cada consulta a la
+ * API de datos — también las que no pasan por el navegador (curl, scripts).
+ * No están en `ANALYTICS_EVENTS`, así el cliente no puede falsificarlos.
+ */
+export const ANALYTICS_SERVER_EVENTS = [
+  'api_points', // GET /api/points (props: source, client, bot, fields)
+  'api_export', // GET /api/export (props: source, client, bot, fields, format)
+] as const;
+
+/**
+ * Cookie de exclusión: quien entra con `?analytics=off` deja de registrarse
+ * (páginas vistas, funciones y llamadas a la API desde ese navegador);
+ * `?analytics=on` la borra. Sirve para no contar las visitas del administrador.
+ */
+export const ANALYTICS_OPT_OUT_COOKIE = 'sig_no_analytics';
+
+export type AnalyticsClientEvent = (typeof ANALYTICS_EVENTS)[number];
+export type AnalyticsServerEvent = (typeof ANALYTICS_SERVER_EVENTS)[number];
+export type AnalyticsEvent = AnalyticsClientEvent | AnalyticsServerEvent;
 
 export type AnalyticsProps = Record<string, string | number | boolean>;
 
@@ -52,6 +72,7 @@ export type AnalyticsPayload = {
   props?: AnalyticsProps;
 };
 
-export function isAnalyticsEvent(value: unknown): value is AnalyticsEvent {
+/** Solo eventos de cliente: lo que acepta `POST /api/analytics`. */
+export function isAnalyticsEvent(value: unknown): value is AnalyticsClientEvent {
   return typeof value === 'string' && (ANALYTICS_EVENTS as readonly string[]).includes(value);
 }

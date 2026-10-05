@@ -33,7 +33,9 @@ if (!url) {
 const days = Math.max(1, Math.min(395, Number(process.argv[2]) || 30));
 const sql = neon(url);
 const since = sql`now() - make_interval(days => ${days})`;
-const base = (extra) => sql`FROM analytics.events WHERE env = 'production' AND created_at >= ${since} ${extra ?? sql``}`;
+// Eventos de navegador; las consultas a la API (api_*, de src/proxy.ts) van en su sección.
+const base = (extra) => sql`FROM analytics.events WHERE env = 'production' AND created_at >= ${since} AND left(event, 4) <> 'api_' ${extra ?? sql``}`;
+const apiBase = sql`FROM analytics.events WHERE env = 'production' AND created_at >= ${since} AND left(event, 4) = 'api_'`;
 
 const section = (title, rows) => {
   console.log(`\n== ${title} ==`);
@@ -90,3 +92,10 @@ section('Tiempo activo por sesión (s)', await sql`
          round(percentile_cont(0.9) WITHIN GROUP (ORDER BY activo)) AS p90,
          count(*) FILTER (WHERE activo < 10) AS rebote_menos_10s
   FROM s`);
+
+section('API de datos: quién consulta (site = desde el mapa, external = fuera del navegador del sitio)', await sql`
+  SELECT event AS endpoint, props->>'source' AS origen, props->>'client' AS cliente,
+         props->>'format' AS formato, country AS pais,
+         count(*) AS consultas, count(DISTINCT visitor_id) AS visitantes_dia,
+         max(created_at) AS ultima
+  ${apiBase} GROUP BY 1, 2, 3, 4, 5 ORDER BY consultas DESC LIMIT 30`);
