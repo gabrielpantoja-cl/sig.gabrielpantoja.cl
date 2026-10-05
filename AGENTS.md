@@ -163,7 +163,7 @@ Any client → src/proxy.ts (before CDN cache) on /api/{points,export} → Neon 
 
 `NEON_DATABASE_URL` in `.env.local` (and Vercel). Never prefixed `NEXT_PUBLIC_`.
 
-Optional, for internal analytics: `ANALYTICS_DATABASE_URL` (role `analytics_writer`, see `db/analytics.sql`) and `ANALYTICS_SALT` (32+ random chars). Same rules: server-only, never `NEXT_PUBLIC_`.
+Optional, for internal analytics: `ANALYTICS_DATABASE_URL` (role `analytics_writer`, see `db/analytics.sql`) and `ANALYTICS_SALT` (32+ random chars). Same rules: server-only, never `NEXT_PUBLIC_`. Locally, put the production URL in `ANALYTICS_REPORT_DATABASE_URL` (read only by `npm run analytics:report`), NOT in `ANALYTICS_DATABASE_URL` — that one would make `npm run dev` write events.
 
 ## Data & privacy
 
