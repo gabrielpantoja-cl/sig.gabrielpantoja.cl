@@ -5,18 +5,22 @@
  *   npm run analytics:report            # últimos 30 días
  *   npm run analytics:report -- 7       # últimos 7 días
  *
- * Lee ANALYTICS_DATABASE_URL de .env.local (rol analytics_writer). Solo
- * cuenta eventos de producción.
+ * Lee ANALYTICS_REPORT_DATABASE_URL (o, en su defecto, ANALYTICS_DATABASE_URL)
+ * del entorno o de .env.local (rol analytics_writer). Solo cuenta eventos de
+ * producción. En .env.local usa la variable propia del reporte: con
+ * ANALYTICS_DATABASE_URL ahí, `npm run dev` también escribiría eventos.
  */
 import { readFileSync } from 'node:fs';
 import { neon } from '@neondatabase/serverless';
 
+const KEYS = ['ANALYTICS_REPORT_DATABASE_URL', 'ANALYTICS_DATABASE_URL'];
+
 function loadEnv() {
-  if (process.env.ANALYTICS_DATABASE_URL) return;
+  if (KEYS.some((k) => process.env[k])) return;
   try {
     for (const line of readFileSync('.env.local', 'utf8').split(/\r?\n/)) {
-      const m = line.match(/^\s*ANALYTICS_DATABASE_URL\s*=\s*(.+?)\s*$/);
-      if (m) process.env.ANALYTICS_DATABASE_URL = m[1].replace(/^["']|["']$/g, '');
+      const m = line.match(/^\s*(ANALYTICS_REPORT_DATABASE_URL|ANALYTICS_DATABASE_URL)\s*=\s*(.+?)\s*$/);
+      if (m) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
     }
   } catch {
     // sin .env.local
@@ -24,9 +28,9 @@ function loadEnv() {
 }
 
 loadEnv();
-const url = process.env.ANALYTICS_DATABASE_URL;
+const url = process.env.ANALYTICS_REPORT_DATABASE_URL || process.env.ANALYTICS_DATABASE_URL;
 if (!url) {
-  console.error('Falta ANALYTICS_DATABASE_URL (en .env.local o en el entorno).');
+  console.error('Falta ANALYTICS_REPORT_DATABASE_URL (en .env.local o en el entorno).');
   process.exit(1);
 }
 
