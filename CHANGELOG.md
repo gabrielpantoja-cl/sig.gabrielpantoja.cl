@@ -23,6 +23,14 @@ versionado.
 
 ### Añadido
 
+- **Registro de acceso a la API de datos.** Cada consulta a `/api/points` y
+  `/api/export` queda registrada desde el proxy (antes de la caché de la CDN),
+  incluidas las que no vienen del navegador (curl, scripts): origen
+  (`site`/`external`), cliente, formato y nombres de filtros. Sección nueva en
+  `npm run analytics:report` y vista `analytics.api_access`.
+- **Exclusión del administrador.** Entrar con `?analytics=off` deja una cookie
+  que excluye a ese navegador de toda la analítica (`?analytics=on` la borra).
+
 - **Analítica interna sin cookies.** Registra visitas, ubicación general
   (país/región/ciudad), dispositivo, tiempo de carga del mapa, tiempo activo y
   qué funciones se usan (capas, filtros, exports, NDVI…), en un esquema propio

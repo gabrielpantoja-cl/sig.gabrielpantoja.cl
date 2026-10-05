@@ -51,6 +51,7 @@ SELECT
   count(*) FILTER (WHERE event = 'pageview')          AS paginas_vistas
 FROM analytics.events
 WHERE env = 'production'
+  AND event NOT LIKE 'api\_%'  -- las consultas a la API van en analytics.api_access
 GROUP BY 1;
 
 -- Uso de funciones: cuántas sesiones distintas tocan cada cosa.
@@ -65,7 +66,27 @@ SELECT
 FROM analytics.events
 WHERE env = 'production'
   AND event NOT IN ('pageview', 'leave', 'boot')
+  AND event NOT LIKE 'api\_%'
 GROUP BY 1, 2;
+
+-- Consultas a la API de datos, registradas por src/proxy.ts (también las que
+-- no vienen del navegador). source = site | external; client = primer token
+-- del user agent (curl/…, python-requests/…, Mozilla/5.0).
+CREATE OR REPLACE VIEW analytics.api_access AS
+SELECT
+  (created_at AT TIME ZONE 'America/Santiago')::date AS dia,
+  event,
+  props->>'source'            AS source,
+  props->>'client'            AS client,
+  (props->>'bot')::boolean    AS bot,
+  props->>'format'            AS format,
+  country,
+  count(*)                    AS consultas,
+  count(DISTINCT visitor_id)  AS visitantes
+FROM analytics.events
+WHERE env = 'production'
+  AND event LIKE 'api\_%'
+GROUP BY 1, 2, 3, 4, 5, 6, 7;
 
 DO $$
 BEGIN
@@ -79,4 +100,4 @@ GRANT USAGE ON SCHEMA analytics TO analytics_writer;
 -- INSERT para registrar, SELECT para el reporte, DELETE para la purga de
 -- retención (filas de más de 13 meses). Nada de UPDATE ni DDL.
 GRANT INSERT, SELECT, DELETE ON analytics.events TO analytics_writer;
-GRANT SELECT ON analytics.daily, analytics.features TO analytics_writer;
+GRANT SELECT ON analytics.daily, analytics.features, analytics.api_access TO analytics_writer;

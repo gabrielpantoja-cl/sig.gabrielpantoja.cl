@@ -5,9 +5,11 @@ import { userAgent } from 'next/server';
 import { clientIp } from '@/lib/security';
 import { BUILD_ID } from '@/lib/version';
 import {
+  ANALYTICS_OPT_OUT_COOKIE,
   isAnalyticsEvent,
   type AnalyticsPayload,
   type AnalyticsProps,
+  type AnalyticsServerEvent,
 } from '@/lib/analytics-events';
 
 /**
@@ -92,9 +94,14 @@ function geoHeader(req: Request, name: string): string | null {
   }
 }
 
-/** true si el navegador pidió no ser rastreado (DNT / Global Privacy Control). */
+/**
+ * true si el navegador pidió no ser rastreado (DNT / Global Privacy Control)
+ * o lleva la cookie de exclusión (`?analytics=off`, visitas del administrador).
+ */
 export function optedOut(req: Request): boolean {
-  return req.headers.get('dnt') === '1' || req.headers.get('sec-gpc') === '1';
+  if (req.headers.get('dnt') === '1' || req.headers.get('sec-gpc') === '1') return true;
+  const cookie = req.headers.get('cookie') || '';
+  return cookie.split(/;\s*/).some((c) => c === `${ANALYTICS_OPT_OUT_COOKIE}=1`);
 }
 
 export function isBot(req: Request): boolean {
@@ -105,7 +112,6 @@ export async function recordEvent(req: Request, payload: AnalyticsPayload): Prom
   const url = process.env.ANALYTICS_DATABASE_URL;
   if (!url) return;
 
-  const ua = userAgent(req);
   const props = { ...(payload.props ?? {}) };
   // Las utm_* llegan como props del pageview y se promueven a columnas.
   const utm = (key: string) => {
@@ -117,6 +123,70 @@ export async function recordEvent(req: Request, payload: AnalyticsPayload): Prom
   const utmMedium = utm('utm_medium');
   const utmCampaign = utm('utm_campaign');
 
+  await insertEvent(url, req, payload, props, { utmSource, utmMedium, utmCampaign });
+}
+
+/** Primer token del user agent (`curl/8.4.0`, `python-requests/2.31`, `Mozilla/5.0`). */
+function clientToken(req: Request): string | null {
+  const ua = req.headers.get('user-agent');
+  return ua ? clip(ua.split(/\s+/)[0], 40) : null;
+}
+
+function hostOf(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).host;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Registra una consulta a la API de datos (`/api/points`, `/api/export`).
+ * Lo llama `src/proxy.ts`, que corre ANTES de la caché de la CDN: así se
+ * cuentan también las respuestas cacheadas y las que no vienen del navegador.
+ *
+ * A diferencia de los eventos de cliente, aquí NO se descartan bots ni
+ * clientes sin navegador — precisamente se quiere ver quién descarga datos
+ * con scripts. Se registran solo NOMBRES de filtros, nunca sus valores.
+ * `source` = `site` si la petición vino del propio mapa, `external` si no.
+ */
+export async function recordApiEvent(req: Request, event: AnalyticsServerEvent): Promise<void> {
+  const url = process.env.ANALYTICS_DATABASE_URL;
+  if (!url) return;
+
+  const { pathname, searchParams, host } = new URL(req.url);
+  const refererHost = hostOf(req.headers.get('referer'));
+  const site =
+    req.headers.get('sec-fetch-site') === 'same-origin' || (refererHost !== null && refererHost === host);
+  const fields = [...new Set([...searchParams.keys()].filter((k) => k !== 'format'))].sort().join(',');
+
+  const props: AnalyticsProps = {
+    source: site ? 'site' : 'external',
+    client: clientToken(req) ?? 'none',
+    bot: isBot(req),
+  };
+  if (fields) props.fields = fields.slice(0, MAX_STRING);
+  if (event === 'api_export') props.format = (searchParams.get('format') || 'csv').slice(0, 10);
+
+  await insertEvent(
+    url,
+    req,
+    { e: event, s: 'server', p: pathname, r: site ? undefined : (refererHost ?? undefined) },
+    props,
+    { utmSource: null, utmMedium: null, utmCampaign: null },
+  );
+}
+
+async function insertEvent(
+  url: string,
+  req: Request,
+  payload: AnalyticsPayload,
+  props: AnalyticsProps,
+  utm: { utmSource: string | null; utmMedium: string | null; utmCampaign: string | null },
+): Promise<void> {
+  const ua = userAgent(req);
+  const { utmSource, utmMedium, utmCampaign } = utm;
   const sql = neon(url);
   await sql`
     INSERT INTO analytics.events (
@@ -130,7 +200,7 @@ export async function recordEvent(req: Request, payload: AnalyticsPayload): Prom
       ${geoHeader(req, 'x-vercel-ip-country')},
       ${geoHeader(req, 'x-vercel-ip-country-region')},
       ${geoHeader(req, 'x-vercel-ip-city')},
-      ${ua.device.type || 'desktop'}, ${clip(ua.browser.name, 40)}, ${clip(ua.os.name, 40)},
+      ${ua.device.type || (ua.browser.name ? 'desktop' : null)}, ${clip(ua.browser.name, 40)}, ${clip(ua.os.name, 40)},
       ${payload.w ?? null}, ${JSON.stringify(props)}::jsonb
     )
   `;

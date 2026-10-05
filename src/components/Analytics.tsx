@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { track } from '@/lib/analytics';
+import { applyOptOutParam, track } from '@/lib/analytics';
 
 // Fuera del componente: el doble montaje de StrictMode en desarrollo no debe
 // registrar dos páginas vistas.
@@ -12,12 +12,16 @@ let pageviewSent = false;
  * se oculta, los segundos de uso ACTIVO acumulados (con la pestaña visible),
  * que es lo que distingue a quien trabaja en el mapa de quien rebota.
  * Se monta en el layout, junto al monitor de despliegues.
+ *
+ * `?analytics=off` en la URL excluye a este navegador (visitas del
+ * administrador); `?analytics=on` lo vuelve a incluir.
  */
 export function Analytics() {
   useEffect(() => {
     if (!pageviewSent) {
       pageviewSent = true;
       const params = new URLSearchParams(window.location.search);
+      applyOptOutParam(params);
       const props: Record<string, string> = {};
       for (const key of ['utm_source', 'utm_medium', 'utm_campaign']) {
         const value = params.get(key);
