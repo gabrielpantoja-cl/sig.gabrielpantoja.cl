@@ -1,37 +1,75 @@
 import { enforce, corsHeaders } from '@/lib/security';
 import { PROPIEDADES_RURALES_LAYER_IDS } from '@/lib/propiedades-rurales';
-import { PROPIEDADES_RURALES_UPSTREAM_SERVICE, fetchCiren, parseNumberTuple, readExactParams, propiedadesRuralesProxyError, ruralExtent, validGeographicPoint, validIntegerTuple } from '@/lib/propiedades-rurales-proxy';
+import { fetchArcGis, identifySearch, parseJsonBody, readIdentifyParams } from '@/lib/arcgis-proxy';
+import {
+  PROPIEDADES_RURALES_UPSTREAM_SERVICE,
+  propiedadesRuralesProxyError,
+  ruralExtent,
+} from '@/lib/propiedades-rurales-proxy';
 
-export const runtime = 'nodejs';
+const OPERATION = 'identify' as const;
+const MAX_JSON_BYTES = 512 * 1024;
 const ROL = /^\d{1,7}-\d{1,6}$/;
-const text = (v: unknown) => typeof v === 'string' ? v.slice(0, 160) : null;
-const attr = (a: Record<string, unknown>, names: string[]) => {
-  const key = Object.keys(a).find((candidate) => names.includes(candidate.toLowerCase()));
-  return key ? text(a[key]) : null;
+
+const text = (value: unknown) => (typeof value === 'string' ? value.slice(0, 160) : null);
+
+/** Primer atributo cuyo nombre (sin distinguir mayúsculas) está en `names`. */
+const attr = (attributes: Record<string, unknown>, names: string[]) => {
+  const key = Object.keys(attributes).find((candidate) => names.includes(candidate.toLowerCase()));
+  return key ? text(attributes[key]) : null;
 };
 
-export async function OPTIONS(req: Request) { return new Response(null, { status: 204, headers: { ...corsHeaders(req), Vary: 'Origin' } }); }
+export const runtime = 'nodejs';
+
+export async function OPTIONS(req: Request) {
+  return new Response(null, { status: 204, headers: { ...corsHeaders(req), Vary: 'Origin' } });
+}
 
 export async function GET(req: Request) {
-  const blocked = enforce(req); if (blocked) return blocked;
-  const input = readExactParams(new URL(req.url).searchParams, ['geometry', 'mapExtent', 'imageDisplay', 'tolerance']);
-  const point = input ? parseNumberTuple(input.geometry, 2) : null;
-  const extent = input ? parseNumberTuple(input.mapExtent, 4) : null;
-  const display = input ? parseNumberTuple(input.imageDisplay, 3) : null;
-  const tolerance = input ? Number(input.tolerance) : NaN;
-  if (!point || !extent || !display || !validGeographicPoint(point) || !ruralExtent(extent) || !validIntegerTuple(display.slice(0, 2), 2, 1, 2048) || !Number.isInteger(display[2]) || display[2] < 72 || display[2] > 192 || !Number.isInteger(tolerance) || tolerance < 0 || tolerance > 10) return propiedadesRuralesProxyError(req, 400, 'INVALID_REQUEST', 'identify');
+  const blocked = enforce(req);
+  if (blocked) return blocked;
+
+  const input = readIdentifyParams(new URL(req.url).searchParams, ruralExtent);
+  if (!input) {
+    return propiedadesRuralesProxyError(req, 400, 'INVALID_REQUEST', OPERATION);
+  }
+
   const upstream = new URL(`${PROPIEDADES_RURALES_UPSTREAM_SERVICE}/identify`);
-  upstream.search = new URLSearchParams({ geometry: point.join(','), geometryType: 'esriGeometryPoint', sr: '4326', layers: `visible:${PROPIEDADES_RURALES_LAYER_IDS.join(',')}`, tolerance: String(tolerance), mapExtent: extent.join(','), imageDisplay: display.join(','), returnGeometry: 'false', f: 'json' }).toString();
-  const { response, body, timedOut, bodyError } = await fetchCiren(upstream, 'application/json', 512 * 1024);
-  if (!response) return propiedadesRuralesProxyError(req, timedOut ? 504 : 502, timedOut ? 'UPSTREAM_TIMEOUT' : 'UPSTREAM_UNAVAILABLE', 'identify');
-  if (!response.ok || bodyError || !body) return propiedadesRuralesProxyError(req, 502, 'UPSTREAM_UNAVAILABLE', 'identify');
-  let data: { results?: Array<{ layerName?: unknown; attributes?: unknown }>; error?: unknown };
-  try { data = JSON.parse(new TextDecoder().decode(body)); } catch { return propiedadesRuralesProxyError(req, 502, 'UPSTREAM_INVALID_RESPONSE', 'identify'); }
-  if (data.error || !Array.isArray(data.results)) return propiedadesRuralesProxyError(req, 502, 'UPSTREAM_ARCGIS_ERROR', 'identify');
+  upstream.search = identifySearch(input, `visible:${PROPIEDADES_RURALES_LAYER_IDS.join(',')}`);
+
+  const { response, body, timedOut, bodyError } = await fetchArcGis(upstream, 'application/json', MAX_JSON_BYTES);
+  if (!response) {
+    return propiedadesRuralesProxyError(req, timedOut ? 504 : 502, timedOut ? 'UPSTREAM_TIMEOUT' : 'UPSTREAM_UNAVAILABLE', OPERATION);
+  }
+  if (!response.ok || bodyError || !body) {
+    return propiedadesRuralesProxyError(req, 502, 'UPSTREAM_UNAVAILABLE', OPERATION);
+  }
+  const data = parseJsonBody<{ results?: Array<{ layerName?: unknown; attributes?: unknown }>; error?: unknown }>(body);
+  if (!data) {
+    return propiedadesRuralesProxyError(req, 502, 'UPSTREAM_INVALID_RESPONSE', OPERATION);
+  }
+  if (data.error || !Array.isArray(data.results)) {
+    return propiedadesRuralesProxyError(req, 502, 'UPSTREAM_ARCGIS_ERROR', OPERATION);
+  }
+
   const results = data.results.slice(0, 10).map(({ layerName, attributes }) => {
     const a = attributes && typeof attributes === 'object' ? attributes as Record<string, unknown> : {};
     const rol = attr(a, ['rol', 'rol sii del predio', 'rol propiedad']);
-    return { layerName: text(layerName), attributes: { rol: rol && ROL.test(rol) ? rol : null, comuna: attr(a, ['desccomu']), codComuna: attr(a, ['comudere']), codProvincia: attr(a, ['provdere']), codRegion: attr(a, ['regidere']), ...(rol && !ROL.test(rol) ? { quality: 'rol-invalid' as const } : {}) } };
+    const rolValid = rol !== null && ROL.test(rol);
+    return {
+      layerName: text(layerName),
+      attributes: {
+        rol: rolValid ? rol : null,
+        comuna: attr(a, ['desccomu']),
+        codComuna: attr(a, ['comudere']),
+        codProvincia: attr(a, ['provdere']),
+        codRegion: attr(a, ['regidere']),
+        ...(rol && !rolValid ? { quality: 'rol-invalid' as const } : {}),
+      },
+    };
   });
-  return Response.json({ results }, { headers: { ...corsHeaders(req), 'Cache-Control': 'no-store', Vary: 'Origin' } });
+  return Response.json(
+    { results },
+    { headers: { ...corsHeaders(req), 'Cache-Control': 'no-store', Vary: 'Origin' } },
+  );
 }

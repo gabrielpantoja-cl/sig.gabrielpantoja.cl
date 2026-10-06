@@ -115,11 +115,11 @@ Any client → src/proxy.ts (before CDN cache) on /api/{points,export} → Neon 
 | `src/lib/red-vial.ts` | Red caminera (MOP Vialidad) types, per-class styles & attribution |
 | `src/lib/red-drenaje.ts` | Red de drenaje (DGA Banco Nacional de Aguas) types, per-type styles (ríos/esteros) & attribution |
 | `src/lib/lineas-transmision.ts` | Ministerio de Energía transmission-line types, voltage styles, attribution & legal disclaimer |
-| `src/lib/red-drenaje.ts` | Red de drenaje (DGA, BNA) types, per-type styles (ríos/esteros) & attribution |
 | `src/lib/derechos-agua.ts` | Derechos de agua (DGA) types, colors, SNIA links & attribution |
 | `src/lib/bioclima.ts` | Bioclima (WorldClim) manifest loader, default variable, attribution |
 | `src/lib/catastro-fruticola.ts` | CIREN-ODEPA catastro frutícola types, palette & attribution |
 | `src/lib/suelos.ts` | Suelos agrológicos CIREN: export/identify endpoints, class colors & attribution |
+| `src/lib/arcgis-proxy.ts` | Shared plumbing for the ArcGIS proxies (suelos, vegetacional, propiedades rurales): exact-param parsing, identify/export validation, capped fetch with timeout, PNG checks, error body |
 | `src/lib/hexbins.ts` | Mapa de calor de valor: zoom→sampling-edge ladder, colour ramps, quantile breaks, destino codes, disclaimer |
 | `src/lib/heat-surface.ts` | Gaussian interpolation of the cell medians into a continuous raster (splat accumulation, quantile+log colour scale, coverage-driven alpha) |
 | `src/lib/basemap.ts` | Basemap catalog: the five backgrounds, their tile URLs, licences, native zooms and CSS filters (and why not CARTO/Stadia) |
@@ -149,7 +149,6 @@ Any client → src/proxy.ts (before CDN cache) on /api/{points,export} → Neon 
 | `scripts/build-red-vial.mjs` | ETL: MOP ArcGIS REST (esriJSON by OBJECTID ranges) → GeoJSON → simplify → emit GeoJSON + meta |
 | `scripts/build-red-drenaje.mjs` | ETL: DGA ArcGIS REST paginated (Ríos + Esteros FeatureServer, 1000/request with backoff 2-5-10 s) → combined GeoJSON with derived `tipo` field → simplify → emit GeoJSON + meta |
 | `scripts/build-lineas-transmision.mjs` | ETL: Ministerio de Energía IDE Energía ArcGIS REST paginated → WGS84 GeoJSON + provenance meta |
-| `scripts/build-red-drenaje.mjs` | ETL: DGA ArcGIS REST paginado (Ríos + Esteros FeatureServer, 1000/request con backoff 2-5-10 s) → GeoJSON combinado con campo derivado `tipo` → simplify → emit GeoJSON + meta |
 | `scripts/build-derechos-agua.mjs` | ETL: investigación de fuente DGA — WFS SNIA Glaciares, CIREN cuencas |
 | `scripts/build-bioclima.mjs` | ETL: WorldClim 628 MiB package → extract BIO1/BIO12 → clip Chile window from global GeoTIFF → paint PNG with shared ramp → emit manifest |
 | `src/lib/bioclima-ramp.json` | Bioclima colour ramp, read by BOTH the ETL (to paint) and the legend (to describe) so they cannot drift apart |
