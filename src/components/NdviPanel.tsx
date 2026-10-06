@@ -136,7 +136,7 @@ export function NdviPanel({
         const json = await res.json();
         if (controller.signal.aborted) return;
         if (!res.ok) {
-          setResultado({ clave, estado: { tipo: 'error', mensaje: json?.error?.mensaje ?? `Error ${res.status}` }, resaltado: null });
+          setResultado({ clave, estado: { tipo: 'error', mensaje: json?.error?.message ?? `Error ${res.status}` }, resaltado: null });
           return;
         }
         const serie = json as NdviSerie;

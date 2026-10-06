@@ -27,7 +27,7 @@ export const dynamic = 'force-dynamic';
 const MAX_BODY = 4096;
 
 export async function OPTIONS(req: Request) {
-  return new Response(null, { status: 204, headers: corsHeaders(req) });
+  return new Response(null, { status: 204, headers: corsHeaders(req, 'POST, OPTIONS') });
 }
 
 export async function POST(req: Request) {

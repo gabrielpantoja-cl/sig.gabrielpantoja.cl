@@ -8,6 +8,7 @@ import {
 } from '@/lib/ndvi-raster';
 import {
   parseNumberTuple,
+  proxyErrorResponse,
   readExactParams,
   validGeographicExtent,
   validIntegerTuple,
@@ -35,11 +36,8 @@ const VENTANA_MS = 10 * 60 * 1000;
 const MAX_POR_VENTANA = 120;
 const excedeLimite = createRateLimiter(VENTANA_MS, MAX_POR_VENTANA);
 
-function ndviExportError(req: Request, status: number, code: string, mensaje: string): Response {
-  return Response.json(
-    { error: { code, message: mensaje, service: SERVICE, operation: OPERATION } },
-    { status, headers: { ...corsHeaders(req), 'Cache-Control': 'no-store', Vary: 'Origin' } },
-  );
+function ndviExportError(req: Request, status: number, code: string, message: string): Response {
+  return proxyErrorResponse(req, status, { code, message, service: SERVICE, operation: OPERATION });
 }
 
 export async function OPTIONS(req: Request) {
@@ -80,7 +78,7 @@ export async function GET(req: Request) {
     );
   }
   if (excedeLimite(req)) {
-    return ndviExportError(req, 429, 'LIMITE', 'Demasiadas consultas NDVI seguidas. Espera unos minutos.');
+    return ndviExportError(req, 429, 'RATE_LIMITED', 'Demasiadas consultas NDVI seguidas. Espera unos minutos.');
   }
 
   const controller = new AbortController();
@@ -128,18 +126,18 @@ export async function GET(req: Request) {
       return ndviExportError(
         req,
         504,
-        'PRESUPUESTO',
+        'UPSTREAM_TIMEOUT',
         'La composición NDVI superó los 20 s permitidos. Intenta con una vista más pequeña.',
       );
     }
     if (clienteAbandonado || req.signal.aborted) {
-      return ndviExportError(req, 499, 'CANCELADA', 'La consulta fue cancelada.');
+      return ndviExportError(req, 499, 'CANCELLED', 'La consulta fue cancelada.');
     }
     console.error('NDVI visual: fallo al componer el raster', e);
     return ndviExportError(
       req,
       502,
-      'FUENTE_NO_DISPONIBLE',
+      'UPSTREAM_UNAVAILABLE',
       'No se pudieron leer las imágenes de Sentinel-2 (Element 84 Earth Search / AWS). Intenta de nuevo en unos minutos.',
     );
   } finally {
