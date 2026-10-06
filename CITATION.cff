@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+type: software
+title: "sig.gabrielpantoja.cl — Land GIS"
+abstract: >-
+  Interactive open-data web GIS of rural land transactions recorded by Chilean
+  Real Estate Registries (Conservadores de Bienes Raíces) across south-central
+  Chile, combined with official thematic layers (protected areas, urban and
+  communal boundaries, road and drainage networks, transmission lines,
+  agricultural soils, vegetation, bioclimate, NDVI) and a value heat map of
+  median price per square metre. Built for ecoinformatics research and as a
+  reference tool for rural appraisal.
+authors:
+  - given-names: Gabriel
+    family-names: Pantoja
+version: 0.1.0
+date-released: 2026-08-28
+license: MIT
+repository-code: "https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl"
+url: "https://sig.gabrielpantoja.cl"
+keywords:
+  - GIS
+  - web mapping
+  - Chile
+  - land market
+  - rural appraisal
+  - ecoinformatics
+  - open data
+  - Leaflet
+  - PostGIS
