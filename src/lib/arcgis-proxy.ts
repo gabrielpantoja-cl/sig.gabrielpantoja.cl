@@ -3,8 +3,8 @@ import { corsHeaders } from '@/lib/security';
 
 /**
  * Shared plumbing for the server-side proxies to official ArcGIS services
- * (CIREN suelos, CONAF vegetacional, CIREN propiedades rurales) and for the
- * NDVI export's parameter parsing.
+ * (CIREN suelos, CONAF vegetacional, CIREN propiedades rurales). The NDVI
+ * routes reuse its parameter parsing and error body.
  *
  * Every proxy follows the same contract: an exact parameter allowlist, numeric
  * validation before anything reaches the upstream, a hard timeout, a byte cap

@@ -50,7 +50,11 @@ function isProd(): boolean {
   return process.env.VERCEL_ENV === 'production';
 }
 
-export function corsHeaders(req: Request): Record<string, string> {
+/**
+ * `methods` is what the route accepts; it only matters on the preflight
+ * (OPTIONS) answer, so routes that take POST pass it there.
+ */
+export function corsHeaders(req: Request, methods = 'GET, OPTIONS'): Record<string, string> {
   const origin = req.headers.get('origin') || '';
   const allowed = ALLOWED_ORIGINS.includes(origin)
     ? origin
@@ -59,7 +63,7 @@ export function corsHeaders(req: Request): Record<string, string> {
       : '*';
   return {
     'Access-Control-Allow-Origin': allowed,
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Methods': methods,
     'Access-Control-Allow-Headers': 'Content-Type',
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
