@@ -284,19 +284,19 @@ resueltas mejor que en la mayoría de los visores públicos chilenos:
 | 2 | Sin lectura de coordenadas (lat/lon + UTM 19S) | P1 | S |
 | 3 | Sin escala numérica (`1:25.000`) | P1 | S |
 | 4 | Sin herramienta de medición | P1 | M |
-| 5 | Sin opacidad por capa | P1 | S |
+| 5 | ~~Sin opacidad por capa~~ **Hecho 2026-09-07** | P1 | S |
 | 6 | Sin reordenar capas | P1 | M |
-| 7 | Leyendas atrapadas en el panel; leyenda de capa apagada persiste | P2 | M |
-| 8 | Mapa de calor sin leyenda visible | P2 | S |
+| 7 | ~~Leyendas atrapadas en el panel; leyenda de capa apagada persiste~~ **Hecho 2026-09-07** (inspector «Capas activas») | P2 | M |
+| 8 | ~~Mapa de calor sin leyenda visible~~ **Hecho 2026-09-07** | P2 | S |
 | 9 | Superficie de calor con n mínimo se ve igual que con n alto | P2 | S |
 | 10 | Combobox del geocoder sin `role="option"` | P3 | S |
 | 11 | Dos geocoders en el DOM | P3 | S |
-| 12 | Panel de capas tapa el mapa en mobile | P4 | M |
+| 12 | ~~Panel de capas tapa el mapa en mobile~~ **Hecho 2026-09-27** (`LayerSidebar`) | P4 | M |
 | 13 | Atribución choca con el FAB en mobile | P4 | S |
 | 14 | `/api/points` de 21 MB sin carga por viewport | P5 | L |
 | 15 | Burbujas de clúster del PNG en azul plano, no por conteo como en pantalla | P2 | S |
 
-Orden sugerido de ataque: ~~**1** (está roto)~~ *—hecho—*, luego **2 + 3 + 5 + 8** (cuatro
-cambios chicos que juntos cambian la categoría del visor), después **7 y 12**
-(rediseño de leyendas y del panel en mobile, que conviene hacer de una sola
-vez), y **14** cuando toque la migración de almacenamiento ya planeada.
+**Estado al 2026-10-05:** hechos 1, 5, 7, 8 y 12. Lo siguiente es **2 + 3**
+(coordenadas y escala numérica: dos cambios chicos que cambian la categoría del
+visor), luego **10 + 11 + 13** (accesibilidad y borde inferior en mobile), y
+**14** cuando toque la migración de almacenamiento.

@@ -10,7 +10,7 @@ The project is designed as an ecoinformatics research tool and as a practical
 reference for professionals working on court-ordered appraisals and
 expropriations.
 
-![Main GIS view showing clustered CBR transactions across south-central Chile with the layer panel open](./docs/screenshot-sig-suelo-capas.png)
+![Main GIS view showing clustered CBR transactions across south-central Chile with the layer panel open](./docs/assets/screenshot-capas.png)
 
 ## Technology stack
 

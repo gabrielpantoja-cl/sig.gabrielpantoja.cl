@@ -178,6 +178,14 @@ efectivo, incluido cero. Bioclima incluye atribución y variable climática en
 el cajetín. El canvas vectorial compartido sigue siendo una unidad indivisible
 de apilado, tanto en pantalla como en exportación.
 
+Prueba manual tras tocar opacidad, leyendas o el export (verificada así el
+2026-09-07 con Playwright): con Bioclima + comunas encendidas, mover los sliders
+entre 0, 60 y 100 % no debe crear nodos nuevos en `overlayPane` ni pedir nada
+nuevo a `/data/`; la opacidad elegida sobrevive al apagar y encender la capa;
+el PNG exportado con alfa 0 omite el raster y con 0,6 lo dibuja antes del canvas
+vectorial, con la atribución WorldClim en el cajetín; a 390 px no hay
+desbordamiento horizontal.
+
 ### Checklist de nueva capa
 
 Checklist en orden. La capa de límites comunales (commit correspondiente) es

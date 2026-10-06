@@ -56,7 +56,7 @@ Review, design, and validate web GIS architectures for this project. You NEVER m
 - SVG renderer: only acceptable for static UI labels / <100 administrative markers with rich HTML per feature.
 - Canvas renderer (default with `preferCanvas: true`): ALL GeoJSON polygons/lines, ALL MarkerCluster bubbles.
 - OffscreenCanvas + Web Worker: only worth migrating when a layer is updated at ≥30 Hz (live telemetry). The codebase has no live telemetry today.
-- Vector Tiling (`geojson-vt` + `Leaflet.VectorGrid.Slicer` + `rendererFactory: L.canvas.tile`): the correct next step when a single thematic GeoJSON exceeds **5 MB on the wire** or **10k features** (per the Gemini report § 2.3 and § 2.5 decision matrix). Today, all thematic layers are pre-tiled via `scripts/build-*.mjs` simplified with `mapshaper`, landing at 1.5–15 MB; runtime tiling is a future optimization, NOT a current need.
+- Vector Tiling (`geojson-vt` + `Leaflet.VectorGrid.Slicer` + `rendererFactory: L.canvas.tile`): the correct next step when a single thematic GeoJSON exceeds **5 MB on the wire** or **10k features**. Today, all thematic layers are pre-tiled via `scripts/build-*.mjs` simplified with `mapshaper`, landing at 1.5–15 MB; runtime tiling is a future optimization, NOT a current need.
 
 ### 4. MarkerClusterGroup cleanup pattern
 `leaflet.markercluster`'s `setTimeout` chunks survive `removeLayer()`. In StrictMode dev double-mount this manifests as `Cannot read properties of null (reading 'getMinZoom')`. The fix is a closure-local `_addLayer` nullification in cleanup. See `src/components/MapView.tsx:569-572`.
@@ -64,12 +64,12 @@ Review, design, and validate web GIS architectures for this project. You NEVER m
 ### 5. KML parsing roadmap (Web Worker)
 - **Today**: `src/lib/kml.ts:parseKmlFile` runs synchronously on main thread via `DOMParser` + `@tmcw/togeojson`. With ~5 MB KML and feature cap `KML_MAX_FEATURES=5000`, main-thread latency is ~200–500 ms (acceptable).
 - **Migration trigger**: only when a parse takes >1 s OR the user reports a freeze on a real-world KML.
-- **Path**: `@xmldom/xmldom` inside the worker (DOMParser is NOT available in WorkerGlobalScope — Gemini § 2.4); `new Worker(new URL('./parser.worker.ts', import.meta.url'))` with Webpack 5 native; `Comlink` to keep TypeScript ergonomics.
+- **Path**: `@xmldom/xmldom` inside the worker (DOMParser is NOT available in WorkerGlobalScope); `new Worker(new URL('./parser.worker.ts', import.meta.url'))` with Webpack 5 native; `Comlink` to keep TypeScript ergonomics.
 
 ### 6. Tainted Canvas / CORS for export
 - Every tile fetch in the export must set `crossOrigin = 'anonymous'` on the `<img>`. OSM tiles support CORS, so `crossOrigin='anonymous'` keeps the master canvas untainted.
 - CIREN Suelos (`L.ImageOverlay`) is CORS-fragile (it sits in overlayPane, not in canvas; render canvas stays untainted but the export pipeline may want to skip it). The current code skips the Suelos overlay in capture to avoid the timeout-prone export hanging.
-- Any future vector layer served from a non-CORS origin needs an `Edge API` proxy in `/api/cors-proxy?url=...` (Gemini § 5.2).
+- Any future vector layer served from a non-CORS origin needs an `Edge API` proxy in `/api/cors-proxy?url=...`.
 
 ### 7. Z-order convention (applies to new layers)
 Stable bottom→top stacking:
@@ -79,7 +79,7 @@ tiles → comunas → protected → urban-limit → catastro-fruticola → red-v
 Implemented by `reorderOverlays()` in `src/components/MapView.tsx:511-573`. Each thematic layer's effect must call it after attaching. New layers go in the appropriate slot.
 
 ## Workflow when invoked
-1. Read `AGENTS.md` first (project lifecycle note: there IS an `informe gemini` commit in main, ignore it for code reviews).
+1. Read `AGENTS.md` first.
 2. `git log origin/main --oneline -10` for context.
 3. `git diff main --stat` to see what changed recently.
 4. Read the affected files. Cite `file_path:line_number` when calling out issues.
@@ -102,7 +102,6 @@ Implemented by `reorderOverlays()` in `src/components/MapView.tsx:511-573`. Each
 ## References in this repo
 - `AGENTS.md` — project-wide rules and conventions.
 - `docs/arquitectura-capas.md` — layer spec, including static vs dynamic, fonts, formats.
-- `docs/gemini-Arquitectura-SIG-Cloud-Con-Next.js.md` — full architectural rationale (already in git history).
 - `src/components/MapView.tsx` — canonical Leaflet+React integration.
 - `src/lib/map-export.ts` — canvas capture and frame painting.
 - `src/lib/kml.ts` — KML parser + `KmlLayer` + displayName rules.
