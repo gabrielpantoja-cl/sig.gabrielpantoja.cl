@@ -117,30 +117,40 @@ body {
   }
 }
 
-/* Lectura de coordenadas del cursor (MapView). Tarjeta compacta sobre la
-   atribución, en la tipografía tabular para que los dígitos no bailen al mover
-   el mouse. Oculta en pantallas táctiles: sin cursor no hay qué leer. */
+/* Lectura de coordenadas del cursor (MapView), al estilo de la barra de
+   estado de Google Earth Pro: un renglón al pie del mapa, sin tarjeta, a la
+   izquierda de la atribución (MapView fija `right` según su ancho). El halo de
+   texto la mantiene legible sobre cualquier fondo; los dígitos tabulares evitan
+   que el renglón baile al mover el mouse. Oculta en pantallas táctiles. */
 .sig-coordenadas {
-  margin: 0 8px 4px 0 !important;
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--foreground) 18%, transparent);
-  background: color-mix(in srgb, var(--background) 90%, transparent);
-  color: var(--foreground);
-  font: 11px/1.35 var(--font-geist-mono), ui-monospace, monospace;
+  position: absolute;
+  bottom: 0;
+  z-index: 800;
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  padding: 2px 4px;
+  font: 12px/16px var(--font-geist-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  color: #ffffff;
+  text-shadow: 0 0 2px #000, 0 0 4px #000, 0 1px 2px #000;
   pointer-events: none;
-  backdrop-filter: blur(4px);
 }
-.sig-coordenadas span {
-  opacity: 0.55;
+.sig-coordenadas i {
+  font-style: normal;
+  opacity: 0.75;
 }
-.sig-coordenadas-sec {
-  opacity: 0.7;
-  font-size: 10px;
+.leaflet-container[data-basemap='light'] .sig-coordenadas {
+  color: #111111;
+  text-shadow: 0 0 2px #fff, 0 0 4px #fff, 0 1px 2px #fff;
 }
-@media (hover: none) {
+@media (max-width: 1100px) {
+  .sig-coordenadas-gms {
+    display: none;
+  }
+}
+@media (max-width: 760px), (hover: none) {
   .sig-coordenadas {
     display: none !important;
   }
