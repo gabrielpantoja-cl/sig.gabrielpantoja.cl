@@ -105,7 +105,11 @@ Any client → src/proxy.ts (before CDN cache) on /api/{points,export} → Neon 
 |---|---|
 | `src/app/page.tsx` | Single page — filters + stats bar + map |
 | `src/app/layout.tsx` | Root layout (Geist font, metadata) |
-| `src/components/MapView.tsx` | Leaflet map with MarkerCluster (~74k points) |
+| `src/components/MapView.tsx` | Leaflet map shell: init, basemap, CBR MarkerCluster (~74k points), overlay stacking, PNG export, KML; each thematic layer lives in its own hook below |
+| `src/components/map/useStaticGeoJsonLayer.ts` | Race-safe hook for every static `public/data/*.geojson` layer (aborts the fetch if the layer is switched off mid-download) |
+| `src/components/map/use*Layer.ts` | One hook per dynamic layer: `useHexbinLayer`, `useNdviVisualLayer`, `useVegetacionalLayer`, `useSuelosLayer`, `usePropiedadesRuralesLayer`, `useBioclimaLayer` |
+| `src/components/map/raster-overlay.ts` | Helpers shared by the per-viewport raster hooks (image preload, proxy failure details) |
+| `src/lib/map-popups.ts` | Pure HTML builders for every map popup; all data goes through `esc()`, links through `safeHref()` (http/https only). Tested |
 | `src/components/LayersControl.tsx` | Toggle + legend for protected areas layer |
 | `src/lib/neon.ts` | Neon read-only client (NEON_DATABASE_URL) |
 | `src/lib/filters.ts` | Shared filter params (sanitized, anti-injection) |

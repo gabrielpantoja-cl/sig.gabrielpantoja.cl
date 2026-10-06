@@ -37,6 +37,11 @@ versionado.
 
 ### Corregido
 
+- **Apagar una capa mientras descargaba la dejaba pegada en el mapa.** Seis
+  de las siete capas GeoJSON estáticas no abortaban el `fetch`: al llegar el
+  archivo se montaban igual, sin que ningún control pudiera quitarlas.
+- **El link «Ver ficha oficial» de áreas protegidas solo acepta http(s).**
+  `esc()` no impedía un `javascript:` en `url_fuente`.
 - **`%` y `_` en los filtros de predio y ROL se buscan literalmente.** Antes
   actuaban como comodines de `ILIKE`: `?rol=_` devolvía toda la base. El
   término además queda acotado a 100 caracteres.
@@ -56,6 +61,10 @@ versionado.
 - **Tests unitarios con Vitest** (`npm test`, también en CI): filtros,
   proxies ArcGIS, rate limiter, hexbins, superficie de calor, rampas y ROL.
 - `@types/geojson` declarado explícitamente (llegaba de forma transitiva).
+- **`MapView.tsx` de 2601 a ~1120 líneas.** Los popups pasan a
+  `src/lib/map-popups.ts` (funciones puras con tests) y cada capa a su hook en
+  `src/components/map/`. Las siete capas GeoJSON estáticas comparten
+  `useStaticGeoJsonLayer`.
 
 - `geotiff` y `pngjs` pasan a `dependencies`: los usa el renderer NDVI en
   runtime, no solo el ETL.
