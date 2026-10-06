@@ -12,10 +12,6 @@ expropriations.
 
 ![Main GIS view showing clustered CBR transactions across south-central Chile with the layer panel open](./docs/screenshot-sig-suelo-capas.png)
 
-(Initial view with the **Layers** panel open. See
-[the home screenshot](./docs/screenshot-sig-suelo-home.png) for the same view
-with the panel closed.)
-
 ## Technology stack
 
 - **Next.js 16** (App Router), **React 19**, and **TypeScript**
@@ -40,41 +36,22 @@ Browser → /api/vegetacional/{export,identify} → CONAF (fixed, validated prox
 Browser → /api/propiedades-rurales/{export,identify,feature,search} → SII/CIREN (fixed, validated proxy)
 ```
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /api/points` | Returns filtered, geolocated transaction points using a privacy-safe data shape |
-| `GET /api/stats` | Computes count, average, median, minimum/maximum, and price per square metre over the filtered set |
-| `GET /api/export?format=csv\|geojson` | Downloads the filtered set as an Excel-friendly CSV (`BOM` + `;`) or as GeoJSON for QGIS |
-| `GET /api/facets` | Returns communes and year/amount ranges used to populate filters |
-| `GET /api/suelos/export` | Returns a CIREN soil PNG for the current viewport, with timeout and response-type validation |
-| `GET /api/suelos/identify` | Returns a sanitised agricultural soil classification for one point |
-| `GET /api/vegetacional/{export,identify}` | Same viewport-PNG plus point-query pattern against the CONAF vegetation service |
-| `GET /api/propiedades-rurales/{export,identify,feature,search}` | Rural-property cadastral parcels through a validated proxy |
-| `GET /api/hexbins` | PostGIS `ST_HexagonGrid` aggregation of median price per square metre, the sampling lattice behind the value heat map |
-| `GET /api/version` | Deployment identity (`version` + `build`) polled by the in-app update notice; the one route exempt from the rate limit |
-
-Shared filters are defined in `src/lib/filters.ts`. They use parameterised SQL
-placeholders and include `comuna`, `anio_min/max`, `monto_min/max`,
-`sup_min/max`, `predio` (`ILIKE`), and `rol` (`ILIKE`). `fecha_desde/hasta`
-filter by escritura and only fall back to inscripción where the escritura date
-is absent; `anio_min/max` use that same explicit temporal rule.
+Exports (`/api/export?format=csv|geojson`) are Excel-friendly CSV or GeoJSON
+for QGIS. Filters are parameterised SQL (`src/lib/filters.ts`); full design
+notes live in [`docs/`](./docs/).
 
 ## Data and privacy
 
-Public fields returned for each point are `lat`, `lng`, `monto`, `anio`,
-`comuna`, `predio`, `superficie`, `rol`, `destino`, `fechaEscritura`, `fojas`,
-`fechaInscripcion`, `numero`, and `conservador`. Both dates are calendar dates
-(`YYYY-MM-DD`), never timestamps; `anio` may be null.
+Each point exposes `lat`, `lng`, `monto`, `anio`, `comuna`, `predio`,
+`superficie`, `rol`, `destino`, `fechaEscritura`, `fechaInscripcion`, `fojas`,
+`numero` and `conservador`.
 
-- **The SII property identifier (`rol`) is intentionally public.** It is a
-  public property identifier issued by Chile's Internal Revenue Service
-  (*Servicio de Impuestos Internos*, SII), not personal data under Chilean Law
-  No. 19,628. Appraisers commonly use it to locate properties.
-- **The API never exposes** `comprador`, `vendedor`, `rut`, `user_id`, or
-  `observaciones`. These fields may contain personally identifiable information
-  and are excluded at the query/handler level.
-- Database credentials remain server-side in `NEON_DATABASE_URL`; no client
-  bundle imports or connects to Neon.
+- **`rol` is intentionally public**: it is the SII property identifier, not
+  personal data under Chilean Law No. 19,628.
+- **Never exposed:** `comprador`, `vendedor`, `rut`, `user_id`,
+  `observaciones` — excluded at the query/handler level.
+- Credentials stay server-side (`NEON_DATABASE_URL`); the client never
+  connects to Neon.
 
 ## Data sources and licences
 
@@ -92,84 +69,43 @@ Public fields returned for each point are `lat`, `lng`, `monto`, `anio`,
 | Agricultural soils | CIREN public ArcGIS service (esri.ciren.cl) | CIREN attribution; see `src/lib/suelos.ts` | Remote dynamic layer through a validated proxy (one PNG per viewport) |
 | Bioclimate (mean temperature, annual precipitation) | [WorldClim 2.1](https://www.worldclim.org/data/worldclim21.html), 1970–2000 climatology at 2.5 arc-minutes | **CC BY 4.0**; the Fick & Hijmans (2017) citation is part of the attribution, see `src/lib/bioclima.ts` | `npm run data:build:bioclima` (static PNG overlay) |
 
-Each reproducible static layer has an adjacent `*.meta.json` provenance file
-that records its vintage, publishing institution, and official catalogue or
-source URL. The exact attribution strings displayed in panels, popups, and
-legends are defined in `src/lib/*.ts`.
+Static layers ship under `public/data/` (~45 MB) with a `*.meta.json`
+provenance file and are rebuilt with `npm run data:build:<layer>`. Exact
+attribution strings live in `src/lib/*.ts`.
 
-> **Scientific note:** RNAP contains 12 distinct legal designations, including
-> national parks, national reserves, natural monuments, and nature sanctuaries.
-> Each designation has its own jurisdiction and legal framework and must not be
-> treated as a single undifferentiated category.
-
-> **Scientific note:** The bioclimate layer is a surface *interpolated* from
-> weather-station records over the 1970–2000 period. It is a climatology, never
-> a measurement taken at a specific site, and must not be read as one.
-
-> **Legal note:** The electrical layer represents referential cartographic
-> centre-lines of transmission infrastructure. It does not represent safety
-> corridors, electrical easements, or property encumbrances. Those must be
-> verified against the plans and legal records of the relevant concession or
-> project.
+> **Reading the layers correctly**
+> - RNAP has 12 legal designations, each with its own legal framework — never a
+>   single category.
+> - Bioclimate is a 1970–2000 climatology interpolated from weather stations,
+>   not a site measurement.
+> - Transmission lines are referential centre-lines, not safety corridors,
+>   easements or property encumbrances.
 
 ## Local development
 
 ```bash
-cp .env.example .env.local   # set NEON_DATABASE_URL for the web_readonly role
+cp .env.example .env.local   # set NEON_DATABASE_URL (web_readonly role)
 npm install
 npm run dev                  # http://localhost:3000
+npm run lint && npm run typecheck   # before submitting a change
 ```
 
-Before submitting a change, run:
+`NEON_DATABASE_URL` is server-side only: never prefix it with `NEXT_PUBLIC_`
+and never commit `.env.local`.
 
-```bash
-npm run lint
-npm run typecheck
-```
+## Roadmap and contributing
 
-`npm run build` is available for production verification but is intentionally
-not part of the routine local workflow on resource-constrained machines.
-
-## Environment variables
-
-- `NEON_DATABASE_URL` — read-only Neon connection string. It is server-side
-  only, must never use a `NEXT_PUBLIC_` prefix, and should be configured in
-  `.env.local` and in the Vercel project settings.
-
-Never commit `.env.local` or any other credential-bearing environment file.
-
-## Repository data and future storage
-
-Pre-built GeoJSON outputs are committed under `public/data/` (approximately
-45 MB in total). Each dataset can be reproduced from its official source using
-the corresponding `npm run data:build:<layer>` command.
-
-> A future migration may move large ETL outputs to external object storage
-> (R2, S3, or Vercel Blob) to support larger PMTiles or vector-tile layers
-> without expanding the Git repository. The public plan is maintained in
-> `docs/roadmap.md`.
-
-## Roadmap
-
-Planned thematic layers and UX improvements are prioritised in
-[`docs/roadmap.md`](./docs/roadmap.md) by professional value, source
-availability, and implementation cost.
-
-## Contributing and security
-
-Contributions are welcome. Please read
+Planned layers and UX work are prioritised in
+[`docs/roadmap.md`](./docs/roadmap.md). Contributions are welcome — read
 [`CONTRIBUTING.md`](./CONTRIBUTING.md) and
-[`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) before opening a pull request.
-Report security issues according to [`SECURITY.md`](./SECURITY.md), not through
-a public issue.
+[`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) first. Report security issues via
+[`SECURITY.md`](./SECURITY.md), not a public issue.
 
 ## Licence
 
 - **Source code:** [MIT](./LICENSE) © 2026 Gabriel Pantoja
-- **Protected-area data:** CC0 1.0, Ministry of the Environment of Chile
-- **Base map:** © OpenStreetMap contributors (and, per basemap, Esri World
-  Imagery or OpenTopoMap — see `src/lib/basemap.ts`)
-- **Bioclimate data:** WorldClim 2.1, CC BY 4.0 — Fick, S.E. & Hijmans, R.J.
-  (2017), *International Journal of Climatology* 37(12): 4302–4315
-- **Other layers:** see the data-source table above; each provenance manifest
-  declares the attribution that must accompany the corresponding dataset
+- **Data layers:** each keeps its own licence (table above). WorldClim 2.1 is
+  CC BY 4.0 and must be cited as Fick & Hijmans (2017), *Int. J. Climatol.*
+  37(12): 4302–4315.
+- **Basemaps:** © OpenStreetMap contributors, Esri World Imagery or
+  OpenTopoMap, per `src/lib/basemap.ts`.
