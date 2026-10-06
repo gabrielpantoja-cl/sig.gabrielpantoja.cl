@@ -58,6 +58,7 @@ Each point exposes `lat`, `lng`, `monto`, `anio`, `comuna`, `predio`,
 | Layer | Source | Licence / terms | Build or runtime path |
 |---|---|---|---|
 | CBR transactions | Project-maintained compilation of CBR registrations | Open data, anonymised in accordance with Chilean Law No. 19,628 | Neon Postgres through a read-only role |
+| Value heat map ($/m²) | Derived from the CBR transactions: PostGIS hexagonal medians, interpolated client-side | Same as CBR transactions; market signal, **not an appraisal** | Derived layer, no ETL: `/api/hexbins` + `src/lib/heat-surface.ts` |
 | Protected areas (RNAP) | [Ministry of the Environment — National Registry of Protected Areas](https://lineasdebasepublicas.mma.gob.cl/datos_abiertos/dataset/areas-protegidas), *Public Baselines* portal | **CC0 1.0** (public domain) | `npm run data:build:protected` (mapshaper ETL) |
 | Urban boundaries (PRC) | MINVU — municipal regulatory plans | Confirm terms with MINVU; referential use | `npm run data:build:urban` |
 | Municipal boundaries (DPA) | SUBDERE — 2023 Political-Administrative Division (geoportal.cl) | Chilean government open data | `npm run data:build:comunas` |
@@ -67,7 +68,9 @@ Each point exposes `lat`, `lng`, `monto`, `anio`, `comuna`, `predio`,
 | Fruit-growing cadastre | CIREN-ODEPA through IDE Minagri | CIREN-ODEPA attribution; see `src/lib/catastro-fruticola.ts` | `npm run data:build:catastro-fruticola` |
 | Vegetation resources | CONAF through SIT CONAF and IDE Minagri | CONAF attribution; review the official source terms in `src/lib/vegetacional.ts` | Remote dynamic layer: viewport PNG plus point `identify` requests |
 | Agricultural soils | CIREN public ArcGIS service (esri.ciren.cl) | CIREN attribution; see `src/lib/suelos.ts` | Remote dynamic layer through a validated proxy (one PNG per viewport) |
+| Rural properties (ROL) | CIREN `PROPIEDADES_RURALES` through IDE Minagri | CIREN attribution; referential parcels, they do not prove ownership or legal boundaries — see `src/lib/propiedades-rurales.ts` | Remote dynamic layer through a validated proxy (export, identify, search) |
 | Bioclimate (mean temperature, annual precipitation) | [WorldClim 2.1](https://www.worldclim.org/data/worldclim21.html), 1970–2000 climatology at 2.5 arc-minutes | **CC BY 4.0**; the Fick & Hijmans (2017) citation is part of the attribution, see `src/lib/bioclima.ts` | `npm run data:build:bioclima` (static PNG overlay) |
+| NDVI (Sentinel-2) | [Sentinel-2 L2A COGs](https://registry.opendata.aws/sentinel-2-l2a-cogs/) via Element 84 Earth Search / AWS Open Data | Copernicus open licence; *"Contains modified Copernicus Sentinel data"* attribution, see `src/lib/ndvi-visual.ts` | Remote dynamic layer: one PNG composed server-side per viewport (`/api/ndvi/export`, zoom ≥ 10) |
 
 Static layers ship under `public/data/` (~45 MB) with a `*.meta.json`
 provenance file and are rebuilt with `npm run data:build:<layer>`. Exact
