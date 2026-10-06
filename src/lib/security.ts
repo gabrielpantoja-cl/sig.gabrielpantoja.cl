@@ -15,9 +15,36 @@ const ALLOWED_ORIGINS = [
 // In-memory rate limiting. Resets on cold start and is per-instance, so it is
 // best-effort only — combined with the origin allowlist it still cuts the abuse
 // surface meaningfully.
-const requestCounts = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 60;
+
+/** Above this many tracked IPs, a call sweeps out the ones with no recent hit. */
+const MAX_TRACKED_KEYS = 5_000;
+
+/**
+ * Sliding-window limiter keyed by client IP. Each route that needs its own
+ * budget creates one; the sweep keeps a warm instance (Fluid compute) from
+ * accumulating one entry per IP it has ever seen.
+ */
+export function createRateLimiter(windowMs: number, max: number): (req: Request) => boolean {
+  const hits = new Map<string, number[]>();
+  return (req) => {
+    const ip = clientIp(req);
+    const now = Date.now();
+    const recent = (hits.get(ip) ?? []).filter((t) => now - t < windowMs);
+    if (recent.length >= max) return true;
+    recent.push(now);
+    if (hits.size >= MAX_TRACKED_KEYS) {
+      for (const [key, times] of hits) {
+        if (!times.some((t) => now - t < windowMs)) hits.delete(key);
+      }
+    }
+    hits.set(ip, recent);
+    return false;
+  };
+}
+
+const rateLimited = createRateLimiter(RATE_LIMIT_WINDOW, MAX_REQUESTS_PER_WINDOW);
 
 function isProd(): boolean {
   return process.env.VERCEL_ENV === 'production';
@@ -41,40 +68,17 @@ export function corsHeaders(req: Request): Record<string, string> {
 
 // Bucket separado para la analítica: un usuario activo genera varios eventos
 // por minuto y no deben gastar el presupuesto de las consultas al mapa.
-const analyticsCounts = new Map<string, number[]>();
 const MAX_ANALYTICS_PER_WINDOW = 120;
+export const analyticsRateLimited = createRateLimiter(RATE_LIMIT_WINDOW, MAX_ANALYTICS_PER_WINDOW);
 
 export function isAllowedOrigin(req: Request): boolean {
   const origin = req.headers.get('origin') || '';
   return !isProd() || ALLOWED_ORIGINS.includes(origin);
 }
 
-export function analyticsRateLimited(req: Request): boolean {
-  const ip = clientIp(req);
-  const now = Date.now();
-  const recent = (analyticsCounts.get(ip) || []).filter(
-    (t) => now - t < RATE_LIMIT_WINDOW,
-  );
-  if (recent.length >= MAX_ANALYTICS_PER_WINDOW) return true;
-  recent.push(now);
-  analyticsCounts.set(ip, recent);
-  return false;
-}
-
 export function clientIp(req: Request): string {
   const xff = req.headers.get('x-forwarded-for');
   return xff ? xff.split(',')[0].trim() : 'unknown';
-}
-
-function rateLimited(ip: string): boolean {
-  const now = Date.now();
-  const recent = (requestCounts.get(ip) || []).filter(
-    (t) => now - t < RATE_LIMIT_WINDOW,
-  );
-  if (recent.length >= MAX_REQUESTS_PER_WINDOW) return true;
-  recent.push(now);
-  requestCounts.set(ip, recent);
-  return false;
 }
 
 /**
@@ -88,7 +92,7 @@ export function enforce(req: Request): Response | null {
   if (isProd() && origin && !ALLOWED_ORIGINS.includes(origin)) {
     return Response.json({ error: 'Forbidden' }, { status: 403, headers });
   }
-  if (rateLimited(clientIp(req))) {
+  if (rateLimited(req)) {
     return Response.json(
       { error: 'Rate limit exceeded. Please try again later.' },
       { status: 429, headers },
