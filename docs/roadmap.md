@@ -638,7 +638,9 @@ que amplían el uso diario del perito:
 - [ ] **Fidelidad del PNG**: las burbujas de clúster se exportan en azul plano
       mientras en pantalla se colorean por conteo (verde/amarillo/naranja).
 - [ ] **Prueba de humo del export**: tres bugs distintos convivieron en esa
-      ruta sin que nada los ejercitara.
+      ruta sin que nada los ejercitara. Desde el 2026-10-05 el cajetín
+      (`src/lib/export-metadata.ts`) tiene tests unitarios; la rasterización
+      sigue sin cobertura.
 
 ### Herramientas mínimas de SIG que faltan (auditoría 2026-08-28)
 
@@ -747,6 +749,83 @@ que amplían el uso diario del perito:
       evaluando carga por viewport o teselado vectorial. Vía barata previa:
       acortar los nombres de campo en el payload de `/api/points`.
 
+## Deuda técnica (revisión de código 2026-10-05)
+
+Una revisión del código fuente cerró la mayor parte de lo que encontró
+(dependencias vulnerables, rate limiters sin evicción, comodines en `ILIKE`,
+proxies ArcGIS duplicados, contrato de error NDVI, una carrera al apagar capas
+GeoJSON, un `javascript:` posible en un popup, Vitest y la división de
+`MapView`/`page.tsx` en hooks; detalle en `CHANGELOG.md`). Lo que sigue quedó
+pendiente, ordenado por prioridad.
+
+### Plataforma y release
+
+- [ ] **Etiquetar `v0.2.0`.** `/api/ndvi/serie` cambió su cuerpo de error
+      (`codigo`/`mensaje` → `code`/`message`): es incompatible, así que no
+      corresponde un parche. Subir `package.json` y `src/lib/version.ts`,
+      fechar la sección «No publicado» del `CHANGELOG.md` y crear el tag.
+- [ ] **Salir de Node 20** (fin de vida: abril de 2026). CI corre `20.x`; hay
+      que pasar a Node 22 en `.github/workflows/lint.yml`, en la configuración
+      del proyecto en Vercel (tienen que coincidir) y en `@types/node`, y
+      declarar `engines.node`. Desbloquea Vitest 5, que exige Node ≥ 22.12.
+- [ ] **Runner de CI**: `ubuntu-latest` pasa a Ubuntu 26 desde el
+      2026-10-19. Si el job se rompe, fijar `ubuntu-24.04` mientras se
+      corrige.
+- [ ] **Vulnerabilidades de desarrollo**: `npm audit` (sin `--omit=dev`)
+      reporta `file-type` e `image-size` vía `mapshaper` →
+      `@ngageoint/geopackage`. Solo afectan al ETL local, no a producción;
+      el arreglo automático baja `mapshaper` a 0.6 (incompatible). Esperar una
+      versión corregida de `mapshaper`.
+- [ ] **npm 10.9 falla al instalar dependencias nuevas** (`Cannot read
+      properties of null (reading 'edgesOut')`, bug del resolvedor de peers).
+      Con `npx npm@11 install …` funciona y el lockfile resultante lo acepta
+      `npm ci` de npm 10. Fijar la versión con `packageManager` en
+      `package.json` junto con el paso a Node 22.
+
+### Arquitectura del frontend
+
+- [ ] **Dividir `LayersControl.tsx` (1.419 líneas)**: una leyenda por capa en
+      su propio componente, como ya se hizo con los hooks del mapa.
+- [ ] **Terminar `MapView.tsx` (~1.070 líneas)**: quedan en el componente el
+      clúster CBR, la sincronización de capas KML y la publicación del export;
+      candidatos a `useCbrClusterLayer` y `useKmlMapLayers`.
+- [ ] **Un solo ciclo de vida para los rasters por viewport.** `useSuelosLayer`,
+      `useVegetacionalLayer`, `usePropiedadesRuralesLayer` y
+      `useNdviVisualLayer` repiten overlay + secuencia + abort + blob +
+      precarga. No se unificaron porque difieren a propósito (suelos borra la
+      imagen al pedir otra para no mostrar un raster viejo si CIREN cae;
+      NDVI hace debounce y cuantiza el bbox para la CDN). Un hook común debe
+      hacer explícitas esas diferencias como opciones.
+- [ ] **CONAF no informa su estado a la leyenda.** A diferencia de suelos,
+      propiedades rurales y NDVI, `useVegetacionalLayer` no emite
+      `loading`/`error`/`zoom-required`: si el servicio cae, la capa queda
+      vacía sin explicación.
+- [ ] **Popups que siguen inline**: los de `identify` de suelos (tres
+      variantes, incluidos los errores) y propiedades rurales se arman dentro
+      de sus hooks. Moverlos a `src/lib/map-popups.ts` para que queden bajo
+      los tests de escape.
+
+### Tests
+
+- [ ] **Hooks y componentes**: los tests actuales cubren solo `src/lib/`.
+      Sumar Testing Library + jsdom para `useCbrData`, `useRuralRolSearch` y
+      las leyendas.
+- [ ] **Humo end-to-end en CI** con Playwright: cargar el mapa, encender cada
+      capa, abrir un popup y exportar el PNG. Hoy esto se verifica a mano (ver
+      «Prueba de humo del export» más abajo).
+
+### Seguridad y operación
+
+- [ ] **Rate limit y cachés por instancia.** `createRateLimiter`, la caché de
+      geocodificación y la de polígonos NDVI viven en memoria: se reinician
+      en cada arranque en frío y no se comparten entre instancias. Para un
+      límite real hace falta un almacén compartido o reglas del firewall de
+      Vercel.
+- [ ] **Documentar el contrato público de `/api/*`** (por ejemplo, OpenAPI):
+      es el requisito explícito para `1.0.0` según la política de versiones
+      de `AGENTS.md`. Las rutas ya comparten el formato de error
+      `{ error: { code, message, service, operation } }`.
+
 ## Riesgos transversales (revisar al cerrar cada fase)
 
 1. **Fragilidad de servidores del Estado**. Documentado en
@@ -800,6 +879,9 @@ SIMEF, SNIA, IGM, ODEPA) están catalogadas en
 
 ## Hitos
 
+- **2026-10-05 — Revisión de deuda técnica**: Next 16.3.8 (CVE crítico),
+  Vitest en CI, contrato de error único en la API y `MapView`/`page.tsx`
+  divididos en hooks. Pendientes en «Deuda técnica».
 - **2026-10-04/05 — Analítica interna sin cookies** y registro de acceso a la
   API de datos desde el proxy.
 - **2026-09-27 — NDVI Visual (Sentinel-2)** por viewport y nuevo panel de
