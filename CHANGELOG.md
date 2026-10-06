@@ -21,6 +21,12 @@ versionado.
 
 ## No publicado
 
+### Añadido
+
+- **Carga de archivos KMZ** en «Mis capas», además de KML. El ZIP se abre en
+  el navegador (fflate): se toma `doc.kml` (o el primer `.kml` menos profundo)
+  y se ignoran íconos e imágenes; tope de 150 MB descomprimido contra bombas ZIP.
+
 ### Seguridad
 
 - **`POST /api/ndvi/serie` rechaza cuerpos de más de 1 MB** (413

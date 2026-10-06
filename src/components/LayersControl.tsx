@@ -1301,7 +1301,7 @@ export function LayersControl({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".kml"
+          accept=".kml,.kmz,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz"
           multiple
           className="hidden"
           onChange={(e) => {
@@ -1314,7 +1314,7 @@ export function LayersControl({
           onClick={() => fileInputRef.current?.click()}
           className="mt-2 w-full rounded-md border border-dashed border-black/25 py-1.5 text-xs font-medium opacity-70 hover:opacity-100 dark:border-white/30"
         >
-          + Subir archivo KML
+          + Subir archivo KML / KMZ
         </button>
 
         {kmlError && (
@@ -1324,7 +1324,7 @@ export function LayersControl({
         )}
 
         <p className="mt-1.5 text-[0.6rem] leading-snug opacity-50">
-          Solo .kml, máx. {KML_MAX_FILE_MB} MB. Se procesa en tu navegador; no se sube a ningún
+          Solo .kml o .kmz, máx. {KML_MAX_FILE_MB} MB. Se procesa en tu navegador; no se sube a ningún
           servidor.
         </p>
       </div>
