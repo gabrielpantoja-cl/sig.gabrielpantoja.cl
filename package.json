@@ -54,9 +54,11 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@tmcw/togeojson": "^7.1.2",
+    "geotiff": "^3.0.5",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
-    "next": "16.3.4",
+    "next": "16.3.8",
+    "pngjs": "^7.0.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -69,10 +71,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.9",
-    "geotiff": "^3.0.5",
+    "eslint-config-next": "16.3.8",
     "mapshaper": "^0.7.33",
-    "pngjs": "^7.0.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
