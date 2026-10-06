@@ -157,7 +157,7 @@ export const BASEMAPS: BasemapDef[] = [
   },
 ];
 
-export const DEFAULT_BASEMAP_ID: BasemapId = 'osm';
+export const DEFAULT_BASEMAP_ID: BasemapId = 'neutro';
 
 export function getBasemap(id: BasemapId): BasemapDef {
   return BASEMAPS.find((b) => b.id === id) ?? BASEMAPS[0];
