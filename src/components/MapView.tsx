@@ -470,38 +470,38 @@ export default function MapView({
     L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
 
     // Lectura de coordenadas del cursor, como la barra de estado de Google Earth
-    // Pro: lat/lon en grados decimales y sexagesimales, más UTM, que es como
-    // vienen los deslindes y las coordenadas del Conservador. Se escribe el DOM
-    // directo (no estado de React) y a lo más una vez por cuadro: mousemove
-    // dispara decenas de veces por segundo y re-renderizar MapView por cada uno
-    // sería caro. Sin cursor (pantallas táctiles) el control queda oculto.
-    const coordenadas = new L.Control({ position: 'bottomright' });
+    // Pro: una sola línea al pie del mapa, a la izquierda de la atribución, con
+    // lat/long decimales, sexagesimales y UTM (así vienen los deslindes y las
+    // coordenadas del Conservador). No es un L.Control: los controles se apilan
+    // en vertical en su esquina y la lectura quedaba como tarjeta sobre la
+    // atribución; aquí comparte su renglón. Se escribe el DOM directo (no estado
+    // de React) y a lo más una vez por cuadro: mousemove dispara decenas de veces
+    // por segundo. Sin cursor (pantallas táctiles) queda oculta.
+    const coordenadas = L.DomUtil.create('div', 'sig-coordenadas', container);
+    coordenadas.setAttribute('aria-hidden', 'true');
+    coordenadas.hidden = true;
     let cuadro = 0;
-    coordenadas.onAdd = () => {
-      const caja = L.DomUtil.create('div', 'sig-coordenadas');
-      caja.setAttribute('aria-hidden', 'true');
-      caja.hidden = true;
-      L.DomEvent.disableClickPropagation(caja);
-      const pintar = (latlng: L.LatLng) => {
-        const lng = L.Util.wrapNum(latlng.lng, [-180, 180], true);
-        const l = lecturaCursor(latlng.lat, lng);
-        caja.innerHTML =
-          `<div><span>Lat</span> ${l.latitud} <span>Lon</span> ${l.longitud}</div>` +
-          `<div class="sig-coordenadas-sec">${l.gms}</div>` +
-          `<div class="sig-coordenadas-sec">${l.utm}</div>`;
-        caja.hidden = false;
-      };
-      map.on('mousemove', (e: L.LeafletMouseEvent) => {
-        cancelAnimationFrame(cuadro);
-        cuadro = requestAnimationFrame(() => pintar(e.latlng));
-      });
-      map.on('mouseout', () => {
-        cancelAnimationFrame(cuadro);
-        caja.hidden = true;
-      });
-      return caja;
+    const pintarCoordenadas = (latlng: L.LatLng) => {
+      const lng = L.Util.wrapNum(latlng.lng, [-180, 180], true);
+      const l = lecturaCursor(latlng.lat, lng);
+      // El ancho de la atribución cambia con las capas encendidas: se mide en
+      // cada pintado para que la lectura nunca se le monte encima.
+      const atribucion = container.querySelector<HTMLElement>('.leaflet-control-attribution');
+      coordenadas.style.right = `${(atribucion?.offsetWidth ?? 0) + 12}px`;
+      coordenadas.innerHTML =
+        `<span><i>lat</i> ${l.latitud}</span><span><i>long</i> ${l.longitud}</span>` +
+        `<span class="sig-coordenadas-gms">${l.gms}</span>` +
+        `<span class="sig-coordenadas-utm">${l.utm}</span>`;
+      coordenadas.hidden = false;
     };
-    coordenadas.addTo(map);
+    map.on('mousemove', (e: L.LeafletMouseEvent) => {
+      cancelAnimationFrame(cuadro);
+      cuadro = requestAnimationFrame(() => pintarCoordenadas(e.latlng));
+    });
+    map.on('mouseout', () => {
+      cancelAnimationFrame(cuadro);
+      coordenadas.hidden = true;
+    });
     mapRef.current = map;
 
     // The layer sidebar is an in-flow 320 px dock: opening or closing it
@@ -525,6 +525,10 @@ export default function MapView({
       // call invalidateSize() on a destroyed map.
       disposed = true;
       resizeObserver.disconnect();
+      cancelAnimationFrame(cuadro);
+      // No es un control de Leaflet: map.remove() no lo retira, y en un remontaje
+      // (StrictMode en desarrollo) quedaría un renglón huérfano encima del nuevo.
+      coordenadas.remove();
       map.remove();
       mapRef.current = null;
       clusterRef.current = null;
