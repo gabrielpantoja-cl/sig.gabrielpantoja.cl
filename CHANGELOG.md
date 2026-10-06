@@ -21,6 +21,33 @@ versionado.
 
 ## No publicado
 
+### Seguridad
+
+- **Next.js 16.3.4 → 16.3.8.** Cierra GHSA-vcvr-r3jv-pc5j (crítica, RCE en
+  `next/og`; el proyecto no usa `ImageResponse`, pero la versión vulnerable
+  iba en producción). `npm audit --omit=dev` queda en 0.
+- **Los rate limiters en memoria ya no crecen sin techo.** Guardaban una
+  entrada por cada IP vista mientras la instancia siguiera caliente; ahora
+  hay una sola implementación (`createRateLimiter` en `src/lib/security.ts`)
+  que barre las IP inactivas, compartida por la API general, la analítica y
+  las dos rutas NDVI.
+
+### Corregido
+
+- **`%` y `_` en los filtros de predio y ROL se buscan literalmente.** Antes
+  actuaban como comodines de `ILIKE`: `?rol=_` devolvía toda la base. El
+  término además queda acotado a 100 caracteres.
+
+### Interno
+
+- `geotiff` y `pngjs` pasan a `dependencies`: los usa el renderer NDVI en
+  runtime, no solo el ETL.
+- Los helpers de los proxies ArcGIS (suelos, vegetacional, propiedades
+  rurales) se consolidan en `src/lib/arcgis-proxy.ts` (`fetchArcGis`,
+  `readIdentifyParams`, `readExportParams`, `isPngBody`, `pngResponse`); las
+  rutas que estaban comprimidas en una línea vuelven a ser legibles. Sin
+  cambios de contrato.
+
 ### Añadido
 
 - **Registro de acceso a la API de datos.** Cada consulta a `/api/points` y

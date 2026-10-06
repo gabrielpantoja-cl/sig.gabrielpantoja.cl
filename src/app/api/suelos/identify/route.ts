@@ -1,14 +1,12 @@
 import { enforce, corsHeaders } from '@/lib/security';
 import {
-  SUELOS_UPSTREAM_SERVICE,
-  fetchCiren,
-  parseNumberTuple,
-  readExactParams,
-  suelosProxyError,
-  validGeographicExtent,
-  validGeographicPoint,
-  validIntegerTuple,
-} from '@/lib/suelos-proxy';
+  fetchArcGis,
+  identifySearch,
+  mediaType,
+  parseJsonBody,
+  readIdentifyParams,
+} from '@/lib/arcgis-proxy';
+import { SUELOS_UPSTREAM_SERVICE, suelosProxyError } from '@/lib/suelos-proxy';
 
 const OPERATION = 'identify' as const;
 const SOIL_CLASS = /^(I|II|III|IV|V|VI|VII|VIII|N\.C\.)$/;
@@ -37,40 +35,15 @@ export async function GET(req: Request) {
   const blocked = enforce(req);
   if (blocked) return blocked;
 
-  const input = readExactParams(new URL(req.url).searchParams, [
-    'geometry',
-    'mapExtent',
-    'imageDisplay',
-    'tolerance',
-  ]);
-  const geometry = input ? parseNumberTuple(input.geometry, 2) : null;
-  const extent = input ? parseNumberTuple(input.mapExtent, 4) : null;
-  const display = input ? parseNumberTuple(input.imageDisplay, 3) : null;
-  const tolerance = input ? Number(input.tolerance) : Number.NaN;
-  if (
-    !geometry || !extent || !display ||
-    !validGeographicPoint(geometry) || !validGeographicExtent(extent) ||
-    !validIntegerTuple(display.slice(0, 2), 2, 1, 2048) ||
-    !Number.isInteger(display[2]) || display[2] < 72 || display[2] > 192 ||
-    !Number.isInteger(tolerance) || tolerance < 0 || tolerance > 10
-  ) {
+  const input = readIdentifyParams(new URL(req.url).searchParams);
+  if (!input) {
     return suelosProxyError(req, 400, 'INVALID_REQUEST', OPERATION);
   }
 
   const upstream = new URL(`${SUELOS_UPSTREAM_SERVICE}/identify`);
-  upstream.search = new URLSearchParams({
-    geometry: geometry.join(','),
-    geometryType: 'esriGeometryPoint',
-    sr: '4326',
-    layers: 'all',
-    tolerance: String(tolerance),
-    mapExtent: extent.join(','),
-    imageDisplay: display.join(','),
-    returnGeometry: 'false',
-    f: 'json',
-  }).toString();
+  upstream.search = identifySearch(input, 'all');
 
-  const { response, body, timedOut, bodyError } = await fetchCiren(
+  const { response, body, timedOut, bodyError } = await fetchArcGis(
     upstream,
     'application/json',
     MAX_JSON_BYTES,
@@ -82,9 +55,7 @@ export async function GET(req: Request) {
     console.error('CIREN soils identify returned an upstream error:', response.status);
     return suelosProxyError(req, 502, 'UPSTREAM_HTTP_ERROR', OPERATION);
   }
-
-  const contentType = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
-  if (contentType !== 'application/json') {
+  if (mediaType(response) !== 'application/json') {
     console.error('CIREN soils identify returned an invalid content type.');
     return suelosProxyError(req, 502, 'UPSTREAM_INVALID_RESPONSE', OPERATION);
   }
@@ -95,10 +66,8 @@ export async function GET(req: Request) {
     return suelosProxyError(req, 502, 'UPSTREAM_INVALID_RESPONSE', OPERATION);
   }
 
-  let data: ArcGisIdentifyResponse;
-  try {
-    data = JSON.parse(new TextDecoder().decode(body)) as ArcGisIdentifyResponse;
-  } catch {
+  const data = parseJsonBody<ArcGisIdentifyResponse>(body);
+  if (!data) {
     return suelosProxyError(req, 502, 'UPSTREAM_INVALID_RESPONSE', OPERATION);
   }
   if (data.error || !Array.isArray(data.results)) {

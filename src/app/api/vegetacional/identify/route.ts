@@ -1,9 +1,16 @@
 import { enforce, corsHeaders } from '@/lib/security';
 import { vegetacionalLayerIds, type VegetacionalProps } from '@/lib/vegetacional';
-import { fetchCiren, parseNumberTuple, readExactParams, validGeographicExtent, validGeographicPoint, validIntegerTuple } from '@/lib/suelos-proxy';
+import { fetchArcGis, identifySearch, parseJsonBody, readIdentifyParams } from '@/lib/arcgis-proxy';
 import { VEGETACIONAL_UPSTREAM_SERVICE, vegetacionalProxyError } from '@/lib/vegetacional-proxy';
 
 const OPERATION = 'identify' as const;
+const MAX_JSON_BYTES = 512 * 1024;
+
+/**
+ * `identify` devuelve los atributos con su alias legible; se normaliza el alias
+ * (sin tildes, minúsculas) y se mapea al nombre de campo que espera la UI. Un
+ * atributo que ya llega con el nombre canónico se acepta tal cual.
+ */
 const FIELD_ALIASES: Record<string, keyof VegetacionalProps> = {
   'descripcion del uso subuso estructura y cobertura': 'uso_tierra',
   'uso de la tierra': 'uso',
@@ -29,11 +36,42 @@ for (const n of [1, 2, 3, 4, 5, 6]) {
   FIELD_ALIASES[`especie ${n} nombre comun`] = `especi${n}_co` as keyof VegetacionalProps;
 }
 
+const CANONICAL_FIELDS = new Set(Object.values(FIELD_ALIASES));
+
 function normalizedFieldName(value: string): string {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 }
 
-const CANONICAL_FIELDS = new Set(Object.values(FIELD_ALIASES));
+function canonicalAttributes(raw: unknown): Record<string, string | number | null> {
+  const attributes: Record<string, string | number | null> = {};
+  if (!raw || typeof raw !== 'object') return attributes;
+  for (const [rawKey, rawValue] of Object.entries(raw as Record<string, unknown>)) {
+    const direct = rawKey as keyof VegetacionalProps;
+    const canonical = FIELD_ALIASES[normalizedFieldName(rawKey)]
+      ?? (CANONICAL_FIELDS.has(direct) ? direct : null);
+    if (!canonical) continue;
+    if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+      attributes[canonical] = rawValue;
+    } else if (typeof rawValue === 'string') {
+      const cleaned = rawValue.replace(/\s+/g, ' ').trim().slice(0, 500);
+      if (canonical === 'superf_ha') {
+        const number = Number(cleaned.replace(',', '.'));
+        attributes[canonical] = Number.isFinite(number) ? number : null;
+      } else {
+        attributes[canonical] = cleaned || null;
+      }
+    } else if (rawValue == null) {
+      attributes[canonical] = null;
+    }
+  }
+  return attributes;
+}
+
 export const runtime = 'nodejs';
 
 export async function OPTIONS(req: Request) {
@@ -43,45 +81,39 @@ export async function OPTIONS(req: Request) {
 export async function GET(req: Request) {
   const blocked = enforce(req);
   if (blocked) return blocked;
-  const input = readExactParams(new URL(req.url).searchParams, ['geometry', 'mapExtent', 'imageDisplay', 'tolerance']);
-  const geometry = input ? parseNumberTuple(input.geometry, 2) : null;
-  const extent = input ? parseNumberTuple(input.mapExtent, 4) : null;
-  const display = input ? parseNumberTuple(input.imageDisplay, 3) : null;
-  const tolerance = input ? Number(input.tolerance) : Number.NaN;
-  if (!geometry || !extent || !display || !validGeographicPoint(geometry) || !validGeographicExtent(extent) || !validIntegerTuple(display.slice(0, 2), 2, 1, 2048) || !Number.isInteger(display[2]) || display[2] < 72 || display[2] > 192 || !Number.isInteger(tolerance) || tolerance < 0 || tolerance > 10) {
+
+  const input = readIdentifyParams(new URL(req.url).searchParams);
+  if (!input) {
     return vegetacionalProxyError(req, 400, 'INVALID_REQUEST', OPERATION);
   }
-  const layerIds = vegetacionalLayerIds(extent);
-  if (layerIds.length === 0) return Response.json({ results: [] }, { headers: { ...corsHeaders(req), 'Cache-Control': 'no-store', Vary: 'Origin' } });
+  const okHeaders = { ...corsHeaders(req), 'Cache-Control': 'no-store', Vary: 'Origin' };
+
+  const layerIds = vegetacionalLayerIds(input.mapExtent);
+  if (layerIds.length === 0) return Response.json({ results: [] }, { headers: okHeaders });
+
   const upstream = new URL(`${VEGETACIONAL_UPSTREAM_SERVICE}/identify`);
-  upstream.search = new URLSearchParams({ geometry: geometry.join(','), geometryType: 'esriGeometryPoint', sr: '4326', layers: `visible:${layerIds.join(',')}`, tolerance: String(tolerance), mapExtent: extent.join(','), imageDisplay: display.join(','), returnGeometry: 'false', f: 'json' }).toString();
-  const { response, body, timedOut, bodyError } = await fetchCiren(upstream, 'application/json', 512 * 1024);
-  if (!response) return vegetacionalProxyError(req, timedOut ? 504 : 502, timedOut ? 'UPSTREAM_TIMEOUT' : 'UPSTREAM_UNAVAILABLE', OPERATION);
-  if (!response.ok || timedOut || bodyError || !body) return vegetacionalProxyError(req, 502, 'UPSTREAM_INVALID_RESPONSE', OPERATION);
-  let data: { results?: unknown; error?: unknown };
-  try { data = JSON.parse(new TextDecoder().decode(body)); } catch { return vegetacionalProxyError(req, 502, 'UPSTREAM_INVALID_RESPONSE', OPERATION); }
-  if (data.error || !Array.isArray(data.results)) return vegetacionalProxyError(req, 502, 'UPSTREAM_ARCGIS_ERROR', OPERATION);
-  const results = (data.results as Array<{ layerName?: unknown; attributes?: unknown }>).slice(0, 20).map((result) => {
-    const attributes: Record<string, string | number | null> = {};
-    if (result.attributes && typeof result.attributes === 'object') {
-      for (const [rawKey, rawValue] of Object.entries(result.attributes as Record<string, unknown>)) {
-        const normalized = normalizedFieldName(rawKey);
-        const direct = rawKey as keyof VegetacionalProps;
-        const canonical = FIELD_ALIASES[normalized] ?? (CANONICAL_FIELDS.has(direct) ? direct : null);
-        if (!canonical) continue;
-        if (typeof rawValue === 'number' && Number.isFinite(rawValue)) attributes[canonical] = rawValue;
-        else if (typeof rawValue === 'string') {
-          const cleaned = rawValue.replace(/\s+/g, ' ').trim().slice(0, 500);
-          if (canonical === 'superf_ha') {
-            const number = Number(cleaned.replace(',', '.'));
-            attributes[canonical] = Number.isFinite(number) ? number : null;
-          } else {
-            attributes[canonical] = cleaned || null;
-          }
-        } else if (rawValue == null) attributes[canonical] = null;
-      }
-    }
-    return { layerName: typeof result.layerName === 'string' ? result.layerName.slice(0, 160) : '', attributes };
-  });
-  return Response.json({ results }, { headers: { ...corsHeaders(req), 'Cache-Control': 'no-store', Vary: 'Origin' } });
+  upstream.search = identifySearch(input, `visible:${layerIds.join(',')}`);
+
+  const { response, body, timedOut, bodyError } = await fetchArcGis(upstream, 'application/json', MAX_JSON_BYTES);
+  if (!response) {
+    return vegetacionalProxyError(req, timedOut ? 504 : 502, timedOut ? 'UPSTREAM_TIMEOUT' : 'UPSTREAM_UNAVAILABLE', OPERATION);
+  }
+  if (!response.ok || timedOut || bodyError || !body) {
+    return vegetacionalProxyError(req, 502, 'UPSTREAM_INVALID_RESPONSE', OPERATION);
+  }
+  const data = parseJsonBody<{ results?: unknown; error?: unknown }>(body);
+  if (!data) {
+    return vegetacionalProxyError(req, 502, 'UPSTREAM_INVALID_RESPONSE', OPERATION);
+  }
+  if (data.error || !Array.isArray(data.results)) {
+    return vegetacionalProxyError(req, 502, 'UPSTREAM_ARCGIS_ERROR', OPERATION);
+  }
+
+  const results = (data.results as Array<{ layerName?: unknown; attributes?: unknown }>)
+    .slice(0, 20)
+    .map((result) => ({
+      layerName: typeof result.layerName === 'string' ? result.layerName.slice(0, 160) : '',
+      attributes: canonicalAttributes(result.attributes),
+    }));
+  return Response.json({ results }, { headers: okHeaders });
 }

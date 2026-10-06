@@ -4,11 +4,10 @@ import {
   PROPIEDADES_RURALES_SUBLAYERS,
   type PropiedadRuralSearchMatch,
 } from '@/lib/propiedades-rurales';
+import { fetchArcGis, readExactParams } from '@/lib/arcgis-proxy';
 import {
   PROPIEDADES_RURALES_UPSTREAM_SERVICE,
-  fetchCiren,
   propiedadesRuralesProxyError,
-  readExactParams,
 } from '@/lib/propiedades-rurales-proxy';
 
 export const runtime = 'nodejs';
@@ -40,7 +39,7 @@ async function queryLayer(
     f: 'json',
   }).toString();
 
-  const { response, body, timedOut, bodyError } = await fetchCiren(
+  const { response, body, timedOut, bodyError } = await fetchArcGis(
     upstream,
     'application/json',
     MAX_JSON_BYTES,
