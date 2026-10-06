@@ -5,10 +5,10 @@ import {
   ROJO_DN_MINIMO,
   SCL_INVALIDAS,
   buscarEscenasPorCaja,
-  lonLatToUtm,
   type StacAsset,
   type StacItem,
 } from './ndvi-serie';
+import { lonLatToUtm } from './coordenadas';
 import { ndviRampRgb } from './ndvi-visual';
 
 /**
