@@ -40,6 +40,10 @@ versionado.
 - **Apagar una capa mientras descargaba la dejaba pegada en el mapa.** Seis
   de las siete capas GeoJSON estáticas no abortaban el `fetch`: al llegar el
   archivo se montaban igual, sin que ningún control pudiera quitarlas.
+- **El cajetín del PNG describía mal el mapa de calor.** Decía «seis clases
+  por cuantiles», el método de cuando se dibujaban hexágonos; hoy es una
+  superficie interpolada y el texto lo dice. Es el anexo de un informe de
+  tasación: tiene que describir el mapa que acompaña.
 - **El link «Ver ficha oficial» de áreas protegidas solo acepta http(s).**
   `esc()` no impedía un `javascript:` en `url_fuente`.
 - **`%` y `_` en los filtros de predio y ROL se buscan literalmente.** Antes
@@ -65,6 +69,9 @@ versionado.
   `src/lib/map-popups.ts` (funciones puras con tests) y cada capa a su hook en
   `src/components/map/`. Las siete capas GeoJSON estáticas comparten
   `useStaticGeoJsonLayer`.
+- **`page.tsx` de 1286 a ~810 líneas**: datos CBR, búsqueda por ROL, capas
+  KML y consulta NDVI pasan a hooks en `src/hooks/`; el cajetín del PNG a
+  `src/lib/export-metadata.ts` (con tests).
 
 - `geotiff` y `pngjs` pasan a `dependencies`: los usa el renderer NDVI en
   runtime, no solo el ETL.

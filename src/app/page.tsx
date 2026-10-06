@@ -2,35 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import dynamic from 'next/dynamic';
-import type { Facets, GeocodeResult, MapPoint, Stats } from '@/lib/types';
-import { kmlColorFor, kmlDisplayName, parseKmlFile, type KmlLayer } from '@/lib/kml';
-import type { LayerMetadataEntry, NdviExport } from '@/lib/map-export';
-import { ndviTitulo, type NdviConsulta, type NdviSerie } from '@/lib/ndvi';
+import type { GeocodeResult } from '@/lib/types';
+import type { LayerMetadataEntry } from '@/lib/map-export';
 import { SUELOS_SERVICE_NAME, type SuelosStatus } from '@/lib/suelos';
 import { NDVI_VISUAL_SERVICE_NAME, type NdviVisualEstado } from '@/lib/ndvi-visual';
 import {
-  PROPIEDADES_RURALES_FEATURE_URL,
-  PROPIEDADES_RURALES_SEARCH_URL,
   PROPIEDADES_RURALES_SERVICE_NAME,
-  normalizePropiedadRuralRol,
-  type PropiedadRuralFeatureResponse,
-  type PropiedadRuralSearchMatch,
-  type PropiedadRuralSearchResponse,
   type PropiedadesRuralesStatus,
 } from '@/lib/propiedades-rurales';
-import { LINEAS_TRANSMISION_COLOR } from '@/lib/lineas-transmision';
-import {
-  DESTINO_DEFAULT,
-  HEXBINS_COLOR,
-  HEXBIN_MIN_N_DEFAULT,
-  destinoLabel,
-  hexEdgeLabel,
-  type HexbinStatus,
-} from '@/lib/hexbins';
+import { DESTINO_DEFAULT, HEXBIN_MIN_N_DEFAULT, type HexbinStatus } from '@/lib/hexbins';
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
 import { DEFAULT_LAYER_OPACITY } from '@/lib/layer-opacity';
-import { bioclimaRamp, type BioclimaVariable } from '@/lib/bioclima';
 import { MapPanel, type PanelId } from '@/components/MapPanel';
 import { BasemapSwitcher } from '@/components/BasemapSwitcher';
 import {
@@ -39,11 +22,16 @@ import {
   setBasemapPreference,
   subscribeBasemap,
 } from '@/lib/basemap-store';
-import { SearchFields, FilterFields, StatsFields, type RuralRolSearchState } from '@/components/FieldGroups';
+import { SearchFields, FilterFields, StatsFields } from '@/components/FieldGroups';
 import { GeocoderSearch } from '@/components/GeocoderSearch';
 import { InfoPanel } from '@/components/InfoPanel';
 import { NdviPanel } from '@/components/NdviPanel';
 import { track } from '@/lib/analytics';
+import { buildExportMetadata } from '@/lib/export-metadata';
+import { useCbrData } from '@/hooks/useCbrData';
+import { useKmlLayers } from '@/hooks/useKmlLayers';
+import { useNdviQuery } from '@/hooks/useNdviQuery';
+import { useRuralRolSearch } from '@/hooks/useRuralRolSearch';
 
 // El RetroLoader de page.tsx cubre también la carga del módulo, así que el
 // dynamic no necesita fallback propio (evita dos loaders superpuestos).
@@ -51,42 +39,6 @@ const MapView = dynamic(() => import('@/components/MapView'), {
   ssr: false,
   loading: () => null,
 });
-
-/**
- * Descarga /api/points reportando el avance real de bytes. El servidor expone
- * X-Total-Bytes (tamaño descomprimido) porque tras el gzip de la CDN el
- * Content-Length deja de corresponder a los bytes que entrega el reader. Si el
- * header faltara, cae a una curva asintótica sobre el tamaño típico (~18 MB).
- */
-async function fetchPointsWithProgress(
-  url: string,
-  signal: AbortSignal,
-  onProgress: (frac: number) => void,
-): Promise<MapPoint[]> {
-  const res = await fetch(url, { signal });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  if (!res.body) return res.json();
-
-  const total = Number(res.headers.get('x-total-bytes')) || 0;
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let received = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    received += value.length;
-    onProgress(total > 0 ? Math.min(received / total, 1) : received / (received + 6_000_000));
-  }
-
-  const buf = new Uint8Array(received);
-  let offset = 0;
-  for (const c of chunks) {
-    buf.set(c, offset);
-    offset += c.length;
-  }
-  return JSON.parse(new TextDecoder().decode(buf)) as MapPoint[];
-}
 
 const fmtCLP = (v: number | null | undefined): string =>
   v == null
@@ -150,258 +102,7 @@ const CrosshairIcon = (
 type MapExportArgs = { metadata?: LayerMetadataEntry[] };
 type MapExportFn = (args?: MapExportArgs) => Promise<void>;
 
-/** Símbolo que separa unidades monetarias en formato chileno. Las inputs de
- *  filtros vienen como strings; aquí las formateamos a CLP para el cajetín
- *  del PNG exportado (la idea es que el informe pericial vea un rango
- *  legible, no un número crudo de `?monto_min=10000000`). */
-const fmtMoney = (raw: string): string | null => {
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return new Intl.NumberFormat('es-CL', {
-    style: 'currency',
-    currency: 'CLP',
-    maximumFractionDigits: 0,
-  }).format(n);
-};
-
-const fmtIntPlain = (v: number): string => v.toLocaleString('es-CL');
-
-/** Inputs para el cajetín de trazabilidad. Es una función pura (no tiene
- *  closures ni estado) para que sea trivial de testear si añadimos tests. */
-type BuildMetadataInput = {
-  showBioclima: boolean;
-  bioclimaVariable: BioclimaVariable;
-  showPoints: boolean;
-  showProtected: boolean;
-  showUrbanLimit: boolean;
-  showComunas: boolean;
-  showRedVial: boolean;
-  showRedDrenaje: boolean;
-  showLineasTransmision: boolean;
-  showSuelos: boolean;
-  showCatastroFruticola: boolean;
-  showVegetacional: boolean;
-  showPropiedadesRurales: boolean;
-  showNdviVisual: boolean;
-  showHexbins: boolean;
-  hexbinStatus: HexbinStatus;
-  comuna: string;
-  anioFrom: number | null;
-  fechaDesde: string;
-  fechaHasta: string;
-  montoMin: string;
-  montoMax: string;
-  supMin: string;
-  supMax: string;
-  predio: string;
-  rol: string;
-  stats: Stats | null;
-  kmlLayers: KmlLayer[];
-};
-
-/** Construye las entradas del cajetín legal a partir del estado vigente de
- *  filtros y visibilidad de capas. Se llama al hacer click en «Exportar
- *  PNG» (no en cada keystroke), así que es OK que filtre un poco más de lo
- *  necesario: la captura es momentánea, el cajetín solo se usa en ese PNG.
- *
- *  Estructura del cajetín (cada entrada = un bloque con negrita + detalles):
- *  - Transacciones CBR (título con conteo de inscripciones en la selección)
- *  - Una entrada por cada capa vectorial activa con su fuente oficial
- *  - Una entrada por cada capa KML subida por el usuario */
-function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEntry[] {
-  const entries: LayerMetadataEntry[] = [];
-  if (input.showBioclima) {
-    entries.push({
-      title: input.bioclimaVariable === 'temperature' ? 'Temperatura media anual (°C)' : 'Precipitación anual (mm)',
-      color: bioclimaRamp[input.bioclimaVariable].stops[0].color,
-      shape: 'square',
-      details: 'WorldClim 2.1 · 1970–2000 · resolución 2,5′\nSuperficie interpolada; no medición del predio.',
-    });
-  }
-
-  if (input.showPoints) {
-    const filtrosLineas: string[] = [];
-    if (input.comuna !== 'todas') filtrosLineas.push(`Comuna: ${input.comuna}`);
-    if (input.anioFrom != null) filtrosLineas.push(`Año desde (fecha disponible): ${input.anioFrom}`);
-    if (input.fechaDesde || input.fechaHasta) {
-      filtrosLineas.push(`Fecha disponible: ${input.fechaDesde || 'sin mínimo'} – ${input.fechaHasta || 'sin máximo'}`);
-    }
-
-    const minD = fmtMoney(input.montoMin);
-    const maxD = fmtMoney(input.montoMax);
-    if (minD || maxD) {
-      // Construimos el rango con strings pre-formateados para no anidar
-      // template literals con backticks sueltos (riesgo de desbalance de
-      // delimitadores en TSX strict).
-      const left = minD ? `≥ ${minD}` : 'sin mínimo';
-      const right = maxD ? `≤ ${maxD}` : 'sin máximo';
-      filtrosLineas.push(`Monto: ${left} – ${right}`);
-    }
-    if (input.supMin) {
-      const n = Number(input.supMin);
-      if (Number.isFinite(n)) {
-        filtrosLineas.push(`Superficie terreno ≥ ${n.toLocaleString('es-CL')} m²`);
-      }
-    }
-    if (input.supMax) {
-      const n = Number(input.supMax);
-      if (Number.isFinite(n)) {
-        filtrosLineas.push(`Superficie terreno ≤ ${n.toLocaleString('es-CL')} m²`);
-      }
-    }
-    if (input.predio.trim()) filtrosLineas.push(`Predio contiene: «${input.predio.trim()}»`);
-    if (input.rol.trim()) filtrosLineas.push(`ROL SII contiene: «${input.rol.trim()}»`);
-
-    const count = input.stats?.count ?? 0;
-    const details = [
-      `${fmtIntPlain(count)} inscripciones en la selección`,
-      ...filtrosLineas,
-      'Fuente: Conservadores de Bienes Raíces de Chile',
-    ].join('\n');
-    entries.push({
-      title: 'Transacciones CBR',
-      details,
-      color: '#e11d48', // carmesí — color de marca CBR (lib/cbr-points)
-      shape: 'dot',
-    });
-  }
-
-  // Capas temáticas activas: cada una aporta su fuente oficial + el color
-  // y la forma que se ven en el mapa, para que la muestra del cajetín se
-  // corresponda 1:1 con el polígono/línea/marker del mapa en vivo.
-  if (input.showProtected) {
-    entries.push({
-      title: 'Áreas protegidas (RNAP)',
-      details: 'Designaciones legales según categoría\nFuente: Ministerio del Medio Ambiente · CC0\nhttps://sig.mma.gob.cl/rnap/',
-      color: '#10b981', // verde bosque, dominante de las categorías RNAP
-      shape: 'square',
-    });
-  }
-  if (input.showUrbanLimit) {
-    entries.push({
-      title: 'Límite urbano (PRC)',
-      details: 'Planes Reguladores Comunales vigentes\nFuente: MINVU · IPT · geoide.minvu.cl',
-      color: '#c2410c', // ámbar (URBAN_LIMIT_COLOR)
-      shape: 'square',
-    });
-  }
-  if (input.showComunas) {
-    entries.push({
-      title: 'Límites comunales (DPA 2023)',
-      details: 'División Político-Administrativa referencial\nFuente: SUBDERE · geoportal.cl',
-      color: '#475569', // pizarra (COMUNAS_COLOR)
-      shape: 'square',
-    });
-  }
-  if (input.showRedVial) {
-    entries.push({
-      title: 'Red caminera (MOP)',
-      details: 'Red Vial Nacional + ROL de Vialidad (puede diferir de Google/OSM)\nFuente: Dirección de Vialidad · mapasvialidad.mop.gob.cl',
-      color: '#7c3aed', // violeta (clase 'nacional' de ROAD_CLASS_GROUPS)
-      shape: 'line',
-    });
-  }
-  if (input.showRedDrenaje) {
-    entries.push({
-      title: 'Red de drenaje (DGA)',
-      details: 'Ríos + esteros del Banco Nacional de Aguas\nFuente: DGA · MOP · CC-BY 4.0',
-      color: '#0ea5e9', // cian (paleta drenaje)
-      shape: 'line',
-    });
-  }
-  if (input.showSuelos) {
-    entries.push({
-      title: 'Suelos agrológicos (CIREN)',
-      details: 'Capacidad de uso I–VIII, 12 regiones (Atacama a Aysén)\nFuente: CIREN · esri.ciren.cl',
-      color: '#ca8a04', // amarillo tierra (SUELOS_CLASSES aprox.)
-      shape: 'square',
-    });
-  }
-  if (input.showCatastroFruticola) {
-    entries.push({
-      title: 'Catastro frutícola (CIREN-ODEPA)',
-      details: 'Productores frutícolas por especie; levantamientos regionales CIREN 2019–2025 (el año es la fecha del catastro, no de plantación)\nFuente: CIREN-ODEPA · IDE Minagri',
-      color: '#be185d', // magenta (especie por defecto)
-      shape: 'square',
-    });
-  }
-  if (input.showLineasTransmision) {
-    entries.push({
-      title: 'Líneas de transmisión eléctrica',
-      details:
-        'Ejes referenciales por tensión; no representan servidumbres ni gravámenes prediales\n' +
-        'Fuente: Ministerio de Energía · IDE Energía · CEN',
-      color: LINEAS_TRANSMISION_COLOR,
-      shape: 'line',
-    });
-  }
-  if (input.showVegetacional) {
-    entries.push({
-      title: 'Recursos vegetacionales (CONAF)',
-      details: 'Uso, subuso, estructura, cobertura y especies dominantes; actualización regional variable\nFuente: CONAF · IDE Minagri',
-      color: '#15803d',
-      shape: 'square',
-    });
-  }
-  if (input.showPropiedadesRurales) {
-    entries.push({ title: 'Propiedades rurales (CIREN)', details: 'Polígonos prediales y ROL referenciales; cobertura y vintage regionales heterogéneos. No acredita dominio ni deslindes legales.\nFuente: CIREN · IDE Minagri', color: '#dc2626', shape: 'square' });
-  }
-  if (input.showNdviVisual) {
-    entries.push({
-      title: 'NDVI Visual (Sentinel-2)',
-      details:
-        'Índice de vigor vegetal por viewport, escala -0,1 a 0,9; escenas de los últimos días con máscara SCL\n' +
-        'Contiene datos modificados de Copernicus Sentinel vía Element 84 / AWS Open Data',
-      color: '#3e8f49', // verde medio de la rampa (parada 0,7)
-      shape: 'square',
-    });
-  }
-
-  if (input.showHexbins) {
-    // El cajetín debe declarar la resolución y el umbral REALES con los que se
-    // dibujó el mapa que se está exportando: el mismo viewport con otro
-    // `N_min` produce otro mapa, y un PNG sin esa nota es incitable a error en
-    // un informe pericial.
-    const st = input.hexbinStatus;
-    const detalle =
-      st.kind === 'ready'
-        ? [
-            `Hexágonos de ${hexEdgeLabel(st.meta.edge_m)} de arista · mínimo ${st.meta.min_n} transacciones por celda`,
-            `${st.meta.cells.toLocaleString('es-CL')} celdas · ${st.meta.points.toLocaleString('es-CL')} transacciones agregadas`,
-            `Destino SII: ${destinoLabel(st.meta.destino)}`,
-          ].join('\n')
-        : 'Sin celdas suficientes en la vista exportada';
-    entries.push({
-      title: 'Mapa de calor de valor ($/m² terreno)',
-      details:
-        `${detalle}\n` +
-        'Mediana de $/m² por celda, seis clases por cuantiles. Señal de mercado, no tasación.\n' +
-        'Fuente: elaboración propia sobre inscripciones de los Conservadores de Bienes Raíces',
-      color: HEXBINS_COLOR,
-      shape: 'square',
-    });
-  }
-
-  // Capas KML del operador: usamos el alias del perito (`kmlDisplayName`),
-  // que es lo que aparece ya en el popup del feature tras renombrarlo.
-  // El color es el de la paleta asignada por `kmlColorFor` al subir la capa,
-  // único por KML para que se distingan entre sí dentro de un mismo mapa.
-  for (const kml of input.kmlLayers) {
-    if (!kml.visible) continue;
-    entries.push({
-      title: `KML: ${kmlDisplayName(kml)}`,
-      details: `${kml.featureCount} entidades vectoriales\nFuente: archivo local del operador (no publicado)`,
-      color: kml.color,
-      shape: 'square',
-    });
-  }
-
-  return entries;
-}
-
 export default function Home() {
-  const [facets, setFacets] = useState<Facets | null>(null);
-
   const [comuna, setComuna] = useState('todas');
   const [anioFrom, setAnioFrom] = useState<number | null>(null);
   const [fechaDesde, setFechaDesde] = useState('');
@@ -412,20 +113,6 @@ export default function Home() {
   const [supMax, setSupMax] = useState('');
   const [predio, setPredio] = useState('');
   const [rol, setRol] = useState('');
-  const [ruralRolSearch, setRuralRolSearch] = useState<RuralRolSearchState>({ kind: 'idle' });
-  const [selectedRuralFeature, setSelectedRuralFeature] = useState<PropiedadRuralFeatureResponse | null>(null);
-  const [showPropiedadesRurales, setShowPropiedadesRurales] = useState(false);
-  const [propiedadesRuralesStatus, setPropiedadesRuralesStatus] = useState<PropiedadesRuralesStatus>({ kind: 'idle' });
-  const ruralSearchController = useRef<AbortController | null>(null);
-  const ruralFeatureController = useRef<AbortController | null>(null);
-
-  const [points, setPoints] = useState<MapPoint[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
-  // loading/error se DERIVAN comparando el query pedido con el resuelto/fallido
-  // (nada de setState sincrónico dentro del efecto de fetch): si lo cargado no
-  // corresponde al filtro actual, estamos cargando.
-  const [loadedQs, setLoadedQs] = useState<string | null>(null);
-  const [errorQs, setErrorQs] = useState<string | null>(null);
 
   // Resultado del geocoder: MapView vuela ahí y deja un marcador pulsante.
   const [focus, setFocus] = useState<GeocodeResult | null>(null);
@@ -456,6 +143,52 @@ export default function Home() {
     track('boot', { ms: Math.round(performance.now()) });
   }, []);
 
+  const queryString = useMemo(() => {
+    const p = new URLSearchParams();
+    if (comuna !== 'todas') p.set('comuna', comuna);
+    if (anioFrom != null) p.set('anio_min', String(anioFrom));
+    if (fechaDesde) p.set('fecha_desde', fechaDesde);
+    if (fechaHasta) p.set('fecha_hasta', fechaHasta);
+    if (montoMin) p.set('monto_min', montoMin);
+    if (montoMax) p.set('monto_max', montoMax);
+    if (supMin) p.set('sup_min', supMin);
+    if (supMax) p.set('sup_max', supMax);
+    if (predio.trim()) p.set('predio', predio.trim());
+    if (rol.trim()) p.set('rol', rol.trim());
+    return p.toString();
+  }, [comuna, anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol]);
+
+  const activeFilters = [
+    comuna !== 'todas',
+    anioFrom != null,
+    fechaDesde,
+    fechaHasta,
+    montoMin,
+    montoMax,
+    supMin,
+    supMax,
+  ].filter(Boolean).length;
+
+  const activeSearch = [predio.trim(), rol.trim()].filter(Boolean).length;
+
+  const debouncedQs = useDebounced(queryString, 400);
+
+  const { facets, points, stats, loading, error } = useCbrData(debouncedQs, {
+    onDownloadProgress: (frac) => {
+      if (booting.current) setBootProgress(5 + Math.round(frac * 55));
+    },
+    onDecoded: () => {
+      if (booting.current) setBootProgress(64); // dataset decodificado; falta el render
+    },
+    onError: () => {
+      // Cierra el loader para que el mensaje de error quede visible.
+      if (booting.current) track('boot_error');
+      booting.current = false;
+      setBootDone(true);
+    },
+  });
+  const effectiveAnioFrom = anioFrom ?? facets?.minAnio ?? 2015;
+
   // Mobile: consolidated drawer (search + filters + stats), closed by default
   // so the map owns the screen.
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -469,89 +202,37 @@ export default function Home() {
     setActivePanel((p) => (p === id ? null : id));
   };
 
-  const clearRuralSearch = useCallback(() => {
-    ruralSearchController.current?.abort();
-    ruralFeatureController.current?.abort();
-    setRuralRolSearch({ kind: 'idle' });
-    setSelectedRuralFeature(null);
+  // Capa CIREN de propiedades rurales: la enciende también la búsqueda por ROL.
+  const [showPropiedadesRurales, setShowPropiedadesRurales] = useState(false);
+  const [propiedadesRuralesStatus, setPropiedadesRuralesStatus] = useState<PropiedadesRuralesStatus>({ kind: 'idle' });
+
+  // El ROL encontrado enciende la capa CIREN y libera la pantalla en móvil.
+  const handleRuralFeatureSelected = useCallback(() => {
+    setShowPropiedadesRurales(true);
+    setDrawerOpen(false);
   }, []);
+  const { ruralRolSearch, selectedRuralFeature, clearRuralSearch, selectRuralMatch, locateRuralRol } =
+    useRuralRolSearch({ rol, comuna, onFeatureSelected: handleRuralFeatureSelected });
 
   const handleRolChange = useCallback((value: string) => {
     setRol(value);
     clearRuralSearch();
   }, [clearRuralSearch]);
 
-  const selectRuralMatch = useCallback(async (
-    match: PropiedadRuralSearchMatch,
-    results = ruralRolSearch.kind === 'results' || ruralRolSearch.kind === 'selecting'
-      ? ruralRolSearch.results
-      : [match],
-  ) => {
-    ruralFeatureController.current?.abort();
-    const controller = new AbortController();
-    ruralFeatureController.current = controller;
-    setRuralRolSearch({ kind: 'selecting', results, selectedId: match.id });
-    try {
-      const params = new URLSearchParams({
-        layer: String(match.layerId),
-        oid: String(match.objectId),
-        rol: match.rol,
-      });
-      const response = await fetch(`${PROPIEDADES_RURALES_FEATURE_URL}?${params}`, {
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error('feature');
-      const feature = await response.json() as PropiedadRuralFeatureResponse;
-      if (controller.signal.aborted) return;
-      setSelectedRuralFeature(feature);
-      setShowPropiedadesRurales(true);
-      setRuralRolSearch({ kind: 'results', results, truncated: false });
-      setDrawerOpen(false);
-    } catch {
-      if (controller.signal.aborted) return;
-      setRuralRolSearch({
-        kind: 'error',
-        message: 'No se pudo cargar la geometría del predio desde CIREN. Intenta nuevamente.',
-      });
-    }
-  }, [ruralRolSearch]);
-
-  const locateRuralRol = useCallback(async () => {
-    track('rol_search');
-    const normalizedRol = normalizePropiedadRuralRol(rol);
-    if (!normalizedRol) return;
-    ruralSearchController.current?.abort();
-    ruralFeatureController.current?.abort();
-    setSelectedRuralFeature(null);
-    const controller = new AbortController();
-    ruralSearchController.current = controller;
-    setRuralRolSearch({ kind: 'loading' });
-    try {
-      const params = new URLSearchParams({
-        rol: normalizedRol,
-        comuna: comuna === 'todas' ? '' : comuna,
-      });
-      const response = await fetch(`${PROPIEDADES_RURALES_SEARCH_URL}?${params}`, {
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error('search');
-      const data = await response.json() as PropiedadRuralSearchResponse;
-      if (controller.signal.aborted) return;
-      setRuralRolSearch({ kind: 'results', results: data.results, truncated: data.truncated });
-      if (data.results.length === 1) await selectRuralMatch(data.results[0], data.results);
-    } catch {
-      if (controller.signal.aborted) return;
-      setRuralRolSearch({
-        kind: 'error',
-        message: 'No se pudo consultar el servicio de propiedades rurales CIREN.',
-      });
-    }
-  }, [comuna, rol, selectRuralMatch]);
-
-  useEffect(() => () => {
-    ruralSearchController.current?.abort();
-    ruralFeatureController.current?.abort();
+  const handleNdviOpened = useCallback(() => {
+    setActivePanel(null);
+    setDrawerOpen(false);
   }, []);
+  const {
+    ndviMode,
+    setNdviMode,
+    ndviConsulta,
+    ndviExport,
+    handleNdviPoint,
+    handleNdviSerie,
+    handleNdviResaltado,
+    cerrarNdvi,
+  } = useNdviQuery({ onPoint: handleNdviOpened });
 
   // Las transacciones CBR son la capa principal y vienen activadas por defecto,
   // pero el perito las puede ocultar para componer una vista limpia (por ej.
@@ -578,54 +259,6 @@ export default function Home() {
   const [hexbinDestino, setHexbinDestino] = useState(DESTINO_DEFAULT);
   const [hexbinMinN, setHexbinMinN] = useState(HEXBIN_MIN_N_DEFAULT);
   const [hexbinStatus, setHexbinStatus] = useState<HexbinStatus>({ kind: 'idle' });
-
-  // Herramienta NDVI: consulta puntual sobre Sentinel-2 (no es una capa del
-  // catálogo, no se enciende ni se apaga — se consulta). `ndviMode` arma el
-  // modo cruceta del mapa; `ndviConsulta` es el punto vigente y `ndviExport`
-  // la serie + título que alimenta el cajetín del PNG exportado.
-  const [ndviMode, setNdviMode] = useState(false);
-  const [ndviConsulta, setNdviConsulta] = useState<NdviConsulta | null>(null);
-  const [ndviExport, setNdviExport] = useState<NdviExport | null>(null);
-
-  // El clic con el modo armado llega desde MapView: desarma y abre el panel
-  // en la misma transición, cerrando antes los paneles flotantes para que dos
-  // superficies no queden apiladas sobre el mismo punto.
-  const handleNdviPoint = useCallback((lat: number, lng: number) => {
-    track('ndvi_query');
-    setNdviMode(false);
-    setNdviConsulta({ tipo: 'punto', lat, lng });
-    setActivePanel(null);
-    setDrawerOpen(false);
-  }, []);
-
-  // serie y título se fijan juntos: el cajetín del PNG nunca puede citar una
-  // consulta vieja con una serie nueva.
-  const handleNdviSerie = useCallback((serie: NdviSerie | null) => {
-    setNdviExport(serie && ndviConsulta ? { serie, titulo: ndviTitulo(ndviConsulta), resaltado: null } : null);
-  }, [ndviConsulta]);
-
-  const handleNdviResaltado = useCallback((anio: number) => {
-    setNdviExport((prev) => (prev ? { ...prev, resaltado: anio } : prev));
-  }, []);
-
-  const cerrarNdvi = useCallback(() => {
-    setNdviConsulta(null);
-    setNdviExport(null);
-    setNdviMode(false);
-  }, []);
-
-  // Escape: primero desarma la consulta pendiente; si no hay modo armado,
-  // cierra el panel. Sin leaflet de por medio, así vive en la página.
-  useEffect(() => {
-    if (!ndviMode && !ndviConsulta) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      if (ndviMode) setNdviMode(false);
-      else if (ndviConsulta) cerrarNdvi();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [ndviMode, ndviConsulta, cerrarNdvi]);
 
   // Mapa base. La preferencia vive en localStorage y se lee por
   // `useSyncExternalStore` (ver lib/basemap-store.ts): el servidor pinta el
@@ -674,49 +307,14 @@ export default function Home() {
     }
   }, [layerFlags]);
 
-  // Capas KML subidas por el usuario: parseo 100% en el navegador (lib/kml),
-  // el archivo nunca sale del dispositivo. El contador de colores es un ref
-  // para que borrar una capa no re-pinte las que quedan.
-  const [kmlLayers, setKmlLayers] = useState<KmlLayer[]>([]);
-  const [kmlError, setKmlError] = useState<string | null>(null);
-  const kmlColorCount = useRef(0);
-
-  const addKmlFiles = async (files: FileList) => {
-    setKmlError(null);
-    const errors: string[] = [];
-    for (const file of Array.from(files)) {
-      try {
-        const layer = await parseKmlFile(file, kmlColorFor(kmlColorCount.current++));
-        setKmlLayers((prev) => [...prev, layer]);
-        track('kml_upload', { features: layer.featureCount });
-      } catch (e) {
-        errors.push(e instanceof Error ? e.message : `No se pudo leer «${file.name}».`);
-      }
-    }
-    if (errors.length) setKmlError(errors.join(' '));
-  };
-
-  const toggleKml = (id: string) =>
-    setKmlLayers((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)),
-    );
-
-  const removeKml = (id: string) => setKmlLayers((prev) => prev.filter((l) => l.id !== id));
-
-  /** Renombra el alias del perito para una capa KML. Acepta string vacío
-   *  (el cajetín cae al `name` del archivo cuando `displayName` está vacío).
-   *  No toca `geojson` ni el color — solo la etiqueta humana. */
-  const renameKml = (id: string, displayName: string) =>
-    setKmlLayers((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, displayName } : l)),
-    );
-
   // Imperative handle para el export PNG: MapView publica la función que
   // rasteriza la vista actual; aquí se la invoca y se bloquea el botón mientras
   // dura la generación del archivo (canvas.toBlob puede tardar >1s con 74k
   // pines re-proyectados). El cajetín de trazabilidad legal (filtros vigentes
   // + fuentes de capas activas) se construye acá, en el momento del click, y
   // se entrega por args para no inflar el deps array del useEffect en MapView.
+  const { kmlLayers, kmlError, addKmlFiles, toggleKml, removeKml, renameKml } = useKmlLayers();
+
   const mapExportRef = useRef<MapExportFn | null>(null);
   const [exporting, setExporting] = useState(false);
   // Fallo del export. El PNG es el anexo del informe de tasación: si la
@@ -780,45 +378,6 @@ export default function Home() {
     stats, kmlLayers,
   ]);
 
-  // Load facets once.
-  useEffect(() => {
-    fetch('/api/facets')
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((f: Facets) => setFacets(f))
-      .catch(() => {});
-  }, []);
-
-  const effectiveAnioFrom = anioFrom ?? facets?.minAnio ?? 2015;
-
-  const queryString = useMemo(() => {
-    const p = new URLSearchParams();
-    if (comuna !== 'todas') p.set('comuna', comuna);
-    if (anioFrom != null) p.set('anio_min', String(anioFrom));
-    if (fechaDesde) p.set('fecha_desde', fechaDesde);
-    if (fechaHasta) p.set('fecha_hasta', fechaHasta);
-    if (montoMin) p.set('monto_min', montoMin);
-    if (montoMax) p.set('monto_max', montoMax);
-    if (supMin) p.set('sup_min', supMin);
-    if (supMax) p.set('sup_max', supMax);
-    if (predio.trim()) p.set('predio', predio.trim());
-    if (rol.trim()) p.set('rol', rol.trim());
-    return p.toString();
-  }, [comuna, anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol]);
-
-  const activeFilters = [
-    comuna !== 'todas',
-    anioFrom != null,
-    fechaDesde,
-    fechaHasta,
-    montoMin,
-    montoMax,
-    supMin,
-    supMax,
-  ].filter(Boolean).length;
-
-  const activeSearch = [predio.trim(), rol.trim()].filter(Boolean).length;
-
-  const debouncedQs = useDebounced(queryString, 400);
 
   // Analítica: qué filtros se usan. Solo los NOMBRES de los campos, nunca sus
   // valores (un ROL o un monto no deben salir del navegador hacia la tabla).
@@ -829,43 +388,6 @@ export default function Home() {
     lastFilterKeys.current = keys;
     if (keys) track('filter', { fields: keys });
   }, [debouncedQs]);
-  const error = errorQs != null && errorQs === debouncedQs;
-  const loading = !error && loadedQs !== debouncedQs;
-
-  // Fetch points + stats whenever the (debounced) filters change.
-  const reqId = useRef(0);
-  useEffect(() => {
-    const id = ++reqId.current;
-    const ctrl = new AbortController();
-
-    const suffix = debouncedQs ? `?${debouncedQs}` : '';
-    Promise.all([
-      fetchPointsWithProgress(`/api/points${suffix}`, ctrl.signal, (frac) => {
-        if (booting.current) setBootProgress(5 + Math.round(frac * 55));
-      }),
-      fetch(`/api/stats${suffix}`, { signal: ctrl.signal }).then((r) =>
-        r.ok ? r.json() : Promise.reject(),
-      ),
-    ])
-      .then(([pts, st]: [MapPoint[], Stats]) => {
-        if (id !== reqId.current) return;
-        if (booting.current) setBootProgress(64); // dataset decodificado; falta el render
-        setPoints(Array.isArray(pts) ? pts : []);
-        setStats(st);
-        setLoadedQs(debouncedQs);
-      })
-      .catch(() => {
-        if (ctrl.signal.aborted || id !== reqId.current) return;
-        setErrorQs(debouncedQs);
-        // Cierra el loader para que el mensaje de error quede visible.
-        if (booting.current) track('boot_error');
-        booting.current = false;
-        setBootDone(true);
-      });
-
-    return () => ctrl.abort();
-  }, [debouncedQs]);
-
   const exportHref = (format: 'csv' | 'geojson') =>
     `/api/export?${debouncedQs ? `${debouncedQs}&` : ''}format=${format}`;
 

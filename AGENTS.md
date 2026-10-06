@@ -103,7 +103,12 @@ Any client → src/proxy.ts (before CDN cache) on /api/{points,export} → Neon 
 
 | Path | Role |
 |---|---|
-| `src/app/page.tsx` | Single page — filters + stats bar + map |
+| `src/app/page.tsx` | Single page — filters + stats bar + map; state lives in the hooks below |
+| `src/hooks/useCbrData.ts` | Facets + points/stats for the debounced filter query (byte-level download progress, derived loading/error) |
+| `src/hooks/useRuralRolSearch.ts` | ROL search against CIREN rural properties (`/search` → `/feature`), abortable |
+| `src/hooks/useKmlLayers.ts` | User KML layers: in-browser parse, toggle, rename, remove |
+| `src/hooks/useNdviQuery.ts` | NDVI point-query tool state (armed mode, current query, export payload, Escape handling) |
+| `src/lib/export-metadata.ts` | Legal traceability box of the PNG export (filters + sources of active layers). Tested |
 | `src/app/layout.tsx` | Root layout (Geist font, metadata) |
 | `src/components/MapView.tsx` | Leaflet map shell: init, basemap, CBR MarkerCluster (~74k points), overlay stacking, PNG export, KML; each thematic layer lives in its own hook below |
 | `src/components/map/useStaticGeoJsonLayer.ts` | Race-safe hook for every static `public/data/*.geojson` layer (aborts the fetch if the layer is switched off mid-download) |
