@@ -7,8 +7,9 @@
  *
  * Supported params: comuna, anio_min, anio_max, fecha_desde, fecha_hasta,
  * monto_min, monto_max, sup_min, sup_max (over superficieTerreno), predio
- * (ILIKE), rol (ILIKE). Date filters and year filters use the escritura date;
- * only when it is absent do they fall back to the inscripción date.
+ * and rol (literal ILIKE "contains"). Date filters and year filters use the
+ * escritura date; only when it is absent do they fall back to the inscripción
+ * date.
  *
  * NOTE: camelCase columns in the Neon table (e.g. "superficieTerreno") must be
  * double-quoted, otherwise Postgres folds them to lowercase and they vanish.
@@ -35,6 +36,20 @@ function dateParam(sp: URLSearchParams, key: string): string | null {
     && parsed.getUTCDate() === day
     ? value
     : null;
+}
+
+/** Longest free-text term accepted for predio/rol; anything longer is noise. */
+const MAX_TEXT_FILTER = 100;
+
+/**
+ * Turns user text into a literal ILIKE "contains" pattern. Without escaping,
+ * `%` and `_` typed by the user act as wildcards (`rol=_` matched every row),
+ * and a backslash would start an escape sequence. `\` is PostgreSQL's default
+ * LIKE escape character, so no ESCAPE clause is needed.
+ */
+function containsPattern(sp: URLSearchParams, key: string): string | null {
+  const term = sp.get(key)?.trim().slice(0, MAX_TEXT_FILTER);
+  return term ? `%${term.replace(/[\\%_]/g, '\\$&')}%` : null;
 }
 
 export function buildFilters(sp: URLSearchParams): ParsedFilters {
@@ -72,11 +87,11 @@ export function buildFilters(sp: URLSearchParams): ParsedFilters {
   const supMax = intParam(sp, 'sup_max');
   if (supMax != null) conds.push(`"superficieTerreno" <= ${push(supMax)}`);
 
-  const predio = sp.get('predio');
-  if (predio && predio.trim()) conds.push(`predio ILIKE ${push(`%${predio.trim()}%`)}`);
+  const predio = containsPattern(sp, 'predio');
+  if (predio) conds.push(`predio ILIKE ${push(predio)}`);
 
-  const rol = sp.get('rol');
-  if (rol && rol.trim()) conds.push(`rol ILIKE ${push(`%${rol.trim()}%`)}`);
+  const rol = containsPattern(sp, 'rol');
+  if (rol) conds.push(`rol ILIKE ${push(rol)}`);
 
   return { where: conds.join(' AND '), params };
 }
