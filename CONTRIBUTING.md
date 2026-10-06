@@ -54,6 +54,7 @@ npm run data:build
 | `npm run dev` | Dev server en `localhost:3000` |
 | `npm run lint` | ESLint (corre también en CI en cada PR) |
 | `npm run typecheck` | TypeScript strict check (`tsc --noEmit`, también en CI) |
+| `npm test` | Tests unitarios con Vitest (también en CI) |
 | `npm run build` | Build de producción |
 | `npm run data:build:protected` | Regenera `public/data/areas-protegidas.geojson` |
 | `npm run data:build:urban` | Regenera `public/data/limite-urbano.geojson` |
@@ -93,9 +94,9 @@ resumen:
    pequeño.
 5. **Mejoras de accesibilidad**: el panel de capas y el `InfoPanel` aún tienen
    aria-labels pendientes.
-6. **Tests**: no hay framework configurado (ver [AGENTS.md § Commands]).
-   Si añades uno (sugerido: Vitest + Testing Library), empieza por los filtros
-   (`src/lib/filters.ts`) y el sanitizador de inputs.
+6. **Tests**: hay Vitest para la lógica pura (`npm test`, archivos
+   `*.test.ts` junto al módulo). Falta cobertura de componentes (Testing
+   Library) y de los hooks de capas del mapa.
 
 ## Reglas duras (HARD RULES)
 

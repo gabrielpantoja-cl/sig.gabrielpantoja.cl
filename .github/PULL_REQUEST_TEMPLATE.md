@@ -29,6 +29,7 @@ configuración de seguridad, marcalo explícitamente abajo. -->
 ## ¿Cómo se prueba?
 
 - [ ] `npm run lint` corre limpio localmente
+- [ ] `npm test` pasa
 - [ ] Probado en `localhost:3000` con `npm run dev`
 - Capturas / GIF / link a un deploy preview si aplica
 
