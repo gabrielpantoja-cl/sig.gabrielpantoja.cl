@@ -1,6 +1,6 @@
 # Fuentes GIS oficiales de Chile para este proyecto
 
-> Documento vivo. Última actualización: 2026-09-07.
+> Documento vivo. Última actualización: 2026-10-05.
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
 > públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
@@ -13,6 +13,10 @@ geoespacial del Estado de Chile, evaluadas para el SIG de suelo. Prioriza
 siempre el **organismo productor** del dato (regla 1 de la receta en
 `arquitectura-capas.md`); los espejos solo si la fuente primaria es inviable.
 
+> **Alcance:** es un índice técnico, no una autorización de redistribución.
+> Que un servicio sea consultable no implica permiso para republicar sus
+> datos: revisar licencia, metadatos y términos de cada organismo.
+
 ## Fuentes ya usadas (verificadas en producción)
 
 | Organismo | Qué sirve | Acceso | Usada en |
@@ -24,6 +28,11 @@ siempre el **organismo productor** del dato (regla 1 de la receta en
 | **DGA** (MOP) — ArcGIS REST `services3.arcgis.com/aSoEm9TBK2shtWjP` | Red hidrográfica nacional: ríos + esteros con nombre oficial BNA + jerarquía de cuencas | FeatureServer `Ríos` + `Esteros` (paginado `resultRecordCount=1000`). La Mapoteca Digital HTML (`dga.mop.gob.cl/.../mapoteca`) está caída (404) desde 2026-07 — el REST es la única vía estable | Capa red de drenaje |
 | **Ministerio de Energía — IDE Energía** (geometría CEN) | Líneas de transmisión: nombre, tramo, circuito, tensión, estado, propietario y fechas | ArcGIS REST `Visor_IDE_Energía/MapServer/10`, `f=geojson`, `outSR=4326`, paginado 1.000/request. 1.128 registros fuente al 2026-03-01; uno sin coordenadas se excluye | Capa líneas de transmisión eléctrica |
 | **CIREN** — esri.ciren.cl | Estudios Agrológicos: Capacidad de Uso de los Suelos (clases I–VIII), 12 regiones (Atacama–Aysén, vintages 2010–2024) | ArcGIS REST moderno (10.91: `f=geojson`, paginación, export, identify). Dataset >500 MB → se consume en vivo (capa dinámica) | Capa suelos agrológicos |
+| **CIREN-ODEPA** vía IDE Minagri | Catastro frutícola: polígonos de productores por especie, ROL y códigos SUBDERE (sin variedad, superficie ni riego: eso es producto comercial de CIREN) | ArcGIS REST `IDEMINAGRI/CATASTRO_FRUTICOLA`, 14 sublayers regionales | Capa catastro frutícola |
+| **CIREN** vía IDE Minagri | Propiedades rurales: polígonos prediales por región, campo `rol` («Rol SII del predio») y `desccomu` | `esri.ciren.cl/server/rest/services/IDEMINAGRI/PROPIEDADES_RURALES/MapServer` — export por viewport + `identify`/`query` acotados. Público sin autenticación, pero eso no autoriza republicar un GeoJSON completo | Capa propiedades rurales (dinámica) |
+| **CONAF** vía IDE Minagri / SIT CONAF | Catastro de recursos vegetacionales: uso, subuso, estructura, cobertura, especies dominantes (vintages regionales 2014–2024) | ArcGIS MapServer, export por viewport + `identify` | Capa recursos vegetacionales (dinámica) |
+| **WorldClim 2.1** | Climatología 1970–2000 a 2,5′ (BIO1 temperatura media, BIO12 precipitación anual), CC BY 4.0 | Paquete oficial `wc2.1_2.5m_bio.zip` (628 MiB), recortado en el ETL | Capa bioclima (PNG estático) |
+| **Copernicus Sentinel-2 L2A** vía Element 84 Earth Search / AWS Open Data | Reflectancia de superficie 10 m como COG, catálogo STAC `sentinel-2-l2a` | Range requests HTTP a `sentinel-cogs`, solo la ventana consultada | NDVI Visual (por viewport) y serie mensual NDVI (`/api/ndvi/serie`) |
 
 ### Energía: transmisión no equivale a servidumbre
 
@@ -87,6 +96,19 @@ El MOP publica el mismo dato vial por varios canales; en orden de utilidad:
 | **SMA** — ideserver.sma.gob.cl | Espejos de capas de otros organismos (incl. Red Vial MOP, layer 10) + fiscalización ambiental | Espejo útil si el productor está caído (documentar el porqué si se usa) |
 | **SHOA** | Línea de costa oficial, cartas náuticas, áreas de inundación por tsunami | Borde costero para predios con orilla de mar/lago |
 | **plataformadedatos.cl** (MINCIENCIA/CEDEUS) | Agregador académico-estatal de datasets georreferenciados | Alternativa de descarga cuando geoportal.cl falla |
+| **IDE Minagri** (CIREN-MINAGRI) | Catálogo de capas SHP + API REST (`ideminagriapi.ciren.cl`) | Punto de partida para cualquier capa agrícola/forestal. La API `valida-rol-comuna` es la vía pública de CIREN para validar ROL rurales |
+| **CIREN** — Inventario Nacional de Erosión | GeoNode `inventarioerosion.ciren.cl`, erosión actual y potencial | Cobertura O'Higgins → Los Lagos, WFS público. Roadmap § 2.1 |
+| **CIREN** — Hub Catastro Frutícola | `catastro-fruticola-inicio-esri-ciren.hub.arcgis.com` | Visor público; el shapefile empaquetado es de pago |
+| **SIMEF** (Minagri-INFOR-CONAF) | Monitoreo de ecosistemas forestales nativos, uso y cambio de uso, incendios | `simef.minagri.gob.cl`; datos al 31/12/2025 |
+| **DGA / SNIA** | Catastro Público de Aguas (12 registros) y observatorio de glaciares | Glaciares como vector; derechos de agua solo por expediente. Roadmap § 2.2 |
+| **ODEPA** | Biblioteca Digital (infraestructura frutícola 1999–2025, agroindustria 2017–2019, XLSX) y reportes interactivos | Tablas de enriquecimiento, no capas |
+| **MMA — ARClim** | Atlas de riesgos climáticos | `arclim.mma.gob.cl` |
+| **SUBPESCA** | Concesiones acuícolas y áreas de manejo | Predios con borde costero o lacustre |
+| **Dirección Meteorológica de Chile** | Climatología y observaciones | `meteochile.gob.cl` |
+| **NASA FIRMS** | Focos de incendio casi en tiempo real (VIIRS/MODIS) | Roadmap § 5.3a |
+| **Ministerio de las Culturas** | Patrimonio cultural y territorial | IDE Patrimonio, `idepat.patrimoniocultural.gob.cl` |
+| **BCN** | Límites administrativos y datos territoriales | Alternativa a DPA para series históricas |
+| **GBIF** | Registros abiertos de biodiversidad (`api.gbif.org/v1`) | Roadmap Fase 6 |
 
 ## Hallazgo transversal: los servidores GIS estatales son frágiles bajo ráfagas
 
@@ -104,6 +126,20 @@ requests simultáneos** (descarga única cacheada para ETL; imagen única por
 viewport para capas dinámicas) y reintentar con backoff largo (minutos, no
 segundos).
 
+## Patrón técnico: consultar un servicio ArcGIS REST
+
+Cuando los términos lo permitan, un FeatureServer o MapServer se consulta con
+`query`, pidiendo solo los campos necesarios:
+
+```text
+GET <servicio>/<capa>/query?where=1=1&outFields=<campos>&returnGeometry=true&f=geojson
+```
+
+En descargas grandes: paginación, timeout, reintentos con backoff y control de
+`exceededTransferLimit`. Registrar fuente, URL exacta, fecha, CRS, campos,
+conteo y transformaciones en el `*.meta.json`. Los crudos quedan fuera de Git,
+en `scripts/.cache/`.
+
 ## Reglas al incorporar cualquiera de estas fuentes
 
 1. Verificar **licencia/condiciones** y citar al organismo en el popup, el
@@ -114,3 +150,7 @@ segundos).
    para uso normativo se remite a la fuente.
 4. Nada de PII (Ley 19.628): los datos de propietarios (RUT, nombres) nunca
    entran, aunque la fuente los exponga.
+5. Dato público no es licencia de redistribución: publicar solo los datos y
+   atributos que los términos de la fuente permiten.
+6. Las capas referenciales no sustituyen planos oficiales, certificados ni
+   informes profesionales.

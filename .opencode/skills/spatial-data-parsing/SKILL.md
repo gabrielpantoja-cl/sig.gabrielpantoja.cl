@@ -18,7 +18,7 @@ metadata:
 ## Hard limits (already in `src/lib/kml.ts`)
 - **File size**: `KML_MAX_FILE_MB = 15`. Brazilian common-land-parcel KMLs are usually <2 MB; 15 MB is a defensive upper bound.
 - **Feature count**: `KML_MAX_FEATURES = 5000` per parse. Above this we reject with an explicit message rather than OOM-ing the browser.
-- **Bounding-box inflation**: when feeding `bounds.pad(0.02)` style logic (Gemini report § 2.3), extends bounds 2% of view size in each direction so thick lines / circles don't get clipped at the tile boundary.
+- **Bounding-box inflation**: when feeding `bounds.pad(0.02)` style logic, extends bounds 2% of view size in each direction so thick lines / circles don't get clipped at the tile boundary.
 
 ## Canonical KML processing pipeline (today)
 
@@ -85,14 +85,14 @@ export const kmlDisplayName = (layer: KmlLayer): string =>
 
 Always use `kmlDisplayName(layer)` for user-facing display — never raw `layer.name` or `layer.displayName`. This prevents the rename UI from being silently clobbered when the user types only whitespace.
 
-## Web Worker migration roadmap (Gemini § 2.4)
+## Web Worker migration roadmap
 
 Today the parser runs synchronously on the main thread via `DOMParser` + `@tmcw/togeojson`. With ~5 MB KML and the feature cap, latency is ~200–500 ms (acceptable).
 
 **Migration trigger**: only when a parse takes >1 s OR the user reports a freeze on real-world KML. Premature worker-ification adds 50–200 ms of `postMessage` overhead with no win.
 
 **Path**:
-1. **Replace `DOMParser` with `@xmldom/xmldom`** inside the worker. `DOMParser` is NOT available in `WorkerGlobalScope` (Gemini § 2.4).
+1. **Replace `DOMParser` with `@xmldom/xmldom`** inside the worker. `DOMParser` is NOT available in `WorkerGlobalScope`.
 2. **Initialize the worker**:
 
 ```ts

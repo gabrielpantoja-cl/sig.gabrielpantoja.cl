@@ -1,6 +1,6 @@
 # Roadmap del SIG de suelo — `sig.gabrielpantoja.cl`
 
-> Documento vivo. Última actualización: 2026-09-07.
+> Documento vivo. Última actualización: 2026-10-05.
 > Próxima revisión sugerida: trimestral o cuando se cierre una fase.
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
@@ -21,9 +21,9 @@ restricciones tiene y cuánto paga el mercado por predios comparables. Tres dire
 2. **Restricciones del predio**: derechos de agua, áreas protegidas, zonas de riesgo,
    erosión, bosque nativo, planes reguladores.
 3. **Inteligencia de mercado**: comparador de transacciones, estadísticas con cuartiles
-   (no solo promedio), series de tiempo, exportación a DXF. — *Primer entregable en
-   producción: el mapa de calor de valor ($/m² por hexágono, `/api/hexbins`). Plan y
-   fases pendientes en [`plan-mapa-de-calor.md`](./plan-mapa-de-calor.md).*
+   (no solo promedio), series de tiempo, exportación a DXF. — *En producción: el
+   mapa de calor de valor ($/m², `/api/hexbins`); fases pendientes en
+   [`plan-mapa-de-calor.md`](./plan-mapa-de-calor.md).*
 
 ### Para ecoinformáticos / investigadores en conservación:
 Acceder a capas de **biodiversidad, hidrología, vegetación y clima** con series temporales
@@ -40,37 +40,41 @@ Cuatro direcciones:
 (paneles flotantes, capas estáticas + dinámicas, atribución obligatoria, selectors de
 rango temporal para series).
 
-## Estado actual (al 2026-09-03)
+## Estado actual (al 2026-10-05)
 
-**Trece capas en producción**, en el orden en que las lista el panel
-(`docs/arquitectura-capas.md`):
+**Catorce capas en producción** (detalle técnico en
+[`arquitectura-capas.md`](./arquitectura-capas.md)):
 
 | # | Capa | Tipo | Peso |
 |---|---|---|---|
 | 1 | Transacciones CBR (~85k puntos) | Dinámica (Neon vía `/api/points`) | 21 MB en el cable |
 | 2 | Mapa de calor de valor ($/m²) | Derivada (PostGIS `ST_HexagonGrid` + interpolación) | — |
 | 3 | Propiedades rurales (CIREN) | Dinámica remota (PNG por viewport + `identify`) | — |
-| 4 | Áreas protegidas (RNAP) | Estática | 5,8 MB |
+| 4 | Áreas protegidas (RNAP) | Estática | 6,0 MB |
 | 5 | Límite urbano (PRC) | Estática | 0,9 MB |
-| 6 | Límites comunales (DPA) | Estática | 2,7 MB |
-| 7 | Red caminera (MOP) | Estática | 5,9 MB |
-| 8 | Red de drenaje (DGA) | Estática | 13,3 MB |
-| 9 | Catastro frutícola (CIREN) | Estática | 30,1 MB |
-| 10 | Líneas de transmisión eléctrica | Estática | 3,0 MB |
+| 6 | Límites comunales (DPA) | Estática | 2,8 MB |
+| 7 | Red caminera (MOP) | Estática | 6,2 MB |
+| 8 | Red de drenaje (DGA) | Estática | 13,9 MB |
+| 9 | Catastro frutícola (CIREN) | Estática | 31,5 MB |
+| 10 | Líneas de transmisión eléctrica | Estática | 3,1 MB |
 | 11 | Recursos vegetacionales (CONAF) | Dinámica remota (PNG por viewport + `identify`) | — |
 | 12 | Suelos agrológicos (CIREN) | Dinámica remota (PNG por viewport + `identify`) | — |
-| 13 | **Bioclima (WorldClim)** | **Estática, PNG reproyectado** | **75 KB** |
+| 13 | Bioclima (WorldClim) | Estática, PNG reproyectado | 75 KB |
+| 14 | NDVI Visual (Sentinel-2) | Dinámica remota (PNG compuesto en el servidor por viewport) | — |
 
-Más las capas KML que sube el propio usuario, que se procesan en el navegador
-y nunca salen del dispositivo (`src/lib/kml.ts`).
+Además:
 
-`public/data/` pesa hoy **62 MB**, de los cuales el catastro frutícola es la
-mitad. Eso es lo que empuja la «Migración de almacenamiento» de más abajo.
-Bioclima es la excepción deliberada: 75 KB entre sus dos imágenes, porque un
-raster recortado y pintado ocupa mucho menos que el vector equivalente.
+- **Serie mensual de NDVI** (`/api/ndvi/serie`): 36 meses de mediana, P25/P75 y
+  fracción descartada para un punto o un polígono de hasta 3 km de lado.
+- **Capas KML del usuario**, procesadas en el navegador; nunca salen del
+  dispositivo (`src/lib/kml.ts`).
+- **Panel de capas** `LayerSidebar` (dock en escritorio, drawer en mobile, con
+  buscador y grupos) e inspector «Capas activas» con opacidad por capa.
+- **Selector de mapa base** (cinco fondos), **export PNG** con cajetín y
+  **analítica interna sin cookies**.
 
-Backlog de fuentes no integradas — ya inventariado en
-`docs/fuentes-gis-chile.md:42-53` y ampliado con este roadmap.
+`public/data/` pesa **62 MB**, la mitad del catastro frutícola: es lo que
+empuja la «Migración de almacenamiento» de más abajo.
 
 ## Criterios de priorización
 
@@ -97,69 +101,20 @@ Reglas duras (heredadas de AGENTS.md y `arquitectura-capas.md`):
 
 ## Fase 1 — Fundamentos rurales (Q2/Q3 2026)
 
-### 1.1 Catastro Frutícola CIREN-ODEPA ⭐ **prioridad del usuario**
+### 1.1 Catastro Frutícola CIREN-ODEPA — ✅ en producción (2026-07-16)
 
-- **Fuente**: CIREN-Catastro Frutícola, levantado anualmente en regiones
-  rotativas con apoyo de ODEPA. Última noticia (2026-07): inicio en
-  Coquimbo y O'Higgins.
-- **Encontrado en**:
-  - Catálogo de capas SHP de IDE Minagri:
-    <https://ide.minagri.gob.cl/descarga-de-capas-shp/>
-    (categoría *"Agricultura y ganadería"*).
-  - Hub ArcGIS público del proyecto:
-    <https://catastro-fruticola-inicio-esri-ciren.hub.arcgis.com/>
-  - Página CIREN: <https://www.ciren.cl/productos/directorio-fruticola/>
-  - Página ODEPA: <https://www.odepa.gob.cl/estadisticas-del-sector/catastros-fruticolas>
-    (con sistema interactivo y base de infraestructura frutícola
-    descargable desde `bibliotecadigital.odepa.gob.cl`).
-- **Qué agrega**: huertos por especie (uva, palto, cerezo, manzano,
-  nogal, etc.) con superficie, variedad, edad, método de riego y
-  georreferenciación a nivel de potrero/predio. Aclara qué se está
-  vendiendo en las transacciones CBR rurales — pivote entre "monto" y
-  "uso real del suelo".
-- **Tipo de capa esperada**: **estática** (GeoJSON regional por ETL) +
-  cruzada en el cliente con los puntos CBR por `rol`/`comuna`.
-- **Esfuerzo**: **M** — verificar disponibilidad real (la página
-  CIREN dice *"Cotizar producto"*; IDE Minagri podría tener un
-  extracto libre). Si el shapefile no se puede bajar en masa, evaluar
-  el endpoint `FeatureServer` del Hub ArcGIS (la página carga
-  lazy, hay que validar endpoints al implementar).
-- **Riesgos / decisiones**:
-  - License: confirmar que la versión descargable de IDE Minagri es
-    libre (CIREN vende el *"vectorial empaquetado"* como producto, pero
-    el hub.catastrofruticola parece ser visor público).
-  - Vintage irregular por región (Coquimbo se está catastrando ahora;
-    la Metropolitana probablemente esté más antigua). Documentar en
-    `meta.json` el campo `region_vintage` por feature o un aviso
-    general en el panel.
-  - Los ROL del catastro frutícola pueden no coincidir con los del CBR
-    por desfase CIREN↔SII (la propia API de validación de CIREN lo
-    advierte: <https://ideminagriapi.ciren.cl/>). Documentar.
+Estático desde IDE Minagri (`IDEMINAGRI/CATASTRO_FRUTICOLA`, ~95k productores).
+El servicio público solo trae especie, ROL y comuna: variedad, superficie, riego
+y fecha de plantación son producto comercial de CIREN. El año que se muestra es
+el del **levantamiento regional**, nunca el de plantación.
 
-### 1.2 Predios rurales (deslindes vectoriales CIREN, derivados SII)
+### 1.2 Propiedades rurales CIREN — ✅ en producción (2026-08-28)
 
-- **Fuente**: CIREN "Propiedades Rurales Vectoriales", derivado de las
-  divisiones prediales remitidas por el SII.
-  <https://www.ciren.cl/productos/propiedades-rurales/>
-- **Qué agrega**: la geometría del polígono del predio rural, lo que
-  abre la puerta a un **análisis espacial real** (overlay con
-  Catastro Frutícola, intersect con DGA, área afecta a plan regulador).
-- **Tipo de capa esperada**: **estática** con cuidadosa simplificación
-  (los deslindes se miran a zoom alto).
-- **Esfuerzo**: **L** — el producto base es de pago ("Cotizar producto"
-  en la página), pero el **`validador-rol-comuna`** público de IDE
-  Minagri (<https://ideminagriapi.ciren.cl/>) confirma que existe un
-  dataset nacional de predios rurales por ROL/comuna. Hay que negociar
-  o identificar el canal de descarga. Si no se obtiene la geometría
-  completa, al menos exponer el `rol-comuna → [lat,lng]` del endpoint
-  público como **click-through** sobre los puntos CBR.
-- **Riesgos / decisiones**:
-  - Licencia: evaluar si conviene el *Informe Predial* de pago o
-    gestionar un convenio de acceso con CIREN.
-  - En realidad la opción B es un derivado público pero con valor
-    agregado de CIREN — no replicable. La **API de validación de ROL
-    pública es el camino recto**: integrar como servicio de autocompletar
-    el campo `rol` y como link-out en el popup del punto CBR.
+Capa dinámica remota (`IDEMINAGRI/PROPIEDADES_RURALES`, 14 sublayers
+regionales) con búsqueda exacta por ROL + comuna y descarga de la geometría solo
+del resultado elegido. Polígonos y ROL referenciales: no acreditan dominio,
+deslindes ni vigencia registral. Se descartó traer la geometría a `public/data/`:
+consultable no significa redistribuible.
 
 ### 1.3 Búsqueda mejorada por ROL/predio (usando la API pública CIREN)
 
@@ -178,14 +133,15 @@ Reglas duras (heredadas de AGENTS.md y `arquitectura-capas.md`):
   handler 24 h por `(rol, comuna)`); cablear en `GeocoderSearch.tsx`.
 - **Riesgos**: CIREN no garantiza SLA; usar cache LRU en servidor y
   fallback silencioso al modo actual si el endpoint está caído.
+- **Nota (2026-10)**: la búsqueda por ROL contra la capa de propiedades rurales
+  ya existe (§ 1.2); lo que falta es validar en vivo el ROL de los puntos CBR.
 
 ### 1.4 Carta topográfica IGM 1:50.000 (vía MOP rest-sit) — 🟢 **aprobada, en cola**
 
 > **Documentada y priorizada el 2026-09-07. Aún NO implementada.** El servicio
 > se sondeó y verificó en vivo. **Decisión tomada**: entra como *capa temática
-> con opacidad ajustable*, y **va después** de «opacidad por capa» del backlog
-> de UX, que es su prerrequisito duro (la carta trae relleno propio y tapa el
-> mapa base entero).
+> con opacidad ajustable*. Su prerrequisito duro, la opacidad por capa, **ya
+> está hecho** (2026-09-07): la capa está desbloqueada.
 
 - **Fuente**: `https://rest-sit.mop.gob.cl/arcgis/rest/services/MAPA_BASE/IGM50/MapServer`
   — MapServer publicado por IDEMOP (MOP) con la cartografía regular del
@@ -338,10 +294,10 @@ decidirlas juntas:
 
 ### 2.2 Derechos de aprovechamiento de aguas (DGA) — 🔍 INVESTIGACIÓN
 
-> **Status: 2026-08-28** — Se inició investigación de fuentes WFS públicas.
-> Ver `scripts/build-derechos-agua.mjs` para la estrategia: Fase 1 mapeará
-> **contexto hídrico** (glaciares SNIA + cuencas), dejando derechos
-> individuales como link-outs.
+> **Status: 2026-10-05** — La **red de drenaje DGA** (ríos + esteros, ~35,5k
+> tramos) ya está en producción. Sigue en investigación el resto del contexto
+> hídrico (glaciares SNIA, cuencas como polígono); `scripts/build-derechos-agua.mjs`
+> es todavía un stub. Los derechos individuales quedan como link-outs.
 
 - **Fuente**: Catastro Público de Aguas, 12 registros públicos
   disponibles en <https://dga.mop.gob.cl/servicios-de-informacion/catastro-publico-de-aguas/>,
@@ -397,24 +353,11 @@ decidirlas juntas:
   via API pública si la hay.
 - **Esfuerzo**: **S-M**.
 
-### 3.2 CONAF — Catastro vegetacional / uso de suelo
+### 3.2 CONAF — Catastro vegetacional — ✅ en producción (2026-08-22)
 
-- **Fuente**: CONAF (<https://www.conaf.cl/regulacion/informacion-geografica-o-territorial/catastro-vegetacional/>)
-  + Simef (SIMEF — monitoreo de ecosistemas forestales nativos,
-  <https://simef.minagri.gob.cl/>). Simef publica Reportes Estadísticos
-  con *"Uso de la Tierra, Cambio de Uso de la Tierra, Incendios
-  Forestales"* (última carga 31/12/2025).
-- **Qué agrega**:
-  - **Para tasación**: clasificación de uso de suelo (bosque nativo, plantaciones,
-    matorral, praderas, etc.) y contexto ecológico/incendios.
-  - **Para ecoinformática**: CENTRAL para análisis de ecosistemas, fragmentación,
-    pérdida de hábitat, cambios de cobertura temporal, y nichos de biodiversidad.
-    CONAF + Simef juntos permiten series temporales de cambio de uso.
-- **Tipo**: **dinámica remota**, implementada mediante PNG por viewport y
-  consulta puntual `identify` al servicio oficial.
-- **Esfuerzo**: **M**.
-- **Potencial futuro**: integrar índices derivados (NDVI histórico desde MODIS
-  para 2000–presente) como capa paralela para análisis de tendencias más finas.
+Capa dinámica remota (PNG por viewport + `identify` de uso, subuso, estructura,
+cobertura y especies dominantes), con vintages regionales 2014–2024 a la vista.
+Pendiente: series de cambio de uso desde SIMEF (<https://simef.minagri.gob.cl/>).
 
 ### 3.3 SHOA — Línea de costa oficial
 
@@ -471,156 +414,56 @@ decidirlas juntas:
 Todas las capas de esta fase agregan valor a los dos públicos: contexto ambiental
 para la tasación rural, y base de análisis para la ecoinformática.
 
-> **Progreso: 1 de 5.** § 5.1 (Bioclima) está en producción desde el
-> 2026-09-03. El siguiente objetivo es § 5.2 (NDVI), que es el salto
-> cualitativo de la fase: introduce la **serie temporal**, algo que ninguna capa
-> del SIG tiene hoy —todas son de una sola fecha— y que obliga a resolver un
-> selector de tiempo en la UI y una estrategia de ingesta de 20 años de datos.
+> **Progreso: 2 de 5.** Bioclima (§ 5.1) y NDVI (§ 5.2) están en producción.
+> El siguiente candidato es § 5.3a (incendios), que reutiliza la serie temporal
+> de NDVI para leer la recuperación post-fuego.
 >
-> **Lo aprendido en 5.1 que aplica al resto de la fase:**
-> 1. Un raster recortado y pintado en el ETL pesa muy poco (75 KB para todo
->    Chile a 2.5′). Antes de montar un servicio por viewport, calcular cuánto
->    pesa realmente el recorte: el patrón remoto existe para datasets que no
->    caben, no por defecto.
-> 2. Todo raster que se sirva como `L.ImageOverlay` debe ir **reproyectado a
->    Web Mercator**, o queda corrido en latitud. Esto vale para NDVI, para las
->    proyecciones CMIP6 y para cualquier GeoTIFF que entre después.
-> 3. Verificar una capa raster contra una **costa o frontera concreta**, nunca
->    contra la impresión de que el patrón «se ve razonable».
+> **Lecciones de 5.1 y 5.2 que aplican al resto de la fase:**
+> 1. Antes de montar un servicio por viewport, calcular cuánto pesa el recorte:
+>    un raster pintado en el ETL puede pesar 75 KB para todo Chile.
+> 2. Todo raster servido como `L.ImageOverlay` va **reproyectado a Web
+>    Mercator**, o queda corrido en latitud (bioclima salió 287 km al sur).
+> 3. Verificar contra una **costa o frontera concreta**; una isla es el mejor
+>    testigo. «Se ve razonable» no detecta desfases que son cero en los bordes.
+> 4. Nunca confiar en las banderas de metadatos de una fuente satelital sin
+>    medirlas (el offset BOA de Sentinel-2 venía mal declarado en ~4 % de escenas).
 
-### 5.1 Bioclima (WorldClim 2.1) — ✅ **EN PRODUCCIÓN**
+### 5.1 Bioclima (WorldClim 2.1) — ✅ en producción (2026-09-03)
 
-> **Cerrado el 2026-09-03.** La capa se dibuja, se puede alternar entre
-> temperatura y precipitación, y quedó verificada en el navegador. Queda
-> pendiente solo la consulta puntual (ver «Lo que falta» abajo).
->
-> **La decisión de diseño que importa**: recortado a Chile el raster mide
-> 224 × 924 px —**50 KB temperatura, 25 KB precipitación**—, así que NO se
-> siguió el patrón de suelos CIREN de renderizar un PNG por viewport. El ETL
-> pinta las dos imágenes una vez y el mapa las cuelga como `L.ImageOverlay`
-> estático. Sin route handler, sin refresco en `moveend`, sin dependencia de
-> terceros en runtime y cacheable por el navegador. El patrón por viewport
-> existe para datasets de 500 MB en servidores ajenos; aplicarlo aquí habría
-> sido complejidad sin beneficio.
-
-- **Fuente**: WorldClim 2.1 (<https://www.worldclim.org/data/worldclim21.html>),
-  climatología **1970-2000**, 2.5 min de arco (≈4,6 km en el ecuador). Descarga
-  directa verificada: `https://geodata.ucdavis.edu/climate/worldclim/2_1/base/wc2.1_2.5m_bio.zip`.
-- **Qué agrega**:
-  - **Para tasación**: contexto climático del predio (precipitación anual,
-    temperatura media) como referencia de capacidad productiva.
-  - **Para ecoinformática**: base de cualquier análisis de nichos ecológicos,
-    áreas de aptitud y refugia climática; entrada obligatoria para modelar
-    distribuciones de especies.
-- **Tipo**: **raster estático** recortado a Chile, servido como `L.ImageOverlay`.
-
-**Hecho:**
-
-- [x] ETL `scripts/build-bioclima.mjs`: descarga el paquete oficial
-      (`wc2.1_2.5m_bio.zip`, 628 MiB), extrae solo BIO1 y BIO12 de las 19,
-      recorta la ventana de Chile del GeoTIFF global (8640 × 4320) con
-      `geotiff`, pinta el PNG con `pngjs` y emite el manifiesto.
-- [x] **Escala de color en un solo archivo** (`src/lib/bioclima-ramp.json`), que
-      leen tanto el ETL —para pintar— como la leyenda del panel. Es lo que
-      garantiza que leyenda y mapa no puedan desalinearse: con copias separadas
-      se separarían en silencio, sin que nada fallara de forma visible.
-- [x] **Bounds derivados del recorte real**, no de los grados pedidos. El ETL
-      redondea a píxel y publica los bounds efectivos en el manifiesto; el mapa
-      los lee de ahí. Usar los grados nominales habría corrido la imagen hasta
-      medio píxel.
-- [x] **PNG reproyectado a Web Mercator** (corregido el 2026-09-03 tras un bug
-      en producción). El GeoTIFF tiene las filas equiespaciadas en GRADOS de
-      latitud, pero `L.ImageOverlay` estira la imagen linealmente en la
-      proyección del mapa, que es Mercator y comprime la latitud de forma no
-      lineal. Escribir el PNG en grados dejaba la capa corrida **hasta 287 km
-      hacia el sur** en el centro del país: sobre Chiloé caía el píxel de ~2,4°
-      más al norte —a esa longitud, océano abierto— y la isla se veía sin datos.
-      Ahora las filas van equiespaciadas en Y de Mercator, y el alto se
-      dimensiona por la latitud más fina del recorte para no perder filas
-      (224×924 → 224×1148).
-      **Lección para cualquier capa raster futura**: el desfase es cero en los
-      dos extremos del recorte y máximo en el medio, así que NO se detecta
-      mirando si el patrón «se ve plausible». Hay que verificar contra una costa
-      o frontera concreta —una isla es el mejor testigo—. Este bug sobrevivió a
-      una verificación visual previa justamente por eso.
-- [x] **Océano transparente**: el TIFF marca el mar como `NaN` o con un centinela
-      muy negativo según cómo se escribió; ambos casos se descartan, o el mar se
-      habría pintado con el color del tramo más frío.
-- [x] `L.ImageOverlay` montado en `MapView`, al fondo del apilado (es una
-      superficie continua: sobre cualquier otra capa la taparía entera).
-- [x] `LayersControl`: fila, selector de variable y leyenda; estados en `page.tsx`.
-- [x] **Verificado en el navegador**, y no solo que el `<img>` cargara: en
-      precipitación se ve el contraste húmedo/árido cruzando los Andes (sombra
-      de lluvia) y en temperatura la franja fría siguiendo la cordillera. Los
-      rangos observados son los correctos para Chile —0 a 6.733 mm y −12 a
-      20,7 °C—, lo que confirma que la georreferenciación es real.
-- [x] **Diagnóstico en producción (2026-09-03, build `f7ac4e9`)**: los PNG se
-      sirven (200, 25 y 51 KB); el overlay monta con 127.852 píxeles con dato y
-      79.124 transparentes (el océano); queda como primer hijo del `overlay-pane`
-      —o sea al fondo— con las áreas protegidas legibles encima; alternar
-      variable de ida y vuelta deja **un solo overlay en el DOM** (se reutiliza
-      con `setUrl`, no se acumulan capas) y no arroja errores de consola. La
-      prueba que cierra el círculo: los **7 colores presentes en el PNG coinciden
-      exactamente** con los 7 swatches de la leyenda, sin sobrantes en ninguna
-      dirección — es la comprobación empírica de que compartir
-      `bioclima-ramp.json` evita la desalineación, en vez de solo suponerlo.
+Temperatura media anual (BIO1) y precipitación anual (BIO12), climatología
+1970–2000 a 2,5′, como PNG estático recortado a Chile (75 KB entre ambas), con
+selector de variable, opacidad, leyenda y export PNG. Rampa compartida entre ETL
+y leyenda (`src/lib/bioclima-ramp.json`). Detalle de diseño en `AGENTS.md` y
+`arquitectura-capas.md`.
 
 **Lo que falta:**
 
 - [ ] **Consulta puntual**: clic → «1.240 mm/año · 11,3 °C». El PNG solo guarda
-      color, así que hace falta publicar además los valores crudos (Int16
-      recortado, ~400 KB por variable, o comprimido bastante menos) y cargarlos
-      de forma diferida al primer clic. Sin esto la capa se lee, pero no se
-      consulta.
-- [x] **Incluirla en el PNG exportado** (`map-export.ts`): captura en orden DOM,
-      opacidad efectiva (incluido cero), atribución y variable/período/resolución
-      en el cajetín. Implementado el 2026-09-07.
-- [x] **Opacidad ajustable**: valor inicial 0,6, control en la leyenda activa y
-      restablecimiento de valores originales (2026-09-07).
-- [x] **El selector de variable estaba escondido.** Corregido el 2026-09-07:
-      aparece en «Capas activas» al encender Bioclima, sin abrir su detalle.
-      Antecedente: detectado al diagnosticar
-      producción: el `<select>` solo existe en el DOM con el detalle de la capa
-      desplegado, así que quien enciende la capa ve precipitación y no tiene
-      señal de que puede cambiar a temperatura. Para una capa con leyenda sola
-      el colapso está bien; para una con control, esconde funcionalidad. Se
-      se resolvió integrando catálogo y lectura activa en un mismo inspector.
+      color; hace falta publicar los valores crudos (Int16 recortado, ~400 KB
+      por variable) y cargarlos al primer clic.
 - [ ] **En el sur, la precipitación se confunde con el mar.** Los tramos altos
-      de la rampa (2.000–3.000 y >3.000 mm) son azules, y el agua de
-      OpenStreetMap también: en Chiloé o Aysén cuesta separar isla de canal. No
-      es un error de dato —se verificó que la isla está pintada— sino de
-      legibilidad sobre ese mapa base. Salidas posibles: correr esos dos tramos
-      hacia el violeta/turquesa, o sugerir el mapa base «Neutro» al encender la
-      capa, que es el que ya se recomienda para el mapa de calor.
+      de la rampa son azules, como el agua de OpenStreetMap. Correr esos tramos
+      hacia violeta/turquesa, o sugerir el mapa base «Neutro» al encenderla.
 
-- **Riesgo asumido y documentado**: 2.5 min de arco es una superficie
-  **interpolada desde estaciones meteorológicas**, no una medición del predio.
-  La atribución del panel lo dice de forma explícita para que nadie la cite como
-  dato de sitio en un informe de tasación.
-- **Nota de almacenamiento**: los 73 MB de GeoTIFF globales quedan en
-  `.research/` (gitignored); al repositorio solo entran los dos PNG recortados,
-  75 KB entre ambos. Esta capa NO participa de la migración a bucket de Q4-2026.
+### 5.2 NDVI (Sentinel-2) — ✅ en producción (2026-09-17 / 2026-09-27)
 
-### 5.2 Índices de vegetación dinámicos (MODIS NDVI/EVI 2000–presente)
+Se hizo con **Sentinel-2 L2A a 10 m** (COG en AWS Open Data, catálogo STAC de
+Element 84) en vez del MODIS de 500 m previsto: a escala predial MODIS no sirve.
+Dos entregas:
 
-- **Fuente**: USGS LPDAAC (MODIS MOD13Q1 500 m, 16-day composites, 2000–presente,
-  descargable por tiles regionales vía `AppEEARS`).
-- **Qué agrega**:
-  - **Para tasación**: tendencia de productividad/cobertura del predio a lo largo
-    de 20 años; detección de estrés vegetacional (sequía, plagas).
-  - **Para ecoinformática**: CRÍTICO — NDVI es la señal más directa de salud del
-    ecosistema. Series temporales permiten: (a) detección de cambios de uso/degradación,
-    (b) ciclos de estrés climático (acoplamiento con SPI), (c) respuesta a incendios
-    (recuperación post-fuego), (d) comparación inter-anual de productividad.
-- **Tipo de capa esperada**: **dinámica con timeline** — raster servido por
-  `/api/ndvi/export?date=YYYY-MM-DD&bbox=...` que retorna PNG + stats, o
-  **PMTiles** (vector tiles binarios con range-request HTTP) si peso lo justifica.
-- **Esfuerzo**: **M** — descargar serie MODIS (tedioso pero uno-a-uno), preprocesar
-  (cloud mask, reproject EPSG:4326), agregar a temporal pyramid en PMTiles o
-  generar series de PNG mensuales, exponer UI con date picker.
-- **Riesgo**: MODIS es 500 m (resolución gruesa para predio individual); ofrecer
-  fallback a Sentinel-2 (10 m, 2015–presente) si peso lo permite, pero implica
-  replicar ETL.
+- **Serie mensual** (`/api/ndvi/serie`, 2026-09-17): 36 meses de mediana,
+  P25/P75 y fracción descartada para un punto o un polígono de hasta 3 km.
+  Máscara SCL + filtro de neblina (azul > 0,10) + compuesto de máximo valor
+  mensual; meses sin dato quedan como hueco, nunca interpolados.
+- **NDVI Visual** (`/api/ndvi/export`, 2026-09-27): PNG por viewport desde
+  zoom 10, escena más despejada por grilla MGRS, rampa compartida con la
+  leyenda (`src/lib/ndvi-ramp.json`).
+
+**Lo que falta:**
+
+- [ ] Selector de fecha en NDVI Visual (hoy: escenas de los últimos 45 días).
+- [ ] Serie larga 2000–presente con MODIS como contexto regional, si el uso
+      lo justifica (las cifras de analítica dirán si la serie se usa).
 
 ### 5.3 Eventos naturales: Incendios + Inundaciones
 
@@ -652,7 +495,7 @@ para la tasación rural, y base de análisis para la ecoinformática.
 
 ### 5.4 Corredores biológicos y fragmentación de hábitat (derivado)
 
-- **Fuente**: derivado de Áreas Protegidas (MMA, Fase 1) + Bosque Nativo (CONAF, Fase 3)
+- **Fuente**: derivado de Áreas Protegidas (MMA) + Recursos vegetacionales (CONAF, ya en producción)
   + DTM (GEBCO/SRTM para resistencia de elevación).
 - **Qué agrega**:
   - **Para tasación**: identifica si predio conecta ecosistemas protegidos (valor
@@ -698,32 +541,6 @@ y tienen lag de actualización. Propias de ecoinformática pura, no tanto de tas
 
 ---
 
-## Resumen de la fusión: De tasación rural a plataforma ecoinformática integrada
-
-**Antes (roadmap original, Fases 1–4):**
-- 100 % enfocado en tasación rural y mercado inmobiliario.
-- Capas económicas: CBR, Catastro Frutícola, suelos, derechos de agua.
-- Capas de restricción: áreas protegidas, red vial, erosión.
-
-**Después (con Fase 5–6):**
-- Tasación rural + Ecoinformática + Conservación en una sola plataforma.
-- Capas económicas: ídem (sin cambios).
-- Capas de contexto ambiental: erosión, CONAF vegetación, DGA hidrología, glaciares.
-- **Capas de ciencia ambiental (Fase 5): bioclima, NDVI series, incendios, fragmentación.**
-- **Capas de biodiversidad (Fase 6): distribuciones de especies, endemismos.**
-
-**Beneficiarios:**
-- Perito rural: ve restricciones + mercado + contexto en una vista.
-- Ecoinformático: ve series temporales, análisis de fragmentación, nichos, cambio climático.
-- Conservacionista: ve estado de hábitat, tendencias de degradación, corredores de conectividad.
-
-**Ganancia arquitectónica:**
-- Misma UX para todos (paneles, capas, leyendas, exportación).
-- Mismas rutas de API (remote layers via `/api/*/export`, `identify`).
-- Mismo versionado de datos (meta.json, atribución, vintage).
-- Reutilización de infraestructura: timeline de NDVI = timeline de MODIS = timeline de
-  incendios FIRMS.
-
 ## Backlog sin priorizar
 
 Ítems identificados en este recorrido que **no entran en las fases
@@ -750,37 +567,15 @@ anteriores** por ahora. Marcar con `[ ]` cuando se evalúe de nuevo.
       permanente para descubrir nuevas capas publicadas por
       ministerios no considerados en este roadmap.
 
-## Fase 0 — Higiene del repositorio público (pre-publish, jul-2026)
+## Migración de almacenamiento de GeoJSON (planeada Q4-2026)
 
-Antes de abrir el repo, saneamos lo siguiente:
-
-- [x] **Privacidad**: ningún endpoint expone PII bajo Ley 19.628
-      (`comprador, vendedor, rut, user_id, observaciones`). Reforzado en
-      `src/lib/security.ts` y en el SELECT explícito de cada route handler.
-- [x] **AI tooling**: AGENTS.md técnico, AGENTS.local.md (gitignored) con
-      el setup personal del operador. `opencode.json` commiteado con
-      `model` + `enabled_providers` del maintainer (sin credenciales — auth
-      del provider se hace por env var / Token Plan, no en el repo).
-- [x] **Documentación comunitaria**: CONTRIBUTING.md, CODE_OF_CONDUCT.md,
-      SECURITY.md, templates de issues y PR, dependabot, CI con
-      `npm run lint`.
-- [x] **Licencia**: MIT en código; tabla de licencias por capa en el README.
-- [ ] **Almacenamiento de GeoJSON**: hoy los 5 GeoJSON pre-construidos
-      (`public/data/*.geojson`, ~45 MB en total) viven commiteados al repo.
-      Bajo el umbral de aviso de GitHub (50 MB por archivo) y la lectura
-      funciona offline. **Migración planeada a bucket + CDN**: ver
-      sección siguiente.
-
-### Migración de almacenamiento de GeoJSON (planeada Q4-2026)
-
-**Hoy (temporal, para publicar)**: los GeoJSON están commiteados en
-`public/data/`. Cada `npm run data:build:<capa>` los regenera desde fuentes
+**Hoy**: los GeoJSON están commiteados en `public/data/` (62 MB). Cada `npm run data:build:<capa>` los regenera desde fuentes
 oficiales; los manifests `*.meta.json` van junto. La receta está en
 `docs/arquitectura-capas.md` y funciona, pero tiene tres problemas que nos
 empujan a migrar:
 
-1. **Tamaño del repo en GitHub**: hoy 45 MB totales. La capa Catastro
-   Frutícola pesa ~30 MB y podría crecer a 50–80 MB cuando CIREN libere el
+1. **Tamaño del repo en GitHub**: hoy 62 MB totales. La capa Catastro
+   Frutícola pesa ~31,5 MB y podría crecer a 50–80 MB cuando CIREN libere el
    próximo catastro. GitHub avisa desde los 50 MB por archivo y bloquea
    desde 100 MB. Si el repo gana tracción, clonar el árbol completo
    empieza a ser molesto.
@@ -836,20 +631,10 @@ que amplían el uso diario del perito:
 > [`auditoria-ux-2026-08.md`](./auditoria-ux-2026-08.md). Los ítems que
 > siguen incorporan sus conclusiones.
 
-### Bloqueante (de la auditoría 2026-08-28)
+### Export PNG (auditoría 2026-08-28)
 
-- [x] **P0 · El export a PNG está roto.** *Corregido el 2026-08-28.* Al
-      arreglar la llamada aparecieron dos fallos más encadenados que el
-      primero ocultaba (sprite del pin con XML inválido por un `replace` que
-      sustituía en vez de insertar, y `getVisibleParent()` devolviendo `null`
-      sin guard). Verificado end-to-end. Descripción original abajo: `drawCbrMarkers` llama
-      `cluster.getAllChildMarkers()` sobre el `MarkerClusterGroup`, método
-      que solo existe en `L.MarkerCluster`; el grupo expone `getLayers()`.
-      Los tipos de `@types/leaflet.markercluster` lo declaran igual, así que
-      `tsc` pasa en verde y el fallo aparece recién al pulsar el botón — que
-      además vuelve a su estado normal **sin mostrar error**. Arreglar la
-      llamada, informar el fallo en pantalla y cubrirlo con una prueba de
-      humo.
+- [x] **El export a PNG estaba roto** — corregido el 2026-08-28 (tres fallos
+      encadenados; detalle en `CHANGELOG.md`).
 - [ ] **Fidelidad del PNG**: las burbujas de clúster se exportan en azul plano
       mientras en pantalla se colorean por conteo (verde/amarillo/naranja).
 - [ ] **Prueba de humo del export**: tres bugs distintos convivieron en esa
@@ -865,11 +650,8 @@ que amplían el uso diario del perito:
       y en el PNG: el informe de tasación la cita.
 - [ ] **Medición** de distancias y superficies (m/km, m²/ha), fijable para
       que salga en el PNG exportado.
-- [x] **Opacidad por capa** — implementada el 2026-09-07 para suelos,
-      comunas (solo relleno), bioclima, vegetacional, propiedades rurales y
-      catastro frutícola (solo relleno). Controles en «Capas activas», con
-      restablecimiento; no reinician descargas ni reconstruyen capas. No se
-      modifica el alfa del mapa de calor, que codifica soporte de datos.
+- [x] **Opacidad por capa** — 2026-09-07, en «Capas activas». El alfa del
+      mapa de calor no se toca: codifica soporte de datos.
 - [ ] **Reordenar capas** (o al menos «traer al frente»): el apilado de
       `reorderOverlays()` es fijo.
 
@@ -880,15 +662,12 @@ que amplían el uso diario del perito:
       tarjeta en dos columnas de escritorio y dos pestañas en móvil; reutiliza
       el mismo catálogo de escalas, controles y atribuciones.
 - [x] **El mapa de calor muestra su leyenda por defecto** en «Capas activas»
-      (2026-09-07). Antecedente: un mapa de
-      calor sin escala de color no significa nada, y la que tiene —cortes de
-      cuantiles, n, opacidad como cobertura, descargo de «señal de mercado,
-      no tasación»— es buena y está escondida tras un chevron.
+      (2026-09-07).
 - [ ] **Señalar visualmente el n bajo**: con 2 celdas y 4 transacciones la
       superficie se dibuja igual de suave que con miles. Degradar el render
       o avisar sobre el mapa bajo cierto umbral.
 
-### Analítica y producto
+### Analítica
 
 - [x] **Sistema de Analítica y Telemetría Interna (Privacy-First)**: medir uso
       agregado, interacción con funciones (por ejemplo, consultas NDVI y
@@ -896,13 +675,10 @@ que amplían el uso diario del perito:
       independiente, sin cookies y sin dependencia de proveedores externos.
       Diseñar la recopilación y retención conforme a la Ley 19.628 y preparar
       el cumplimiento de la próxima Ley 21.719.
-      *Hecho 2026-10-04*: `POST /api/analytics` + `track()` por `sendBeacon`,
-      esquema aislado `analytics` con rol propio (`db/analytics.sql`), hash
-      diario de visitante sin guardar IP, ubicación país/región/ciudad,
-      DNT/GPC respetados, retención 13 meses. Eventos: página vista, tiempo
-      activo, tiempo de carga, capas encendidas, filtros (solo nombres),
-      geocoder, ROL, mapa base, exports, NDVI, KML. Reporte:
-      `npm run analytics:report`.
+      *Hecho 2026-10-04/05*: eventos del navegador por `sendBeacon` y acceso a
+      la API de datos registrado desde `src/proxy.ts`; esquema aislado con rol
+      propio, sin IP ni valores de filtros, retención 13 meses. Reporte:
+      `npm run analytics:report`. Diseño completo en `AGENTS.md`.
       *Pendiente*: panel web del reporte (hoy es CLI) y usar las cifras de
       `boot` para priorizar «Aligerar la carga».
 
@@ -919,13 +695,13 @@ que amplían el uso diario del perito:
       precisamente el que está oculto por CSS. Un lector de pantalla anuncia dos
       buscadores idénticos, y cualquier automatización que tome «el primero»
       toma el invisible.
-- [x] **Panel de capas como drawer inferior en mobile**, igual que el de
-      filtros: hoy tapa ~80 % de la pantalla.
-      *Done 2026-09-27*: `LayerSidebar.tsx` — 320 px in-flow dock on desktop,
-      fixed bottom drawer capped at `70vh` on mobile, plus a layer search bar
-      and category groups (`src/lib/layer-catalog.ts`).
+- [x] **Panel de capas como drawer inferior en mobile** — 2026-09-27,
+      `LayerSidebar.tsx` (dock de 320 px en escritorio, drawer de `70vh` en
+      mobile, con buscador y grupos).
 - [ ] **Repartir el borde inferior en mobile**: atribución, escala, chip de
       mapa base y FAB se superponen.
+
+### Producto y mercado
 
 - [ ] **Comparador de transacciones lado a lado**: cuando el usuario
       abre el popup de un CBR, permitir comparar hasta 3 transacciones
@@ -973,16 +749,16 @@ que amplían el uso diario del perito:
 
 ## Riesgos transversales (revisar al cerrar cada fase)
 
-1. **Frágilidad de servidores del Estado**. Ya documentado en
-   `fuentes-gis-chile.md:55-69` (CIREN y MOP colapsan). Aplicar la regla
+1. **Fragilidad de servidores del Estado**. Documentado en
+   `fuentes-gis-chile.md` § «Hallazgo transversal» (CIREN y MOP colapsan). Aplicar la regla
    *"1 sola request masiva cacheada, reintento con backoff largo"*.
 2. **Vintages desalineados**. Cada capa trae su propia fecha de corte;
    el SIG termina mezclando capas con hasta 5 años de desfase.
    Documentar siempre en `meta.json` y mostrar en el panel un tooltip
    "vintage: YYYY-MM".
 3. **Cobertura nacional incompleta**. CIREN-Suelos no cubre todo Chile;
-   la Catastro Frutícola tampoco. MODIS 500 m no detecta fragmentación fina;
-   Sentinel-2 lo hace pero pesa. Manejar ausencias como *primera
+   la Catastro Frutícola tampoco; NDVI Visual exige zoom ≥ 10 y escenas
+   recientes despejadas. Manejar ausencias como *primera
    clase de feature* (gris + mensaje), no como bug. Documentar umbral de
    resolución en el panel de cada capa.
 4. **Licencias y atribución**. La regla de los "3 lugares" (panel,
@@ -996,29 +772,17 @@ que amplían el uso diario del perito:
    exponer razón social ni el nombre del productor; usar el ROL
    como pivote y dejar el link-out a CIREN si el usuario quiere
    profundizar.
-6. **Series temporales y lag de datos**. Capas como MODIS NDVI o eBird
+6. **Series temporales y lag de datos**. Capas como NDVI o eBird
    tienen delays (MODIS es 1–2 días, eBird es agregación mensual,
    datos de biodiversidad tienen lag de años). Documentar en `meta.json`
    la fecha de actualización esperada y en el panel mostrar "datos
    actualizados al YYYY-MM-DD; próxima actualización: YYYY-MM-DD".
 
-## Catálogo actualizado de fuentes (síntesis de la investigación)
+## Fuentes por evaluar
 
-Las siguientes fuentes se descubrieron durante la confección de este
-roadmap y **deben incorporarse a `docs/fuentes-gis-chile.md`** en su
-próxima revisión:
-
-| Organismo | Servicio | URL | Notas |
-|---|---|---|---|
-| **IDE Minagri** (CIREN-MINAGRI) | Catálogo unificado de capas SHP + API REST | <https://ide.minagri.gob.cl/descarga-de-capas-shp/> · <https://ideminagriapi.ciren.cl/> | Punto de partida único para cualquier capa agrícola/forestal. La API `valida-rol-comuna` es la única vía pública de CIREN para ROLs rurales. |
-| **CIREN** | Hub Catastro Frutícola (ArcGIS Hub) | <https://catastro-fruticola-inicio-esri-ciren.hub.arcgis.com/> | Visualizador público; el shapefile empaquetado es de pago ("Cotizar"). Pendiente validar si el `FeatureServer` subyacente es accesible. |
-| **CIREN** | GeoNode Inventario Nacional de Erosión | <https://inventarioerosion.ciren.cl/> | Cobertura O'Higgins → Los Lagos. WFS público vía GeoNode. |
-| **CIREN** | Productos Propiedades Rurales Vectoriales | <https://www.ciren.cl/productos/propiedades-rurales/> | De pago ("Cotizar"). Derivado de SII. |
-| **SIMEF** (Minagri-INFOR-CONAF) | Monitoreo ecosistemas forestales nativos | <https://simef.minagri.gob.cl/> | Datos de uso/cambio de uso de la tierra e incendios al 31/12/2025. |
-| **DGA / SNIA** | Catastro Público de Aguas + Visualizadores | <https://dga.mop.gob.cl/servicios-de-informacion/catastro-publico-de-aguas/> · <https://snia.mop.gob.cl/observatorio/> | 12 registros públicos. Cobertura variable: glaciares como vector, derechos individuales por expediente. |
-| **IGM** (vía MOP-IDEMOP) | Carta regular 1:50.000 como MapServer | <https://rest-sit.mop.gob.cl/arcgis/rest/services/MAPA_BASE/IGM50/MapServer> | Curvas de nivel, cotas y **toponimia rural oficial**. Solo visualización: el dato IGM está protegido por Ley 17.336 y se vende. Ver § 1.4. |
-| **ODEPA** | Biblioteca Digital abierta | <https://bibliotecadigital.odepa.gob.cl/> | Bases de datos infraestructura frutícola (1999–2025) y directorio agroindustria (2017–2019) descargables en XLSX. |
-| **ODEPA** | Reportes interactivos | <https://reportes.odepa.gob.cl/> | Catastros regionales, infraestructura frutícola. Visor público. |
+Las fuentes encontradas al armar este roadmap (IDE Minagri, erosión CIREN,
+SIMEF, SNIA, IGM, ODEPA) están catalogadas en
+[`fuentes-gis-chile.md`](./fuentes-gis-chile.md).
 
 ## Cómo actualizar este documento
 
@@ -1028,36 +792,29 @@ próxima revisión:
    priorización** (valor tasación rural + valor ecoinformática +
    accesibilidad + costo) y justificar la fase asignada en el PR.
    Un ítem entra más rápido si suma valor en ambos públicos.
-3. Trimestral: revisar el catálogo actualizado de fuentes para ver si
+3. Trimestral: revisar `fuentes-gis-chile.md` para ver si
    algún organismo publicó una capa relevante (especialmente IDE
    Minagri, ClimateChile, datos de biodiversidad emergentes).
-4. Fase 5 es la transición: priorizar capas bioclimáticas + NDVI series
-   antes de biodiversidad observada (Fase 6). Esto maximiza valor para
-   ambos públicos en menos tiempo.
+4. Priorizar con lo que mide la analítica interna: una capa o función que
+   nadie usa no justifica su costo de mantenimiento.
 
-## Hitos (a llenar al cerrar tareas)
+## Hitos
 
-- **2026-09-03 — Primera capa de la Fase 5: Bioclima (WorldClim 2.1).**
-  Temperatura media anual y precipitación anual como PNG estático recortado a
-  Chile (75 KB entre ambas variables), con selector de variable y leyenda.
-  Abre la línea ecoinformática del SIG: es la entrada obligatoria de cualquier
-  análisis de nichos o de aptitud climática.
-  Dos decisiones que conviene no revertir: **(a)** servir un PNG pintado en el
-  ETL en vez de renderizar por viewport —el patrón por viewport existe para los
-  500 MB remotos de CIREN y aquí sería complejidad sin beneficio—; **(b)** el
-  PNG va **reproyectado a Web Mercator**, porque `L.ImageOverlay` estira la
-  imagen linealmente en la proyección del mapa. La primera versión salió
-  equiespaciada en grados y quedó corrida **hasta 287 km al sur**; se descubrió
-  porque Chiloé aparecía en blanco. Corregido en `872e261`.
-  *Lección transversal, aplicable a toda capa raster futura:* ese desfase es
-  cero en los extremos del recorte y máximo en el medio, así que es invisible a
-  una revisión de «se ve plausible» —sobrevivió a una— y solo aparece al
-  contrastar con una costa concreta. **Una isla es el mejor testigo.**
-
-- **2026-08-26 — Corrección de las estadísticas del panel CBR.**
-  `/api/stats` expone los tres denominadores reales (`count`,
-  `count_monto`, `count_precio_m2`); el `$/m²` pasa de promedio de
-  razones a razón de totales y suma una mediana de razones; la mediana
-  del monto reemplaza al promedio como cifra destacada. Documentado en
-  [`estadisticas.md`](./estadisticas.md). Cambio semántico incompatible
-  en el campo `precio_m2` del endpoint público.
+- **2026-10-04/05 — Analítica interna sin cookies** y registro de acceso a la
+  API de datos desde el proxy.
+- **2026-09-27 — NDVI Visual (Sentinel-2)** por viewport y nuevo panel de
+  capas `LayerSidebar` (dock + drawer mobile, buscador, grupos).
+- **2026-09-17 — Serie mensual de NDVI** por punto o polígono (PR #12).
+- **2026-09-07 — Lectura multicapa**: inspector «Capas activas», opacidad por
+  capa y PNG que respeta el alfa de cada capa.
+- **2026-09-03 — Bioclima (WorldClim 2.1)**, primera capa de la Fase 5. El PNG
+  se reproyectó a Web Mercator tras salir corrido hasta 287 km al sur.
+- **2026-08-28 — v0.1.0**, primer release etiquetado: propiedades rurales y
+  export PNG reparado.
+- **2026-08-27 — Mapa de calor de valor** ($/m²) y selector de mapa base.
+- **2026-08-26 — Estadísticas del panel CBR corregidas**: denominadores reales,
+  `$/m²` como razón de totales + mediana ([`estadisticas.md`](./estadisticas.md)).
+  Cambio incompatible en el campo `precio_m2` del endpoint público.
+- **2026-08-22/24 — Recursos vegetacionales (CONAF)** y **líneas de transmisión**.
+- **2026-07 — Catastro frutícola y red de drenaje DGA**; el repositorio se
+  publica como open source el 2026-07-22.

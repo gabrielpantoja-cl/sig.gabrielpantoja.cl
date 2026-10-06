@@ -208,10 +208,11 @@ a fix deployed without a bump still notifies.
 Detailed design docs live in `docs/`:
 - `docs/arquitectura-capas.md` — layer catalog + recipe for adding a new thematic layer (READ THIS before adding any layer)
 - `docs/estadisticas.md` — how the CBR stats panel is computed (the three denominators, the two $/m² readings, visual hierarchy) — READ THIS before touching `/api/stats` or `StatsFields`
-- `docs/fuentes-gis-chile.md` — catalog of official Chilean GIS data sources (verified endpoints, reliability notes, MOP ecosystem findings)
-- `docs/roadmap.md` — prioritized backlog of future layers + UX/product improvements (Catastro Frutícola first)
+- `docs/fuentes-gis-chile.md` — single catalog of official Chilean GIS data sources (in use and candidates, verified endpoints, reliability notes, MOP ecosystem findings, ArcGIS REST pattern)
+- `docs/roadmap.md` — current state, prioritized backlog of future layers + UX/product improvements, milestones
+- `docs/plan-mapa-de-calor.md` — design and calibration of the value heat map
+- `docs/estructura-catastral.md` — SII catastral detail structure and coding tables (destino codes, etc.)
 - `docs/auditoria-ux-2026-08.md` — hands-on audit of the viewer from a power GIS user's perspective (2026-08-28): 14 findings with evidence and root cause, including a **broken PNG export**; its actionable items are mirrored as checkboxes in `roadmap.md`
-- `docs/mejora-sig-mapa-flotante.md` — floating map panel redesign notes (implemented; historical)
 
 Refer to these before making architectural changes to the map or layout.
 

@@ -84,7 +84,7 @@ Currently implemented in `src/lib/map-export.ts`:
 - Reference: `src/lib/map-export.ts:534-553`.
 
 ### 7. Tile-edge padding for cropping
-The Gemini report § 2.3 mentions `bounds.pad(0.02)` for VectorTile tiles. The project does NOT use VectorTiles today (static GeoJSON via `scripts/build-*.mjs` that pre-pads). IF we migrate, the same `.pad(0.02)` rule applies: extend the tile bounds 2% of view size in each direction so thick lines don't get clipped at the tile boundary.
+A common VectorTile practice is `bounds.pad(0.02)`. The project does NOT use VectorTiles today (static GeoJSON via `scripts/build-*.mjs` that pre-pads). IF we migrate, the same `.pad(0.02)` rule applies: extend the tile bounds 2% of view size in each direction so thick lines don't get clipped at the tile boundary.
 
 ### 8. Layer ordering for export
 The export does NOT impose layer order — it captures whatever was visible at click time. New layers DO need to integrate with `reorderOverlays()` in `MapView.tsx` so the live map matches the captured PNG. New layers: bottom-to-top
