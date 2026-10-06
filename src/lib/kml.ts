@@ -1,14 +1,15 @@
 /**
- * Capas KML subidas por el usuario.
+ * Capas KML/KMZ subidas por el usuario.
  *
- * Los archivos se procesan íntegramente en el navegador (DOMParser +
- * @tmcw/togeojson): nunca se suben a un servidor ni tocan la base de datos,
+ * Los archivos se procesan íntegramente en el navegador (fflate para abrir
+ * el ZIP de un KMZ, DOMParser + @tmcw/togeojson para el KML): nunca se suben a un servidor ni tocan la base de datos,
  * en línea con la regla de que el cliente no accede a datos más allá de los
  * route handlers. Cada archivo válido se convierte en un FeatureCollection
  * GeoJSON que MapView dibuja como una capa Leaflet más.
  */
 
 import { kml as kmlToGeoJson } from '@tmcw/togeojson';
+import { strFromU8, unzipSync } from 'fflate';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 
 /** Una capa KML cargada por el usuario, lista para dibujarse en el mapa. */
@@ -56,6 +57,48 @@ export function kmlPropText(value: unknown): string {
 /** Límites defensivos: un KML de Google Earth rara vez supera estos umbrales. */
 export const KML_MAX_FILE_MB = 15;
 export const KML_MAX_FEATURES = 5000;
+/** Tope del KML ya descomprimido dentro de un KMZ: el ZIP comprime ~10×,
+ *  así que un KMZ de 15 MB legítimo cabe, y una bomba ZIP no. */
+export const KMZ_MAX_UNCOMPRESSED_MB = 150;
+
+/**
+ * Extrae el texto del KML principal de un KMZ (un ZIP). Por convención de
+ * Google Earth es `doc.kml` en la raíz; si no existe, se toma el primer
+ * `.kml` de menor profundidad. Íconos, imágenes y KML secundarios del ZIP
+ * se ignoran: la capa se dibuja con el color asignado, no con sus estilos.
+ * Lanza Error con mensaje en español apto para la UI.
+ */
+export function extractKmlFromKmz(bytes: Uint8Array, fileName: string): string {
+  const maxBytes = KMZ_MAX_UNCOMPRESSED_MB * 1024 * 1024;
+  let entries: Record<string, Uint8Array>;
+  try {
+    entries = unzipSync(bytes, {
+      // Solo descomprime los .kml, y nunca uno que declare un tamaño absurdo.
+      filter: (f) =>
+        f.name.toLowerCase().endsWith('.kml') &&
+        !f.name.startsWith('__MACOSX/') &&
+        f.originalSize <= maxBytes,
+    });
+  } catch {
+    throw new Error(`«${fileName}»: no es un KMZ válido (el ZIP está dañado).`);
+  }
+
+  const names = Object.keys(entries).sort(
+    (a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b),
+  );
+  const main = names.find((n) => n.toLowerCase() === 'doc.kml') ?? names[0];
+  if (!main) {
+    throw new Error(`«${fileName}»: el KMZ no contiene ningún archivo .kml.`);
+  }
+  const data = entries[main];
+  // El tamaño declarado en la cabecera ZIP puede mentir; se revisa el real.
+  if (data.length > maxBytes) {
+    throw new Error(
+      `«${fileName}»: el KML descomprimido supera ${KMZ_MAX_UNCOMPRESSED_MB} MB.`,
+    );
+  }
+  return strFromU8(data);
+}
 
 /**
  * Paleta para capas de usuario: tonos que no chocan con el verde de los
@@ -78,24 +121,22 @@ const hasGeometry = (
 ): f is Feature<Geometry, KmlFeatureProps> => f.geometry != null;
 
 /**
- * Convierte un File .kml en una KmlLayer o lanza Error con un mensaje en
- * español apto para mostrarse tal cual en la UI.
+ * Convierte un File .kml o .kmz en una KmlLayer o lanza Error con un mensaje
+ * en español apto para mostrarse tal cual en la UI.
  */
 export async function parseKmlFile(file: File, color: string): Promise<KmlLayer> {
   const lower = file.name.toLowerCase();
-  if (lower.endsWith('.kmz')) {
-    throw new Error(
-      `«${file.name}»: los KMZ son ZIP comprimidos; descomprímelo y sube el .kml interior.`,
-    );
-  }
-  if (!lower.endsWith('.kml')) {
-    throw new Error(`«${file.name}»: solo se aceptan archivos .kml.`);
+  const isKmz = lower.endsWith('.kmz');
+  if (!isKmz && !lower.endsWith('.kml')) {
+    throw new Error(`«${file.name}»: solo se aceptan archivos .kml o .kmz.`);
   }
   if (file.size > KML_MAX_FILE_MB * 1024 * 1024) {
     throw new Error(`«${file.name}»: supera el máximo de ${KML_MAX_FILE_MB} MB.`);
   }
 
-  const text = await file.text();
+  const text = isKmz
+    ? extractKmlFromKmz(new Uint8Array(await file.arrayBuffer()), file.name)
+    : await file.text();
   const dom = new DOMParser().parseFromString(text, 'application/xml');
   if (dom.querySelector('parsererror')) {
     throw new Error(`«${file.name}»: no es un XML válido.`);
@@ -115,7 +156,7 @@ export async function parseKmlFile(file: File, color: string): Promise<KmlLayer>
     );
   }
 
-  const baseName = file.name.replace(/\.kml$/i, '');
+  const baseName = file.name.replace(/\.km[lz]$/i, '');
   return {
     id: crypto.randomUUID(),
     name: baseName,

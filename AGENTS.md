@@ -40,7 +40,7 @@ Single-page Next.js 16 App Router app. One route (`/`), one page. Maps ~85k CBR 
 | `npm run data:build` | Run all data:build sub-tasks |
 | `npm run analytics:report [-- días]` | Print the internal usage report (visits, location, devices, features, load time) from `analytics.events` |
 
-Unit tests use **Vitest 4** (`vitest.config.mts`) and cover the pure server/lib logic: `filters`, `arcgis-proxy`, `security`, `hexbins`, `heat-surface`, ramps and ROL normalization. Tests sit next to the module (`foo.test.ts`). `server-only` is aliased to an empty stub (`test/server-only.ts`) because outside Next's bundler the package is not resolvable. Vitest 4, not 5: CI runs Node 20 and Vitest 5 requires Node ≥ 22.12.
+Unit tests use **Vitest 4** (`vitest.config.mts`) and cover the pure server/lib logic: `filters`, `arcgis-proxy`, `security`, `hexbins`, `heat-surface`, KMZ extraction, ramps and ROL normalization. Tests sit next to the module (`foo.test.ts`). `server-only` is aliased to an empty stub (`test/server-only.ts`) because outside Next's bundler the package is not resolvable. Vitest 4, not 5: CI runs Node 20 and Vitest 5 requires Node ≥ 22.12.
 
 ## Architecture
 
@@ -147,7 +147,7 @@ Any client → src/proxy.ts (before CDN cache) on /api/{points,export} → Neon 
 | `scripts/analytics-report.mjs` | `npm run analytics:report` — usage report from the CLI |
 | `src/proxy.ts` | Next 16 proxy: logs `/api/points` + `/api/export` access (before the CDN cache) as `api_*` analytics events |
 | `src/app/api/hexbins/route.ts` | PostGIS `ST_HexagonGrid` aggregation of $/m² per viewport |
-| `src/lib/kml.ts` | User-uploaded KML layers: browser-side parse (@tmcw/togeojson) + validation |
+| `src/lib/kml.ts` | User-uploaded KML/KMZ layers: browser-side KMZ unzip (fflate, `doc.kml` first, 150 MB uncompressed cap) + parse (@tmcw/togeojson) + validation. Tested |
 | `src/lib/protected-areas.ts` | Protected area category colors & config |
 | `src/components/RetroLoader.tsx` | Retro loading screen driven by REAL progress (download + marker render) |
 | `src/components/GeocoderSearch.tsx` | Address/place search with autocomplete (via /api/geocode) |
