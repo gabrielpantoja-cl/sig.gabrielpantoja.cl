@@ -28,6 +28,7 @@ Single-page Next.js 16 App Router app. One route (`/`), one page. Maps ~85k CBR 
 | `npm run build` | Production build |
 | `npm run lint` | ESLint (`eslint-config-next/core-web-vitals`) — required to merge (see [HARD RULES](#hard-rules)) |
 | `npm run typecheck` | TypeScript strict check (`tsc --noEmit`) — runs in CI after lint |
+| `npm test` | Vitest unit tests (`src/**/*.test.ts`, node environment) — runs in CI after typecheck. `npm run test:watch` for watch mode |
 | `npm run data:build:protected` | Regenerate `public/data/areas-protegidas.{geojson,meta.json}` from MMA official data |
 | `npm run data:build:urban` | Regenerate `public/data/limite-urbano.{geojson,meta.json}` from MINVU data |
 | `npm run data:build:comunas` | Regenerate `public/data/limites-comunales.{geojson,meta.json}` from SUBDERE DPA 2023 |
@@ -39,7 +40,7 @@ Single-page Next.js 16 App Router app. One route (`/`), one page. Maps ~85k CBR 
 | `npm run data:build` | Run all data:build sub-tasks |
 | `npm run analytics:report [-- días]` | Print the internal usage report (visits, location, devices, features, load time) from `analytics.events` |
 
-No test framework is configured.
+Unit tests use **Vitest 4** (`vitest.config.mts`) and cover the pure server/lib logic: `filters`, `arcgis-proxy`, `security`, `hexbins`, `heat-surface`, ramps and ROL normalization. Tests sit next to the module (`foo.test.ts`). `server-only` is aliased to an empty stub (`test/server-only.ts`) because outside Next's bundler the package is not resolvable. Vitest 4, not 5: CI runs Node 20 and Vitest 5 requires Node ≥ 22.12.
 
 ## Architecture
 
@@ -155,7 +156,7 @@ Any client → src/proxy.ts (before CDN cache) on /api/{points,export} → Neon 
 | `src/lib/ndvi-ramp.json` | NDVI Visual colour ramp (10 stops, domain -0.1..0.9), read by BOTH `ndvi-raster.ts` (paints) and `LayersControl` (legend) so they cannot drift apart |
 | `src/lib/ndvi-visual.ts` | NDVI Visual shared constants (min zoom 10, export URL, attribution, service name), `NdviVisualEstado` status type, ramp helpers (`ndviRampCssGradient`, `ndviRampTicks`, `formatoNdvi`) |
 | `src/lib/ndvi-raster.ts` | server-only NDVI renderer: scene selection (two-tier cloud rule), COG overview pick, SCL mask, bilinear red/nir, EPSG:3857 output grid, two-phase parallel band reads |
-| `src/app/api/ndvi/export/route.ts` | GET route: bbox/size validation (Chile bounds, span caps, size 64..1600), rate limit + 20 s budget, PNG or 204 no-coverage, English error contract `{error:{code,...}}` |
+| `src/app/api/ndvi/export/route.ts` | GET route: bbox/size validation (Chile bounds, span caps, size 64..1600), rate limit + 20 s budget, PNG or 204 no-coverage, English error contract `{error:{code,message,service,operation}}` — shared by every proxy and both NDVI routes |
 | `scripts/build-catastro-fruticola.mjs` | ETL: CIREN-ODEPA ArcGIS REST → GeoJSON → simplify → emit GeoJSON + meta |
 
 ## Environment

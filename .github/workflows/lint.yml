@@ -11,6 +11,8 @@ permissions:
 
 jobs:
   lint:
+    # The job name is the required status check in the `Protect main`
+    # ruleset: renaming it would block every push until the ruleset is updated.
     name: ESLint + TypeScript
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -32,3 +34,6 @@ jobs:
 
       - name: Run TypeScript check
         run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm test

@@ -23,6 +23,9 @@ versionado.
 
 ### Seguridad
 
+- **`POST /api/ndvi/serie` rechaza cuerpos de más de 1 MB** (413
+  `BODY_TOO_LARGE`) antes de parsearlos; antes `req.json()` aceptaba
+  cualquier tamaño y recién después contaba vértices.
 - **Next.js 16.3.4 → 16.3.8.** Cierra GHSA-vcvr-r3jv-pc5j (crítica, RCE en
   `next/og`; el proyecto no usa `ImageResponse`, pero la versión vulnerable
   iba en producción). `npm audit --omit=dev` queda en 0.
@@ -38,7 +41,21 @@ versionado.
   actuaban como comodines de `ILIKE`: `?rol=_` devolvía toda la base. El
   término además queda acotado a 100 caracteres.
 
+### Cambiado
+
+- **Contrato de error único en la API.** `/api/ndvi/serie` respondía
+  `{error:{codigo,mensaje}}` y `/api/ndvi/export` mezclaba códigos en español;
+  ambas usan ahora `{error:{code,message,service,operation}}` con códigos en
+  inglés (`INVALID_POINT`, `RATE_LIMITED`, `UPSTREAM_TIMEOUT`, …), igual que
+  los proxies ArcGIS. El `message` sigue en español. Cambio incompatible
+  para clientes externos que leyeran `codigo`/`mensaje`.
+- El preflight CORS de `/api/ndvi/serie` y `/api/analytics` anuncia `POST`.
+
 ### Interno
+
+- **Tests unitarios con Vitest** (`npm test`, también en CI): filtros,
+  proxies ArcGIS, rate limiter, hexbins, superficie de calor, rampas y ROL.
+- `@types/geojson` declarado explícitamente (llegaba de forma transitiva).
 
 - `geotiff` y `pngjs` pasan a `dependencies`: los usa el renderer NDVI en
   runtime, no solo el ETL.
