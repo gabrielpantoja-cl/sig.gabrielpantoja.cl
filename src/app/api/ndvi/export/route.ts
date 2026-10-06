@@ -1,4 +1,4 @@
-import { corsHeaders, enforce } from '@/lib/security';
+import { corsHeaders, createRateLimiter, enforce } from '@/lib/security';
 import {
   NDVI_VISUAL_SIZE_MAX,
   NDVI_VISUAL_SIZE_MIN,
@@ -11,7 +11,7 @@ import {
   readExactParams,
   validGeographicExtent,
   validIntegerTuple,
-} from '@/lib/suelos-proxy';
+} from '@/lib/arcgis-proxy';
 
 const OPERATION = 'export' as const;
 const SERVICE =
@@ -33,21 +33,7 @@ const CHILE = { oeste: -76.5, este: -66, sur: -56.5, norte: -17 };
 // cada viewport dispara una composición con decenas de MB de COG.
 const VENTANA_MS = 10 * 60 * 1000;
 const MAX_POR_VENTANA = 120;
-const consultas = new Map<string, number[]>();
-function excedeLimite(req: Request): boolean {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'desconocida';
-  const ahora = Date.now();
-  const recientes = (consultas.get(ip) ?? []).filter((t) => ahora - t < VENTANA_MS);
-  if (recientes.length >= MAX_POR_VENTANA) return true;
-  recientes.push(ahora);
-  if (consultas.size > 5_000) {
-    for (const [clave, tiempos] of consultas) {
-      if (!tiempos.some((t) => ahora - t < VENTANA_MS)) consultas.delete(clave);
-    }
-  }
-  consultas.set(ip, recientes);
-  return false;
-}
+const excedeLimite = createRateLimiter(VENTANA_MS, MAX_POR_VENTANA);
 
 function ndviExportError(req: Request, status: number, code: string, mensaje: string): Response {
   return Response.json(
