@@ -101,3 +101,17 @@ GRANT USAGE ON SCHEMA analytics TO analytics_writer;
 -- retención (filas de más de 13 meses). Nada de UPDATE ni DDL.
 GRANT INSERT, SELECT, DELETE ON analytics.events TO analytics_writer;
 GRANT SELECT ON analytics.daily, analytics.features, analytics.api_access TO analytics_writer;
+
+-- Lector de solo lectura para el reporte mensual automatico (n8n en el VPS, 2026-10-08).
+-- Sin acceso al esquema public (datos CBR): solo lee analytics. La clave se fija fuera del
+-- repo (ALTER ROLE ... PASSWORD) y vive solo en las credenciales cifradas de n8n.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'n8n_analytics_reader') THEN
+    CREATE ROLE n8n_analytics_reader LOGIN CONNECTION LIMIT 3;
+  END IF;
+END
+$$;
+ALTER ROLE n8n_analytics_reader SET default_transaction_read_only = on;
+GRANT USAGE ON SCHEMA analytics TO n8n_analytics_reader;
+GRANT SELECT ON analytics.events, analytics.daily, analytics.features, analytics.api_access TO n8n_analytics_reader;
