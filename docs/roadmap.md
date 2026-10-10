@@ -1,7 +1,11 @@
 # Roadmap del SIG de suelo — `sig.gabrielpantoja.cl`
 
-> Documento vivo. Última actualización: 2026-10-05.
+> Documento vivo. Última actualización: 2026-10-10.
 > Próxima revisión sugerida: trimestral o cuando se cierre una fase.
+>
+> **¿Retomas el proyecto?** Lee primero [«Por dónde retomar»](#por-dónde-retomar):
+> la cola ordenada de lo siguiente que conviene hacer. El horizonte largo está
+> en [«Ruta GIS de largo plazo»](#ruta-gis-de-largo-plazo-horizontes-h1h5).
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
 > públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
@@ -40,7 +44,7 @@ Cuatro direcciones:
 (paneles flotantes, capas estáticas + dinámicas, atribución obligatoria, selectors de
 rango temporal para series).
 
-## Estado actual (al 2026-10-05)
+## Estado actual (al 2026-10-10)
 
 **Catorce capas en producción** (detalle técnico en
 [`arquitectura-capas.md`](./arquitectura-capas.md)):
@@ -66,8 +70,10 @@ Además:
 
 - **Serie mensual de NDVI** (`/api/ndvi/serie`): 36 meses de mediana, P25/P75 y
   fracción descartada para un punto o un polígono de hasta 3 km de lado.
-- **Capas KML del usuario**, procesadas en el navegador; nunca salen del
-  dispositivo (`src/lib/kml.ts`).
+- **Capas KML/KMZ del usuario**, procesadas en el navegador; nunca salen del
+  dispositivo (`src/lib/kml.ts`; KMZ desde 2026-10-06).
+- **Coordenadas del cursor** al pie del mapa (decimal, GMS y UTM 18S/19S,
+  2026-10-06) y **Neutro** como mapa base por defecto.
 - **Panel de capas** `LayerSidebar` (dock en escritorio, drawer en mobile, con
   buscador y grupos) e inspector «Capas activas» con opacidad por capa.
 - **Selector de mapa base** (cinco fondos), **export PNG** con cajetín y
@@ -75,6 +81,25 @@ Además:
 
 `public/data/` pesa **62 MB**, la mitad del catastro frutícola: es lo que
 empuja la «Migración de almacenamiento» de más abajo.
+
+## Por dónde retomar
+
+Cola corta y ordenada. Al cerrar un ítem, tacharlo aquí y en su sección, y
+subir el siguiente. **Regla:** la deuda marcada 🔴 va antes que cualquier
+capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
+
+| # | Qué | Por qué ahora | Sección |
+|---|---|---|---|
+| 1 | 🔴 Subir `sharp` (CVE alto en producción) y correr `npm ci` local | Única vulnerabilidad de `npm audit --omit=dev` | [Deuda › Seguridad](#seguridad-y-operación) |
+| 2 | 🔴 Node 22 en CI + Vercel, `engines`, `packageManager` | Node 20 está fuera de soporte desde abril 2026 | [Deuda › Plataforma](#plataforma-y-release) |
+| 3 | 🔴 Fijar el runner de CI y añadir `npm run build` al workflow | `ubuntu-latest` cambia el 2026-10-19; hoy CI no compila | [Deuda › Plataforma](#plataforma-y-release) |
+| 4 | 🟡 Etiquetar `v0.2.0` | Cambio incompatible + KMZ + coordenadas sin release | [Deuda › Plataforma](#plataforma-y-release) |
+| 5 | 🟡 CONAF informa su estado a la leyenda + popups inline a `map-popups.ts` | Fallas silenciosas y HTML sin tests de escape | [Deuda › Frontend](#arquitectura-del-frontend) |
+| 6 | 🟢 Permalink con estado completo | Habilita compartir hallazgos; barato | [Producto](#producto-y-mercado) |
+| 7 | 🟢 Escala numérica + medición | Lo pide el informe de tasación | [Herramientas SIG](#herramientas-mínimas-de-sig-que-faltan-auditoría-2026-08-28) |
+| 8 | 🟢 Carta IGM 1:50.000 o DEM libre (decidir juntas) | Única capa aprobada en cola; el relieve no existe hoy | [§ 1.4](#14-carta-topográfica-igm-150000-vía-mop-rest-sit---aprobada-en-cola) |
+| 9 | 🟡 Dividir `LayersControl.tsx` y terminar `MapView.tsx` | Siguen creciendo (1.419 y 1.111 líneas) | [Deuda › Frontend](#arquitectura-del-frontend) |
+| 10 | 🟢 Humo E2E con Playwright | Protege el export PNG y las capas remotas | [Deuda › Tests](#tests) |
 
 ## Criterios de priorización
 
@@ -644,10 +669,14 @@ que amplían el uso diario del perito:
 
 ### Herramientas mínimas de SIG que faltan (auditoría 2026-08-28)
 
-- [ ] **Lectura de coordenadas** del cursor en lat/lon y **UTM 19S**
+- [~] **Lectura de coordenadas** del cursor en lat/lon y **UTM 19S**
       (EPSG:32719, el huso de los deslindes y de las coordenadas del
       Conservador), con copiar al portapapeles. Es la otra mitad de
       «Búsqueda por coordenadas», más abajo.
+      *Hecho (2026-10-06)*: renglón al pie con decimal, GMS y UTM 18S/19S
+      (`src/lib/coordenadas.ts`, con tests). *Pendiente*: copiar al
+      portapapeles (clic derecho o atajo) y una lectura equivalente en
+      pantallas táctiles, donde hoy se oculta.
 - [ ] **Escala numérica** (`1:25.000`) junto a la barra gráfica, en pantalla
       y en el PNG: el informe de tasación la cita.
 - [ ] **Medición** de distancias y superficies (m/km, m²/ha), fijable para
@@ -749,82 +778,288 @@ que amplían el uso diario del perito:
       evaluando carga por viewport o teselado vectorial. Vía barata previa:
       acortar los nombres de campo en el payload de `/api/points`.
 
-## Deuda técnica (revisión de código 2026-10-05)
+## Deuda técnica (revisiones 2026-10-05 y 2026-10-10)
 
 Una revisión del código fuente cerró la mayor parte de lo que encontró
 (dependencias vulnerables, rate limiters sin evicción, comodines en `ILIKE`,
 proxies ArcGIS duplicados, contrato de error NDVI, una carrera al apagar capas
 GeoJSON, un `javascript:` posible en un popup, Vitest y la división de
 `MapView`/`page.tsx` en hooks; detalle en `CHANGELOG.md`). Lo que sigue quedó
-pendiente, ordenado por prioridad.
+pendiente, ordenado por prioridad. La revisión del 2026-10-10 verificó cada
+ítem contra el código y sumó los marcados *(nuevo)*.
+
+Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
+🟡 frena el desarrollo (intercalar) · 🟢 mejora la calidad (cuando toque).
 
 ### Plataforma y release
 
-- [ ] **Etiquetar `v0.2.0`.** `/api/ndvi/serie` cambió su cuerpo de error
+- [ ] 🟡 **Etiquetar `v0.2.0`.** `/api/ndvi/serie` cambió su cuerpo de error
       (`codigo`/`mensaje` → `code`/`message`): es incompatible, así que no
-      corresponde un parche. Subir `package.json` y `src/lib/version.ts`,
-      fechar la sección «No publicado» del `CHANGELOG.md` y crear el tag.
-- [ ] **Salir de Node 20** (fin de vida: abril de 2026). CI corre `20.x`; hay
+      corresponde un parche. Desde entonces se sumaron KMZ, coordenadas del
+      cursor y el fondo Neutro, que también son MENOR. Subir `package.json` y
+      `src/lib/version.ts`, fechar la sección «No publicado» del
+      `CHANGELOG.md`, actualizar `CITATION.cff` y crear el tag (y el release
+      en GitHub: hoy no hay ninguno publicado).
+- [ ] 🔴 **Salir de Node 20** (fin de vida: abril de 2026). CI corre `20.x`; hay
       que pasar a Node 22 en `.github/workflows/lint.yml`, en la configuración
-      del proyecto en Vercel (tienen que coincidir) y en `@types/node`, y
-      declarar `engines.node`. Desbloquea Vitest 5, que exige Node ≥ 22.12.
-- [ ] **Runner de CI**: `ubuntu-latest` pasa a Ubuntu 26 desde el
-      2026-10-19. Si el job se rompe, fijar `ubuntu-24.04` mientras se
-      corrige.
-- [ ] **Vulnerabilidades de desarrollo**: `npm audit` (sin `--omit=dev`)
-      reporta `file-type` e `image-size` vía `mapshaper` →
-      `@ngageoint/geopackage`. Solo afectan al ETL local, no a producción;
-      el arreglo automático baja `mapshaper` a 0.6 (incompatible). Esperar una
-      versión corregida de `mapshaper`.
-- [ ] **npm 10.9 falla al instalar dependencias nuevas** (`Cannot read
+      del proyecto en Vercel (tienen que coincidir) y en `@types/node` (hoy
+      `^20`), y declarar `engines.node`. Desbloquea Vitest 5, que exige
+      Node ≥ 22.12.
+- [ ] 🔴 **Runner de CI**: `ubuntu-latest` pasa a Ubuntu 26 desde el
+      2026-10-19. Fijar `ubuntu-24.04` antes de esa fecha y migrar con calma.
+- [ ] 🔴 **CI no compila** *(nuevo)*. El workflow corre lint, typecheck y
+      tests, pero nunca `npm run build`: un error que solo aparece al
+      compilar (rutas, `server-only`, prerender) llega a Vercel sin aviso.
+      Añadir el paso (sin variables de entorno, las rutas deben tolerar su
+      ausencia en build).
+- [ ] 🟡 **Vulnerabilidades de desarrollo**: `npm audit` (sin `--omit=dev`)
+      reporta `file-type`, `image-size` y `adm-zip` vía `mapshaper`, y
+      `braces` vía `@next/eslint-plugin-next`. Solo afectan al ETL local y al
+      lint, no a producción; el arreglo automático baja `mapshaper` a 0.6
+      (incompatible). Esperar versiones corregidas; revisar en cada bump de
+      Dependabot.
+- [ ] 🟡 **npm 10.x falla al instalar dependencias nuevas** (`Cannot read
       properties of null (reading 'edgesOut')`, bug del resolvedor de peers).
       Con `npx npm@11 install …` funciona y el lockfile resultante lo acepta
       `npm ci` de npm 10. Fijar la versión con `packageManager` en
       `package.json` junto con el paso a Node 22.
+- [ ] 🟢 **Releases automáticos** *(nuevo)*: un workflow que, al empujar un
+      tag `v*`, cree el release de GitHub con la sección correspondiente del
+      `CHANGELOG.md`. Evita que versión, tag y changelog se desalineen.
+
+### Higiene del repositorio público *(nuevo, 2026-10-10)*
+
+- [x] **Historia de `main` reescrita** (2026-10). `main`, el tag `v0.1.0` y
+      las ramas remotas apuntan a la historia vigente; las ramas viejas de
+      Dependabot se borraron.
+- [ ] 🔴 **Clones antiguos** (cualquier copia anterior a la reescritura) no
+      deben volver a empujar ramas ni tags previos: harían reaparecer la
+      historia anterior. En cada clon: `git fetch --prune --force`,
+      `git reset --hard origin/main` y borrar ramas locales previas.
+- [ ] 🟡 **Escaneo de secretos y código en CI**: activar *secret scanning* +
+      *push protection* en la configuración del repo y añadir CodeQL (o
+      `gitleaks`) como workflow. Hoy la única barrera es la disciplina.
+- [ ] 🟢 **Política de mensajes de commit**: anotar en `CONTRIBUTING.md` que
+      ni los mensajes ni las descripciones de PR llevan datos de tasaciones,
+      clientes, rutas locales ni credenciales — la historia es pública y
+      reescribirla es caro.
 
 ### Arquitectura del frontend
 
-- [ ] **Dividir `LayersControl.tsx` (1.419 líneas)**: una leyenda por capa en
+- [ ] 🟡 **Dividir `LayersControl.tsx` (1.419 líneas)**: una leyenda por capa en
       su propio componente, como ya se hizo con los hooks del mapa.
-- [ ] **Terminar `MapView.tsx` (~1.070 líneas)**: quedan en el componente el
+- [ ] 🟡 **Dividir `page.tsx` (808 líneas)** *(nuevo)*: tras sacar el estado a
+      hooks, el JSX de filtros, barra de estadísticas y layout mobile/desktop
+      sigue junto. Candidatos: `FilterBar`, `StatsBar`, `MobileShell`.
+- [ ] 🟡 **Terminar `MapView.tsx` (1.111 líneas, creció desde ~1.070)**: quedan en el componente el
       clúster CBR, la sincronización de capas KML y la publicación del export;
       candidatos a `useCbrClusterLayer` y `useKmlMapLayers`.
-- [ ] **Un solo ciclo de vida para los rasters por viewport.** `useSuelosLayer`,
+- [ ] 🟡 **Un solo ciclo de vida para los rasters por viewport.** `useSuelosLayer`,
       `useVegetacionalLayer`, `usePropiedadesRuralesLayer` y
       `useNdviVisualLayer` repiten overlay + secuencia + abort + blob +
       precarga. No se unificaron porque difieren a propósito (suelos borra la
       imagen al pedir otra para no mostrar un raster viejo si CIREN cae;
       NDVI hace debounce y cuantiza el bbox para la CDN). Un hook común debe
-      hacer explícitas esas diferencias como opciones.
-- [ ] **CONAF no informa su estado a la leyenda.** A diferencia de suelos,
+      hacer explícitas esas diferencias como opciones. Es **prerrequisito**
+      de la carta IGM (§ 1.4): sin él, sería la quinta copia.
+- [ ] 🟡 **CONAF no informa su estado a la leyenda.** A diferencia de suelos,
       propiedades rurales y NDVI, `useVegetacionalLayer` no emite
       `loading`/`error`/`zoom-required`: si el servicio cae, la capa queda
-      vacía sin explicación.
-- [ ] **Popups que siguen inline**: los de `identify` de suelos (tres
+      vacía sin explicación. (Verificado 2026-10-10: sigue igual.)
+- [ ] 🟡 **Popups que siguen inline**: los de `identify` de suelos (tres
       variantes, incluidos los errores) y propiedades rurales se arman dentro
       de sus hooks. Moverlos a `src/lib/map-popups.ts` para que queden bajo
-      los tests de escape.
+      los tests de escape. (Verificado 2026-10-10: sigue igual.)
+- [ ] 🟡 **Dos geocoders en el DOM** (ver «Accesibilidad»): es deuda de
+      arquitectura además de accesibilidad; `page.tsx` monta
+      `<GeocoderSearch>` dos veces y deja a CSS elegir cuál se ve.
+- [ ] 🟢 **Estilos inline en el HTML de popups**: cada popup repite
+      `style="font-size:…"`. Pasar a clases (`.sig-popup-*`) en
+      `globals.css` para que el tema oscuro y la impresión los alcancen.
+- [ ] 🟢 **Estado de la página en la URL**: filtros, capas, zoom y base viven
+      en estado de React y `localStorage`; un único módulo de estado
+      serializable sería la base del permalink y de las vistas guardadas.
+
+### Datos y ETL *(nuevo, 2026-10-10)*
+
+- [ ] 🟡 **Capas estáticas sin calendario de refresco.** Áreas protegidas es
+      de 2026-06, catastro frutícola y red vial de 2026-07. Nada avisa cuando
+      la fuente publica algo nuevo. Propuesta: workflow mensual que consulte
+      la metadata de cada fuente (fecha de edición del servicio ArcGIS,
+      `Last-Modified`) y abra un issue si cambió — **sin** descargar nada,
+      para no castigar servidores frágiles.
+- [ ] 🟡 **Los ETL no tienen tests.** `scripts/build-*.mjs` concentran la
+      lógica más delicada (reproyección, paginación, recorte de bioclima) y
+      nada la ejercita. Extraer las funciones puras a un módulo compartido y
+      testearlas con fixtures pequeños: el desfase de 287 km de bioclima
+      habría saltado con un test de una isla.
+- [ ] 🟡 **Contrato de `meta.json` sin esquema.** Cada capa escribe campos
+      parecidos con nombres distintos (`fecha_levantamiento`, `vintage`, …).
+      Definir un esquema (zod o JSON Schema) y validarlo en tests: es la base
+      del tooltip «vintage: AAAA-MM» de los riesgos transversales.
+- [ ] 🟢 **`derechos-agua.meta.json` publicado sin capa.** El stub
+      `scripts/build-derechos-agua.mjs` genera un manifiesto con
+      «Por determinar»; o se completa § 2.2 o se retira del árbol público.
+- [ ] 🟢 **ETL reproducibles**: fijar en cada `meta.json` la URL exacta, la
+      fecha de descarga y un hash del archivo fuente, para poder demostrar
+      de dónde salió cada geometría.
+
+### Rendimiento *(nuevo, 2026-10-10)*
+
+- [ ] 🟡 **`/api/points` entrega 21 MB de JSON** y el clúster pinta ~85k
+      marcadores en el cliente. Ruta incremental: (1) nombres de campo
+      cortos o arreglo de columnas; (2) carga por viewport + zoom con
+      clúster en el servidor (PostGIS `ST_ClusterDBSCAN` o la grilla de
+      hexbins); (3) teselas vectoriales (ver H2 de la ruta larga).
+- [ ] 🟢 **Presupuesto de rendimiento** medido por la analítica (`boot`): fijar
+      un umbral (p. ej. p75 < 2,5 s) y revisarlo en cada release.
 
 ### Tests
 
-- [ ] **Hooks y componentes**: los tests actuales cubren solo `src/lib/`.
-      Sumar Testing Library + jsdom para `useCbrData`, `useRuralRolSearch` y
-      las leyendas.
-- [ ] **Humo end-to-end en CI** con Playwright: cargar el mapa, encender cada
+- [ ] 🟡 **Hooks y componentes**: los tests actuales cubren solo `src/lib/`
+      (10 archivos). Sumar Testing Library + jsdom para `useCbrData`,
+      `useRuralRolSearch` y las leyendas.
+- [ ] 🟡 **Humo end-to-end en CI** con Playwright: cargar el mapa, encender cada
       capa, abrir un popup y exportar el PNG. Hoy esto se verifica a mano (ver
-      «Prueba de humo del export» más abajo).
+      «Prueba de humo del export»). Las capas remotas se prueban contra
+      respuestas grabadas, nunca contra CIREN/MOP en vivo.
+- [ ] 🟢 **Tests de las rutas `/api/*`** con la base mockeada: validación de
+      parámetros, que nunca salga un campo PII (regla dura de `AGENTS.md`) y
+      el contrato de error.
 
 ### Seguridad y operación
 
-- [ ] **Rate limit y cachés por instancia.** `createRateLimiter`, la caché de
+- [ ] 🔴 **`sharp` 0.35.4 vulnerable** *(nuevo)*: CVE-2026-96889 vía
+      `librsvg` (GHSA-wq5f-xc86-pv6w), severidad alta, es la única alerta de
+      `npm audit --omit=dev`. Llega como dependencia de `next`; `npm audit
+      fix` la sube a ≥ 0.35.5 sin tocar `next`. Verificar luego que
+      Dependabot abra el PR equivalente.
+- [ ] 🟢 **`node_modules` local desalineado** *(nuevo)*: en la máquina Linux
+      `next` instalado es 16.3.4 mientras el lockfile pide 16.3.8. Correr
+      `npm ci` al retomar en cualquier máquina.
+- [ ] 🟡 **Rate limit y cachés por instancia.** `createRateLimiter`, la caché de
       geocodificación y la de polígonos NDVI viven en memoria: se reinician
       en cada arranque en frío y no se comparten entre instancias. Para un
       límite real hace falta un almacén compartido o reglas del firewall de
       Vercel.
-- [ ] **Documentar el contrato público de `/api/*`** (por ejemplo, OpenAPI):
+- [ ] 🟡 **Sin monitoreo de errores ni de las fuentes remotas** *(nuevo)*.
+      Si CIREN, CONAF o Earth Search caen, nadie se entera hasta que un
+      usuario lo ve. Un chequeo programado (GitHub Actions o el n8n que ya
+      lee la analítica) que haga **una** petición liviana por servicio al día
+      y registre el estado basta; publicarlo en una página `/estado` sería un
+      plus para los usuarios.
+- [ ] 🟢 **Cabeceras de seguridad** *(nuevo)*: CSP (con los orígenes de
+      teselas permitidos), `Referrer-Policy`, `Permissions-Policy` en
+      `next.config`. Verificar contra securityheaders.com.
+- [ ] 🟢 **Documentar el contrato público de `/api/*`** (por ejemplo, OpenAPI):
       es el requisito explícito para `1.0.0` según la política de versiones
       de `AGENTS.md`. Las rutas ya comparten el formato de error
       `{ error: { code, message, service, operation } }`.
+
+## Ruta GIS de largo plazo (horizontes H1–H5)
+
+Mirada de varios años, ordenada por **horizontes**, no por fechas. Cada
+horizonte supone el anterior casi cerrado; dentro de uno, el orden es
+sugerencia. Las fases 1–6 de arriba son el detalle de capas; esto es la
+dirección del producto. Al retomar, el horizonte activo es el primero con
+ítems abiertos.
+
+### H1 — Cimientos sanos (horizonte activo)
+
+*Objetivo: que agregar una capa sea barato y no rompa nada.*
+
+- Deuda 🔴 y 🟡 de arriba cerrada; CI con build + E2E de humo.
+- Un hook genérico de raster por viewport y una **ficha de capa declarativa**
+  (catálogo único: fuente, licencia, vintage, leyenda, estilos) de la que
+  salgan panel, popup, export y `meta.json`. Agregar una capa pasa a ser
+  «llenar una ficha + escribir el ETL».
+- Permalink completo, escala numérica, medición, copiar coordenadas.
+- Carta IGM 1:50.000 **y** DEM libre (hillshade + pendiente): el relieve es la
+  ausencia más grande para la tasación rural.
+- `v0.2.0` … `v0.4.0` etiquetados con su changelog.
+
+### H2 — Datos que escalan
+
+*Objetivo: dejar de bajar archivos completos al navegador.*
+
+- Migración de almacenamiento (bucket + CDN) y **PMTiles** para las capas
+  vectoriales grandes (catastro frutícola, drenaje, red vial).
+- Evaluar **MapLibre GL** como motor (teselas vectoriales, estilos por
+  datos, relieve 3D, rotación). Es el cambio más grande del proyecto:
+  hacerlo detrás de una bandera y migrando capa por capa, no en bloque.
+- CBR por viewport con agregación en el servidor; el cliente nunca recibe
+  los ~85k puntos.
+- Raster propio en COG (bioclima, DEM, pendiente) leído por rangos HTTP, el
+  mismo patrón que ya usa NDVI con Sentinel-2.
+- Consulta puntual de cualquier raster (clic → valor real, no color).
+
+### H3 — Del visor al análisis del predio
+
+*Objetivo: que el perito salga con una respuesta, no solo con un mapa.*
+
+- **Ficha del predio**: dibujar o elegir un polígono (KML, ROL CIREN o a
+  mano) y obtener en una sola vista lo que el SIG sabe de él: superficie,
+  pendiente media, clases de suelo (% por clase CIREN), cobertura CONAF,
+  NDVI histórico, distancia a camino/río/línea eléctrica/área protegida,
+  si cae en límite urbano y transacciones CBR comparables cercanas.
+- Exportar esa ficha como **anexo PDF** con mapa, leyenda, fuentes y
+  vintages (cumple la regla de los tres lugares de atribución).
+- **Comparables**: selección de transacciones por cercanía + destino +
+  superficie, con su estadística (mediana, P25/P75) y su mapa.
+- Herramientas clásicas: buffer, intersección con capas activas, perfil de
+  elevación sobre una línea, distancia a la red vial.
+- Export **DXF** y **GeoPackage** del viewport y de la ficha.
+- Restricciones de la Fase 2 (erosión, peligros geológicos, contexto
+  hídrico) entran aquí como insumos de la ficha.
+
+### H4 — Tiempo y cambio
+
+*Objetivo: responder «qué cambió en este predio y cuándo».*
+
+- Selector temporal transversal: NDVI por fecha, cicatrices de incendio por
+  temporada, cambio de uso CONAF/SIMEF entre catastros.
+- Detección de cambio sobre Sentinel-2 (pérdida de cobertura, nuevas
+  plantaciones, construcción) por predio y por comuna.
+- Series del mercado: $/m² mediano por comuna y año, con el mapa de calor
+  animado por período.
+- Ortoimágenes históricas donde la licencia lo permita (§ 4.3).
+- Escenarios climáticos CMIP6 (§ 5.5) como el «tiempo futuro» del mismo
+  selector.
+
+### H5 — Modelos, apertura y comunidad
+
+*Objetivo: que el SIG produzca conocimiento y que otros construyan encima.*
+
+- **Modelo de valor explicable**: regresión espacial (hedónica / Durbin
+  espacial, la línea de la tesis) con las capas del SIG como covariables;
+  publicar coeficientes, error y mapa de residuos — nunca un «precio
+  automático» sin intervalo.
+- Conectividad y fragmentación de hábitat (§ 5.4) y biodiversidad (Fase 6)
+  como capas derivadas, reproducibles desde el ETL.
+- **API pública `1.0.0`** documentada (OpenAPI), con cuotas y ejemplos en
+  Python/R; datasets derivados con DOI (Zenodo) y `CITATION.cff` al día.
+- Notebook o paquete de reproducción para investigadores (el mismo cálculo
+  que el visor, fuera del navegador).
+- Internacionalización (inglés) del visor y de la documentación.
+- Comunidad: issues `good first issue`, guía paso a paso de «cómo agregar
+  una capa» y un proceso para que terceros propongan fuentes.
+
+### Banco de ideas (sin horizonte)
+
+Ideas que todavía no tienen lugar; se promueven a un horizonte cuando la
+analítica o un usuario las justifique.
+
+- Modo offline (PWA) para terreno, con las capas del predio en caché.
+- Captura en terreno: fotos georreferenciadas y notas ligadas a un punto,
+  guardadas solo en el dispositivo.
+- Vista 3D del relieve con las capas drapeadas.
+- Isócronas de acceso (tiempo a la ciudad o al puerto más cercano por la
+  red vial MOP).
+- Radiación solar y exposición derivadas del DEM (frutales, viñas).
+- Riesgo de helada a partir de bioclima + relieve.
+- Integración con QGIS: publicar las capas derivadas como servicio OGC
+  (WMS/WFS/OGC API Features) de solo lectura.
+- Alertas: «avísame si aparece una transacción nueva en esta comuna».
 
 ## Riesgos transversales (revisar al cerrar cada fase)
 
@@ -876,9 +1111,22 @@ SIMEF, SNIA, IGM, ODEPA) están catalogadas en
    Minagri, ClimateChile, datos de biodiversidad emergentes).
 4. Priorizar con lo que mide la analítica interna: una capa o función que
    nadie usa no justifica su costo de mantenimiento.
+5. Mantener viva la tabla [«Por dónde retomar»](#por-dónde-retomar): al
+   cerrar un ítem, sacarlo y subir el siguiente desde la deuda 🔴/🟡 o desde
+   el horizonte activo de la [ruta larga](#ruta-gis-de-largo-plazo-horizontes-h1h5).
+   Cuando un horizonte quede sin ítems abiertos, marcar el siguiente como
+   activo.
+6. Cada revisión de deuda verifica los ítems contra el código (tamaños de
+   archivo, `npm audit --omit=dev`, versión de Node en CI) antes de copiarlos:
+   un roadmap que repite deuda ya pagada pierde credibilidad.
 
 ## Hitos
 
+- **2026-10-10 — Revisión del roadmap**: deuda verificada contra el código,
+  nuevas secciones (higiene del repo público, datos/ETL, rendimiento), cola
+  «Por dónde retomar» y ruta de largo plazo H1–H5.
+- **2026-10-06 — Coordenadas del cursor** (decimal, GMS, UTM), **Neutro**
+  como fondo por defecto y **carga de KMZ**.
 - **2026-10-05 — Revisión de deuda técnica**: Next 16.3.8 (CVE crítico),
   Vitest en CI, contrato de error único en la API y `MapView`/`page.tsx`
   divididos en hooks. Pendientes en «Deuda técnica».
