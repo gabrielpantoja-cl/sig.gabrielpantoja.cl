@@ -23,6 +23,13 @@ versionado.
 
 ### Añadido
 
+- **Capa Humedales (MMA)**: Inventario Nacional de Humedales (~118 mil
+  polígonos por tipo: continentales, artificiales, marinos y costeros) y los
+  137 humedales urbanos declarados bajo la Ley 21.202, con su resolución
+  exenta, enlace a la BCN y expediente. Capa dinámica remota (PNG por viewport
+  desde zoom 8 + consulta por clic) contra el servicio oficial
+  `SIMBIO_HUMEDALES`, licencia CC0. Informa su estado a la leyenda y entra al
+  PNG exportado con su atribución.
 - **Carga de archivos KMZ** en «Mis capas», además de KML. El ZIP se abre en
   el navegador (fflate): se toma `doc.kml` (o el primer `.kml` menos profundo)
   y se ignoran íconos e imágenes; tope de 150 MB descomprimido contra bombas ZIP.

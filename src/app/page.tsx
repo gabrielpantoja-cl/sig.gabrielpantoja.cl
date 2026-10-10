@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import type { GeocodeResult } from '@/lib/types';
 import type { LayerMetadataEntry } from '@/lib/map-export';
 import { SUELOS_SERVICE_NAME, type SuelosStatus } from '@/lib/suelos';
+import { HUMEDALES_SERVICE_NAME, type HumedalesStatus } from '@/lib/humedales';
 import { NDVI_VISUAL_SERVICE_NAME, type NdviVisualEstado } from '@/lib/ndvi-visual';
 import {
   PROPIEDADES_RURALES_SERVICE_NAME,
@@ -251,6 +252,8 @@ export default function Home() {
   const [layerOpacity, setLayerOpacity] = useState(DEFAULT_LAYER_OPACITY);
   const [showCatastroFruticola, setShowCatastroFruticola] = useState(false);
   const [showVegetacional, setShowVegetacional] = useState(false);
+  const [showHumedales, setShowHumedales] = useState(false);
+  const [humedalesStatus, setHumedalesStatus] = useState<HumedalesStatus>({ kind: 'idle' });
   const [showNdviVisual, setShowNdviVisual] = useState(false);
   const [ndviVisualStatus, setNdviVisualStatus] = useState<NdviVisualEstado>({ kind: 'idle' });
   // Mapa de calor de valor. El destino arranca en habitacional: es el 57 % de
@@ -291,12 +294,13 @@ export default function Home() {
     bioclima: showBioclima,
     catastro_fruticola: showCatastroFruticola,
     vegetacional: showVegetacional,
+    humedales: showHumedales,
     propiedades_rurales: showPropiedadesRurales,
     ndvi_visual: showNdviVisual,
   }), [
     showPoints, showHexbins, showProtected, showUrbanLimit, showComunas,
     showRedVial, showRedDrenaje, showLineasTransmision, showSuelos, showBioclima,
-    showCatastroFruticola, showVegetacional, showPropiedadesRurales, showNdviVisual,
+    showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showNdviVisual,
   ]);
   const prevLayerFlags = useRef(layerFlags);
   useEffect(() => {
@@ -340,6 +344,7 @@ export default function Home() {
         showSuelos,
         showCatastroFruticola,
         showVegetacional,
+        showHumedales,
         showPropiedadesRurales,
         showNdviVisual,
         showHexbins,
@@ -371,7 +376,7 @@ export default function Home() {
     exporting,
     showBioclima, bioclimaVariable,
     showPoints, showProtected, showUrbanLimit, showComunas, showRedVial,
-    showRedDrenaje, showLineasTransmision, showSuelos, showCatastroFruticola, showVegetacional, showPropiedadesRurales,
+    showRedDrenaje, showLineasTransmision, showSuelos, showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales,
     showNdviVisual,
     showHexbins, hexbinStatus,
     comuna, anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol,
@@ -559,6 +564,9 @@ export default function Home() {
           onToggleCatastroFruticola={setShowCatastroFruticola}
           showVegetacional={showVegetacional}
           onToggleVegetacional={setShowVegetacional}
+          showHumedales={showHumedales}
+          onToggleHumedales={setShowHumedales}
+          humedalesStatus={humedalesStatus}
           showPropiedadesRurales={showPropiedadesRurales}
           onTogglePropiedadesRurales={setShowPropiedadesRurales}
           propiedadesRuralesStatus={propiedadesRuralesStatus}
@@ -601,6 +609,8 @@ export default function Home() {
               bioclimaVariable={bioclimaVariable}
               showCatastroFruticola={showCatastroFruticola}
               showVegetacional={showVegetacional}
+              showHumedales={showHumedales}
+              onHumedalesStatus={setHumedalesStatus}
               showPropiedadesRurales={showPropiedadesRurales}
               showNdviVisual={showNdviVisual}
               onNdviVisualStatus={setNdviVisualStatus}
@@ -634,6 +644,16 @@ export default function Home() {
               <strong>Capa de suelos temporalmente no disponible.</strong>{' '}
               No responde {suelosStatus.service || SUELOS_SERVICE_NAME} (operación{' '}
               {suelosStatus.operation}). El resto del SIG continúa funcionando normalmente.
+            </div>
+          )}
+          {showHumedales && humedalesStatus.kind === 'error' && (
+            <div
+              role="alert"
+              className="absolute bottom-20 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs leading-snug text-red-800 shadow-lg backdrop-blur dark:text-red-200"
+            >
+              <strong>Capa de humedales temporalmente no disponible.</strong>{' '}
+              No responde {humedalesStatus.service || HUMEDALES_SERVICE_NAME} (operación{' '}
+              {humedalesStatus.operation}). El resto del SIG continúa funcionando normalmente.
             </div>
           )}
           {exportError && (

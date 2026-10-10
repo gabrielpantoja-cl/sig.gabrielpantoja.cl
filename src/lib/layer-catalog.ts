@@ -105,7 +105,7 @@ export const LAYER_CATALOG = [
   {
     id: 'remote',
     title: 'Capas dinámicas remotas',
-    keywords: 'capas dinamicas remotas servicios arcgis bajo demanda sentinel ndvi vegetacion',
+    keywords: 'capas dinamicas remotas servicios arcgis bajo demanda sentinel ndvi vegetacion humedales turberas',
     layers: [
       {
         id: 'suelos',
@@ -116,6 +116,11 @@ export const LAYER_CATALOG = [
         id: 'vegetacional',
         label: 'Recursos vegetacionales (CONAF)',
         description: 'Usos del suelo y especies vegetacionales, año regional del catastro CONAF',
+      },
+      {
+        id: 'humedales',
+        label: 'Humedales (MMA)',
+        description: 'Inventario Nacional de Humedales y humedales urbanos declarados (Ley 21.202), con su resolución',
       },
       {
         id: 'propiedadesRurales',

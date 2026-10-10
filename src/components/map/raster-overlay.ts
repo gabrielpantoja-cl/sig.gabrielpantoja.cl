@@ -1,4 +1,9 @@
 import {
+  HUMEDALES_SERVICE_NAME,
+  type HumedalesOperation,
+  type HumedalesProxyErrorBody,
+} from '@/lib/humedales';
+import {
   PROPIEDADES_RURALES_SERVICE_NAME,
   type PropiedadesRuralesOperation,
   type PropiedadesRuralesProxyErrorBody,
@@ -37,6 +42,14 @@ export async function ruralFailureDetails(response: Response, fallbackOperation:
     const operation = body.error?.operation === 'identify' || body.error?.operation === 'export' ? body.error.operation : fallbackOperation;
     return { service: body.error?.service === PROPIEDADES_RURALES_SERVICE_NAME ? body.error.service : PROPIEDADES_RURALES_SERVICE_NAME, operation };
   } catch { return { service: PROPIEDADES_RURALES_SERVICE_NAME, operation: fallbackOperation }; }
+}
+
+export async function humedalesFailureDetails(response: Response, fallbackOperation: HumedalesOperation): Promise<{ service: string; operation: HumedalesOperation }> {
+  try {
+    const body = await response.json() as HumedalesProxyErrorBody;
+    const operation = body.error?.operation === 'identify' || body.error?.operation === 'export' ? body.error.operation : fallbackOperation;
+    return { service: body.error?.service === HUMEDALES_SERVICE_NAME ? body.error.service : HUMEDALES_SERVICE_NAME, operation };
+  } catch { return { service: HUMEDALES_SERVICE_NAME, operation: fallbackOperation }; }
 }
 
 export function waitForImage(url: string): Promise<void> {

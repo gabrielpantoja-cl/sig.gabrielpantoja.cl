@@ -39,6 +39,7 @@ import { useVegetacionalLayer } from '@/components/map/useVegetacionalLayer';
 import { useNdviVisualLayer } from '@/components/map/useNdviVisualLayer';
 import { useBioclimaLayer } from '@/components/map/useBioclimaLayer';
 import { useSuelosLayer } from '@/components/map/useSuelosLayer';
+import { useHumedalesLayer } from '@/components/map/useHumedalesLayer';
 import { usePropiedadesRuralesLayer } from '@/components/map/usePropiedadesRuralesLayer';
 import {
   buildCatastroFruticolaPopup,
@@ -73,6 +74,7 @@ import {
 } from '@/lib/catastro-fruticola';
 import { type HexbinRampId, type HexbinStatus } from '@/lib/hexbins';
 import { type SuelosStatus } from '@/lib/suelos';
+import { type HumedalesStatus } from '@/lib/humedales';
 import { BIOCLIMA_DEFAULT_VARIABLE, type BioclimaVariable } from '@/lib/bioclima';
 import { DEFAULT_LAYER_OPACITY, type LayerOpacity } from '@/lib/layer-opacity';
 import {
@@ -118,6 +120,7 @@ export default function MapView({
   bioclimaVariable = BIOCLIMA_DEFAULT_VARIABLE,
   showCatastroFruticola = false,
   showVegetacional = false,
+  showHumedales = false,
   showPropiedadesRurales = false,
   showNdviVisual = false,
   showHexbins = false,
@@ -130,6 +133,7 @@ export default function MapView({
   onRenderProgress,
   onRenderComplete,
   onSuelosStatus,
+  onHumedalesStatus,
   onPropiedadesRuralesStatus,
   onNdviVisualStatus,
   selectedRuralFeature = null,
@@ -158,6 +162,8 @@ export default function MapView({
   bioclimaVariable?: BioclimaVariable;
   showCatastroFruticola?: boolean;
   showVegetacional?: boolean;
+  /** Humedales MMA: inventario nacional + urbanos declarados, PNG por viewport. */
+  showHumedales?: boolean;
   showPropiedadesRurales?: boolean;
   /** NDVI Visual: raster continuo por viewport (Sentinel-2 vía /api/ndvi/export). */
   showNdviVisual?: boolean;
@@ -184,6 +190,8 @@ export default function MapView({
   onRenderComplete?: () => void;
   /** Disponibilidad operacional de la capa remota de suelos para el panel UI. */
   onSuelosStatus?: (status: SuelosStatus) => void;
+  /** Disponibilidad operacional de la capa remota de humedales (MMA). */
+  onHumedalesStatus?: (status: HumedalesStatus) => void;
   onPropiedadesRuralesStatus?: (status: PropiedadesRuralesStatus) => void;
   /** Disponibilidad operacional del raster NDVI Visual para la leyenda. */
   onNdviVisualStatus?: (status: NdviVisualEstado) => void;
@@ -224,6 +232,7 @@ export default function MapView({
   const bioclimaRef = useRef<L.ImageOverlay | null>(null);
   const catastroFruticolaRef = useRef<L.GeoJSON | null>(null);
   const vegetacionalRef = useRef<L.ImageOverlay | null>(null);
+  const humedalesRef = useRef<L.ImageOverlay | null>(null);
   const ndviVisualRef = useRef<L.ImageOverlay | null>(null);
   const propiedadesRuralesRef = useRef<L.ImageOverlay | null>(null);
   const propiedadRuralHighlightRef = useRef<L.GeoJSON | null>(null);
@@ -247,6 +256,7 @@ export default function MapView({
     if (previous.suelos !== layerOpacity.suelos) suelosRef.current?.setOpacity(layerOpacity.suelos);
     if (previous.bioclima !== layerOpacity.bioclima) bioclimaRef.current?.setOpacity(layerOpacity.bioclima);
     if (previous.vegetacional !== layerOpacity.vegetacional) vegetacionalRef.current?.setOpacity(layerOpacity.vegetacional);
+    if (previous.humedales !== layerOpacity.humedales) humedalesRef.current?.setOpacity(layerOpacity.humedales);
     if (previous.ndviVisual !== layerOpacity.ndviVisual) ndviVisualRef.current?.setOpacity(layerOpacity.ndviVisual);
     if (previous.propiedadesRurales !== layerOpacity.propiedadesRurales) propiedadesRuralesRef.current?.setOpacity(layerOpacity.propiedadesRurales);
   }, [layerOpacity]);
@@ -276,6 +286,7 @@ export default function MapView({
   const onRenderProgressRef = useRef(onRenderProgress);
   const onRenderCompleteRef = useRef(onRenderComplete);
   const onSuelosStatusRef = useRef(onSuelosStatus);
+  const onHumedalesStatusRef = useRef(onHumedalesStatus);
   const onPropiedadesRuralesStatusRef = useRef(onPropiedadesRuralesStatus);
   const onNdviVisualStatusRef = useRef(onNdviVisualStatus);
   const onHexbinStatusRef = useRef(onHexbinStatus);
@@ -288,12 +299,13 @@ export default function MapView({
     onRenderProgressRef.current = onRenderProgress;
     onRenderCompleteRef.current = onRenderComplete;
     onSuelosStatusRef.current = onSuelosStatus;
+    onHumedalesStatusRef.current = onHumedalesStatus;
     onPropiedadesRuralesStatusRef.current = onPropiedadesRuralesStatus;
     onNdviVisualStatusRef.current = onNdviVisualStatus;
     onHexbinStatusRef.current = onHexbinStatus;
     ndviModeRef.current = ndviMode;
     onNdviPointRef.current = onNdviPoint;
-  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onHexbinStatus, ndviMode, onNdviPoint]);
+  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onHumedalesStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onHexbinStatus, ndviMode, onNdviPoint]);
 
   // Publica el método de export en el ref entregado por la página. La closure
   // se re-bindea en cada cambio de flags para que la captura refleje siempre
@@ -322,8 +334,9 @@ export default function MapView({
         showSuelos,
         showBioclima,
         showCatastroFruticola,
-         showVegetacional,
-         showPropiedadesRurales,
+        showVegetacional,
+        showHumedales,
+        showPropiedadesRurales,
         showNdviVisual,
         showHexbins,
         basemap,
@@ -349,6 +362,7 @@ export default function MapView({
     showBioclima,
     showCatastroFruticola,
     showVegetacional,
+    showHumedales,
     showPropiedadesRurales,
     showNdviVisual,
     showHexbins,
@@ -435,6 +449,9 @@ export default function MapView({
     // Catastro frutícola sobre los polígonos administrativos (los huertos
     // son el dato sustantivo de la capa: deben quedar visibles).
     vegetacionalRef.current?.bringToFront();
+    // Humedales sobre la vegetación: un humedal suele ser un polígono pequeño
+    // dentro de una matriz de bosque o pradera y quedaría tapado.
+    humedalesRef.current?.bringToFront();
     catastroFruticolaRef.current?.bringToFront();
     propiedadesRuralesRef.current?.bringToFront();
     propiedadRuralHighlightRef.current?.bringToFront();
@@ -541,6 +558,7 @@ export default function MapView({
       suelosRef.current = null;
       catastroFruticolaRef.current = null;
       vegetacionalRef.current = null;
+      humedalesRef.current = null;
       ndviVisualRef.current = null;
       propiedadesRuralesRef.current = null;
       propiedadRuralHighlightRef.current = null;
@@ -952,6 +970,8 @@ export default function MapView({
   useBioclimaLayer({ mapRef, bioclimaRef, showBioclima, bioclimaVariable, opacityRef, reorderOverlays });
 
   useSuelosLayer({ mapRef, suelosRef, showSuelos, opacityRef, onSuelosStatusRef, ndviModeRef });
+
+  useHumedalesLayer({ mapRef, humedalesRef, showHumedales, opacityRef, onHumedalesStatusRef, ndviModeRef, reorderOverlays });
 
   usePropiedadesRuralesLayer({ mapRef, propiedadesRuralesRef, showPropiedadesRurales, opacityRef, onPropiedadesRuralesStatusRef, ndviModeRef, reorderOverlays });
 

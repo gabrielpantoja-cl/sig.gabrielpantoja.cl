@@ -30,6 +30,16 @@ import {
   type SuelosStatus,
 } from '@/lib/suelos';
 import {
+  HUMEDALES_ATTRIBUTION,
+  HUMEDALES_CLASSES,
+  HUMEDALES_COLOR,
+  HUMEDALES_DISCLAIMER,
+  HUMEDALES_MIN_ZOOM,
+  HUMEDALES_SOURCE_URL,
+  HUMEDALES_URBANOS_COLOR,
+  type HumedalesStatus,
+} from '@/lib/humedales';
+import {
   CATASTRO_FRUTICOLA_ATTRIBUTION,
   CATASTRO_FRUTICOLA_LEGEND,
   CATASTRO_FRUTICOLA_SOURCE_URL,
@@ -237,7 +247,9 @@ function LayerRow({
   );
 }
 
-function SuelosStatusNotice({ status }: { status: SuelosStatus }) {
+/** Estado de una capa remota por viewport. `provider` nombra al organismo en
+ *  los mensajes («CIREN», «MMA»); el estado tiene la misma forma en ambas. */
+function RemoteStatusNotice({ status, provider }: { status: SuelosStatus | HumedalesStatus; provider: string }) {
   const activeLegend = useContext(ActiveLegendContext);
   if (!activeLegend) return null;
   if (status.kind === 'idle') return null;
@@ -254,13 +266,13 @@ function SuelosStatusNotice({ status }: { status: SuelosStatus }) {
         return {
           tone: 'border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-100',
           icon: '◌',
-          text: 'Consultando la cobertura oficial de CIREN…',
+          text: `Consultando la cobertura oficial de ${provider}…`,
         };
       case 'ready':
         return {
           tone: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100',
           icon: '✓',
-          text: 'Servicio CIREN operativo en esta vista.',
+          text: `Servicio ${provider} operativo en esta vista.`,
         };
       case 'error':
         return {
@@ -584,6 +596,9 @@ export function LayersControl({
   onToggleCatastroFruticola,
   showVegetacional,
   onToggleVegetacional,
+  showHumedales,
+  onToggleHumedales,
+  humedalesStatus,
   showPropiedadesRurales,
   onTogglePropiedadesRurales,
   propiedadesRuralesStatus,
@@ -637,6 +652,9 @@ export function LayersControl({
   onToggleCatastroFruticola: (v: boolean) => void;
   showVegetacional: boolean;
   onToggleVegetacional: (v: boolean) => void;
+  showHumedales: boolean;
+  onToggleHumedales: (v: boolean) => void;
+  humedalesStatus: HumedalesStatus;
   showPropiedadesRurales: boolean;
   onTogglePropiedadesRurales: (v: boolean) => void;
   propiedadesRuralesStatus: PropiedadesRuralesStatus;
@@ -716,10 +734,10 @@ export function LayersControl({
   );
   const hasActiveLegend = showHexbins || showProtected || showUrbanLimit || showComunas ||
     showRedVial || showRedDrenaje || showLineasTransmision || showSuelos || showBioclima ||
-    showCatastroFruticola || showVegetacional || showPropiedadesRurales || showNdviVisual;
+    showCatastroFruticola || showVegetacional || showHumedales || showPropiedadesRurales || showNdviVisual;
   const activeLayerCount = [showHexbins, showProtected, showUrbanLimit, showComunas,
     showRedVial, showRedDrenaje, showLineasTransmision, showSuelos, showBioclima,
-    showCatastroFruticola, showVegetacional, showPropiedadesRurales, showNdviVisual].filter(Boolean).length;
+    showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showNdviVisual].filter(Boolean).length;
   const catalogue = (
       <div className="space-y-2">
         <LayerGroupHeader id="cbr" />
@@ -1051,6 +1069,52 @@ export function LayersControl({
 
         <div>
           <LayerRow
+            checked={showHumedales}
+            onChange={onToggleHumedales}
+            layerId="humedales"
+            label="Humedales (MMA)"
+            controls={opacityControl('humedales')}
+            swatch={<span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: HUMEDALES_COLOR }} />}
+          >
+            <ul className="space-y-1 text-xs">
+              <li className="flex items-center gap-1.5 leading-tight">
+                <span
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-black/20 dark:border-white/25"
+                  style={{ background: HUMEDALES_URBANOS_COLOR }}
+                />
+                <span className="opacity-80">
+                  Humedal urbano declarado
+                  <span className="opacity-60"> · Ley 21.202, con su resolución</span>
+                </span>
+              </li>
+              {HUMEDALES_CLASSES.map((c) => (
+                <li key={c.label} className="flex items-center gap-1.5 leading-tight">
+                  <span
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-black/20 dark:border-white/25"
+                    style={{ background: c.color }}
+                  />
+                  <span className="opacity-80">
+                    {c.label}
+                    <span className="opacity-60"> · {c.description}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
+              {HUMEDALES_ATTRIBUTION}. Capa servida en vivo por el MMA (118 mil polígonos del
+              inventario + 137 humedales urbanos declarados).{' '}
+              <strong>Visible desde zoom {HUMEDALES_MIN_ZOOM}.</strong> Haz clic para consultar
+              tipo, superficie y resolución. {HUMEDALES_DISCLAIMER}{' '}
+              <a href={HUMEDALES_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-100">
+                Ver fuente oficial →
+              </a>
+            </p>
+          </LayerRow>
+          {showHumedales && <RemoteStatusNotice status={humedalesStatus} provider="MMA" />}
+        </div>
+
+        <div>
+          <LayerRow
             checked={showSuelos}
             onChange={onToggleSuelos}
             layerId="suelos"
@@ -1091,7 +1155,7 @@ export function LayersControl({
               </a>
             </p>
           </LayerRow>
-          {showSuelos && <SuelosStatusNotice status={suelosStatus} />}
+          {showSuelos && <RemoteStatusNotice status={suelosStatus} provider="CIREN" />}
         </div>
 
         <LayerRow checked={showPropiedadesRurales} onChange={onTogglePropiedadesRurales} layerId="propiedadesRurales" controls={opacityControl('propiedadesRurales')} label="Propiedades rurales (CIREN)" swatch={<span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: `${PROPIEDADES_RURALES_COLOR}22`, border: `1.5px solid ${PROPIEDADES_RURALES_COLOR}` }} />}>
