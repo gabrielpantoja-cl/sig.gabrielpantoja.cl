@@ -15,6 +15,7 @@ const base: BuildMetadataInput = {
   showSuelos: false,
   showCatastroFruticola: false,
   showVegetacional: false,
+  showHumedales: false,
   showPropiedadesRurales: false,
   showNdviVisual: false,
   showHexbins: false,

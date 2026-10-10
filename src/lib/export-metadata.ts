@@ -2,6 +2,7 @@ import type { Stats } from '@/lib/types';
 import { kmlDisplayName, type KmlLayer } from '@/lib/kml';
 import type { LayerMetadataEntry } from '@/lib/map-export';
 import { LINEAS_TRANSMISION_COLOR } from '@/lib/lineas-transmision';
+import { HUMEDALES_COLOR } from '@/lib/humedales';
 import { HEXBINS_COLOR, destinoLabel, hexEdgeLabel, type HexbinStatus } from '@/lib/hexbins';
 import { bioclimaRamp, type BioclimaVariable } from '@/lib/bioclima';
 
@@ -43,6 +44,7 @@ export type BuildMetadataInput = {
   showSuelos: boolean;
   showCatastroFruticola: boolean;
   showVegetacional: boolean;
+  showHumedales: boolean;
   showPropiedadesRurales: boolean;
   showNdviVisual: boolean;
   showHexbins: boolean;
@@ -202,6 +204,16 @@ export function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEnt
       title: 'Recursos vegetacionales (CONAF)',
       details: 'Uso, subuso, estructura, cobertura y especies dominantes; actualización regional variable\nFuente: CONAF · IDE Minagri',
       color: '#15803d',
+      shape: 'square',
+    });
+  }
+  if (input.showHumedales) {
+    entries.push({
+      title: 'Humedales (MMA)',
+      details:
+        'Inventario Nacional de Humedales (continentales, artificiales, marinos y costeros) y humedales urbanos declarados (Ley 21.202); cartografía referencial\n' +
+        'Fuente: Ministerio del Medio Ambiente · SIMBIO · CC0',
+      color: HUMEDALES_COLOR,
       shape: 'square',
     });
   }

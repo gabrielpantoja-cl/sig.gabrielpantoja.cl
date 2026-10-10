@@ -1,6 +1,6 @@
 # Arquitectura de capas del SIG: catálogo y receta para agregar una capa nueva
 
-> Documento vivo. Última actualización: 2026-09-27.
+> Documento vivo. Última actualización: 2026-10-10.
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
 > públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
@@ -30,6 +30,7 @@ atribución visible y cita en el popup.
 | Suelos agrológicos (CIREN) | CIREN · Estudios Agrológicos · esri.ciren.cl (MapServer, 12 regiones) | 2010–2024 según región | Clases I–VIII + N.C. | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
 | Catastro frutícola (CIREN) | CIREN · IDE Minagri · esri.ciren.cl (MapServer `IDEMINAGRI/CATASTRO_FRUTICOLA`, 14 sublayers) | 2019–2025 según región | ~95k productores (especie_01 + ROL + códigos SUBDERE) | **~30 MB** ⚠ | `scripts/build-catastro-fruticola.mjs` |
 | Recursos vegetacionales (CONAF) | CONAF · IDE Minagri · ArcGIS MapServer | 2014–2024 según región | Render oficial + consulta puntual de uso, subuso, estructura, cobertura y especies dominantes | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
+| Humedales (MMA) | Ministerio del Medio Ambiente · SIMBIO · `SIMBIO/SIMBIO_HUMEDALES` MapServer (arcgis.mma.gob.cl), CC0 | inventario sin fecha de corte declarada; urbanos declarados con su resolución (2021→) | ~118k polígonos del Inventario Nacional + 137 humedales urbanos (Ley 21.202) | **0 MB (capa dinámica remota)** | — (sin ETL; `/api/humedales/*`) |
 | Propiedades rurales (CIREN) | CIREN · IDE Minagri · `IDEMINAGRI/PROPIEDADES_RURALES` (14 sublayers regionales) | 2004–2023 según región | Polígonos prediales referenciales + ROL SII publicado por la fuente | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
 | NDVI Visual (Sentinel-2) | Copernicus Sentinel-2 L2A · Element 84 Earth Search / AWS Open Data (COG) | escenas de los últimos 45 días, seleccionadas por grilla MGRS | Raster continuo de NDVI por viewport, enmascarado con SCL; rampa compartida leyenda↔pintor | **0 MB (capa dinámica remota)** | — (sin ETL; `/api/ndvi/export` + `lib/ndvi-raster.ts`) |
 | Mapa de calor de valor ($/m²) | Elaboración propia sobre inscripciones de los Conservadores de Bienes Raíces | igual que los puntos CBR (97 % de 2025) | Raster continuo interpolado desde centroides `ST_HexagonGrid` de 60 m–4 km según zoom (máx. 4.000 muestras por respuesta) | **0 MB (agregada en Neon + rasterizada en el cliente)** | — (sin ETL; `/api/hexbins` + `lib/heat-surface.ts`) |
@@ -93,6 +94,20 @@ vivo. Patrón implementado en `MapView.tsx` (efecto de suelos) +
   afectada (`export` o `identify`). Una caída nunca debe presentarse como
   «sin clase de suelo»; ese mensaje queda reservado a respuestas válidas sin
   cobertura puntual.
+
+La capa de **humedales (MMA)** usa el mismo patrón que suelos, con las dos
+subcapas del servicio `SIMBIO_HUMEDALES` en un solo PNG: el Inventario Nacional
+(subcapa 0, ~118 mil polígonos) y los humedales urbanos declarados por la Ley
+21.202 (subcapa 1, 137 polígonos). Zoom mínimo 8. El `identify` del MMA entrega
+los atributos por **alias** («Hectáreas, ha»), con números en formato chileno
+(«124,13») y el texto literal «Null»; `src/lib/humedales-proxy.ts` los traduce
+con una lista cerrada de alias, de modo que un campo nuevo del servicio no
+llega a la UI sin revisión, y devuelve primero la declaración (es la que tiene
+efecto legal). Verificado el 2026-10-10 sobre el humedal Angachilla (Valdivia):
+el raster calza con la costa de Corral e Isla del Rey, y el clic devuelve la
+resolución RE N° 1337/2021 junto al polígono del inventario. A diferencia de
+CONAF, el hook informa su estado a la leyenda y sus popups viven en
+`map-popups.ts`.
 
 La capa de **propiedades rurales CIREN** usa el mismo patrón, mediante
 `/api/propiedades-rurales/export` e `/api/propiedades-rurales/identify`. Se

@@ -81,6 +81,7 @@ const ATTRIBUTION_SUELOS = 'CIREN · Estudios Agrológicos';
 const ATTRIBUTION_CATASTRO = 'CIREN-ODEPA · Catastro Frutícola';
 const ATTRIBUTION_VEGETACIONAL = 'CONAF · Catastro de Recursos Vegetacionales';
 const ATTRIBUTION_PROPIEDADES_RURALES = 'CIREN · Propiedades rurales';
+const ATTRIBUTION_HUMEDALES = 'MMA · Inventario Nacional de Humedales y Humedales Urbanos (Ley 21.202) · CC0';
 const ATTRIBUTION_HEXBINS =
   'Mapa de calor: elaboración propia sobre inscripciones de los Conservadores de Bienes Raíces';
 
@@ -812,6 +813,7 @@ function drawFrame(
   if (opts.showBioclima) atts.push('WorldClim 2.1 · Fick y Hijmans (2017) · CC BY 4.0 · 1970–2000');
   if (opts.showCatastroFruticola) atts.push(ATTRIBUTION_CATASTRO);
   if (opts.showVegetacional) atts.push(ATTRIBUTION_VEGETACIONAL);
+  if (opts.showHumedales) atts.push(ATTRIBUTION_HUMEDALES);
   if (opts.showPropiedadesRurales) atts.push(ATTRIBUTION_PROPIEDADES_RURALES);
   if (opts.showHexbins) atts.push(ATTRIBUTION_HEXBINS);
   if (opts.showNdviVisual) atts.push(NDVI_VISUAL_ATTRIBUTION);
@@ -833,6 +835,9 @@ export type LayerExportFlags = {
   showSuelos: boolean;
   showCatastroFruticola: boolean;
   showVegetacional: boolean;
+  /** Humedales MMA. Los píxeles entran solos (L.ImageOverlay del overlayPane);
+   *  la bandera solo agrega la atribución del PNG. */
+  showHumedales: boolean;
   showPropiedadesRurales: boolean;
   /** Mapa de calor de valor ($/m² por hexágono). Se rasteriza solo con la
    *  captura de vectores (es un L.geoJSON sobre el canvas compartido); esta

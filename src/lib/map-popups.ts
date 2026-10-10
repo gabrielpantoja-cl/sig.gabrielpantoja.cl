@@ -28,6 +28,13 @@ import {
 } from '@/lib/catastro-fruticola';
 import { VEGETACIONAL_ATTRIBUTION, speciesPairs, type VegetacionalProps } from '@/lib/vegetacional';
 import { destinoLabel, hexEdgeLabel, type HexbinMeta, type HexbinProps } from '@/lib/hexbins';
+import {
+  HUMEDALES_ATTRIBUTION,
+  HUMEDALES_DISCLAIMER,
+  HUMEDALES_URBANOS_COLOR,
+  humedalClassColor,
+  type HumedalIdentifyResult,
+} from '@/lib/humedales';
 
 /**
  * HTML de los popups del mapa. Leaflet inyecta el string tal cual con
@@ -415,6 +422,86 @@ export function buildVegetacionalPopup(props: VegetacionalProps, layerName = '')
   }
   const body = popupRows(rows);
   return `<div style="font-size:0.8rem;line-height:1.45;min-width:230px"><div style="font-weight:600;font-size:.92rem">Recursos vegetacionales</div><table style="border-collapse:collapse">${body}</table><div style="margin-top:.35rem;font-size:.62rem;opacity:.5">${VEGETACIONAL_ATTRIBUTION} · cartografía referencial</div></div>`;
+}
+
+const hectareas = (value: number | null): string =>
+  value == null ? '' : `${value.toLocaleString('es-CL', { maximumFractionDigits: 2 })} ha`;
+
+/** Enlace externo seguro, o '' si la URL no es http(s). */
+function externalLink(url: string | null, label: string): string {
+  const href = safeHref(url);
+  return href
+    ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer" style="text-decoration:underline">${esc(label)} →</a>`
+    : '';
+}
+
+/**
+ * Popup de la capa Humedales (MMA). Un mismo punto puede caer en un humedal
+ * urbano declarado y en uno o más polígonos del inventario; se muestran todos,
+ * la declaración primero (el endpoint ya los ordena). Con `results` vacío el
+ * servicio respondió bien pero el punto no está en ningún humedal: se dice
+ * así, para no confundirlo con una falla.
+ */
+export function buildHumedalesPopup(results: HumedalIdentifyResult[]): string {
+  const sections = results.slice(0, 3).map((result) => {
+    if (result.kind === 'urbano') {
+      const p = result.attributes;
+      const rows: [string, string][] = [];
+      if (p.codigo) rows.push(['Código', esc(p.codigo)]);
+      if (p.comuna) rows.push(['Comuna', esc(p.comuna)]);
+      if (p.hectareas != null) rows.push(['Superficie', hectareas(p.hectareas)]);
+      if (p.proceso) rows.push(['Proceso', esc(p.proceso)]);
+      const resolucion = [esc(p.resolucion), externalLink(p.urlResolucion, 'BCN')].filter(Boolean).join(' · ');
+      if (resolucion) rows.push(['Resolución', resolucion]);
+      const expediente = externalLink(p.urlExpediente, 'Ver expediente');
+      if (expediente) rows.push(['Expediente', expediente]);
+      return (
+        `<div style="font-weight:600;font-size:.92rem">${esc(p.nombre || 'Humedal urbano')}</div>` +
+        `<div style="display:inline-block;margin:.2rem 0 .35rem;padding:1px 7px;border-radius:9px;` +
+        `font-size:0.68rem;font-weight:600;color:#14532d;background:${HUMEDALES_URBANOS_COLOR}">` +
+        `Humedal urbano declarado · Ley 21.202</div>` +
+        `<table style="border-collapse:collapse">${popupRows(rows)}</table>`
+      );
+    }
+    const p = result.attributes;
+    const rows: [string, string][] = [];
+    const tipo = [p.orden2, p.orden3].filter(Boolean).map((v) => esc(v)).join(' · ');
+    if (tipo) rows.push(['Tipo', tipo]);
+    const regimen = [...new Set([p.orden4, p.orden5].filter(Boolean))].map((v) => esc(v)).join(' · ');
+    if (regimen) rows.push(['Régimen', regimen]);
+    if (p.hectareas != null) rows.push(['Superficie', hectareas(p.hectareas)]);
+    if (p.hectareasUrbanas) rows.push(['Dentro de límite urbano', hectareas(p.hectareasUrbanas)]);
+    if (p.codigo) rows.push(['Código inventario', esc(p.codigo)]);
+    const ficha = externalLink(p.urlFicha, 'Ficha SIMBIO');
+    if (ficha) rows.push(['Ficha', ficha]);
+    const nombre = p.nombre || p.nombreMaster || 'Humedal sin nombre';
+    const clase = p.orden1 ? p.orden1.charAt(0) + p.orden1.slice(1).toLocaleLowerCase('es-CL') : 'Inventario';
+    return (
+      `<div style="font-weight:600;font-size:.92rem">${esc(nombre)}</div>` +
+      `<div style="display:inline-block;margin:.2rem 0 .35rem;padding:1px 7px;border-radius:9px;` +
+      `font-size:0.68rem;font-weight:600;color:#0f172a;background:${humedalClassColor(p.orden1)};` +
+      `border:1px solid rgba(0,0,0,.15)">Inventario Nacional · ${esc(clase)}</div>` +
+      `<table style="border-collapse:collapse">${popupRows(rows)}</table>`
+    );
+  });
+  const body = sections.length
+    ? sections.join('<hr style="margin:.45rem 0;border:0;border-top:1px solid rgba(0,0,0,.12)"/>')
+    : `<div style="font-weight:600;font-size:.92rem">Sin humedal inventariado en este punto</div>` +
+      `<div style="opacity:.7;margin-top:.2rem">El servicio del MMA respondió correctamente; el punto no cae en ningún polígono del inventario ni en un humedal urbano declarado.</div>`;
+  return (
+    `<div style="font-size:0.8rem;line-height:1.45;min-width:230px;max-width:320px">${body}` +
+    `<div style="margin-top:.4rem;font-size:.62rem;opacity:.55">${esc(HUMEDALES_DISCLAIMER)}<br/>${esc(HUMEDALES_ATTRIBUTION)}</div></div>`
+  );
+}
+
+/** Popup de falla de un servicio remoto: nombra el servicio y la operación. */
+export function buildRemoteFailurePopup(title: string, service: string, operation: string): string {
+  return (
+    `<div style="font-size:0.8rem;line-height:1.45;min-width:220px">` +
+    `<div style="font-weight:600;font-size:0.92rem;color:#b91c1c">${esc(title)}</div>` +
+    `<div style="margin-top:.25rem;opacity:.75">El servicio no respondió: ${esc(service)} ` +
+    `(operación ${esc(operation)}). Intenta nuevamente en unos segundos.</div></div>`
+  );
 }
 
 /**

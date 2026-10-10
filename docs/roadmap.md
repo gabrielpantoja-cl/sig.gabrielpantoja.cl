@@ -48,7 +48,7 @@ rango temporal para series).
 
 ## Estado actual (al 2026-10-10)
 
-**Catorce capas en producción** (detalle técnico en
+**Quince capas en producción** (detalle técnico en
 [`arquitectura-capas.md`](./arquitectura-capas.md)):
 
 | # | Capa | Tipo | Peso |
@@ -67,6 +67,7 @@ rango temporal para series).
 | 12 | Suelos agrológicos (CIREN) | Dinámica remota (PNG por viewport + `identify`) | — |
 | 13 | Bioclima (WorldClim) | Estática, PNG reproyectado | 75 KB |
 | 14 | NDVI Visual (Sentinel-2) | Dinámica remota (PNG compuesto en el servidor por viewport) | — |
+| 15 | Humedales (MMA): inventario nacional + urbanos Ley 21.202 | Dinámica remota (PNG por viewport + `identify`) | — |
 
 Además:
 
@@ -100,7 +101,7 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | 5 | 🟡 CONAF informa su estado a la leyenda + popups inline a `map-popups.ts` | Fallas silenciosas y HTML sin tests de escape | [Deuda › Frontend](#arquitectura-del-frontend) |
 | 6 | 🟢 Permalink con estado completo | Habilita compartir hallazgos; barato | [Producto](#producto-y-mercado) |
 | 7 | 🟢 Escala numérica + medición | Lo pide el informe de tasación | [Herramientas SIG](#herramientas-mínimas-de-sig-que-faltan-auditoría-2026-08-28) |
-| 7b | 🟡 Capa de humedales (Inventario Nacional + humedales urbanos Ley 21.202) | Caso de estudio de la tesis y capa ausente | [Investigación › Eje 3](#eje-3--coberturas-humedales-bosque-nativo-y-agua) |
+| 7b | ~~🟡 Capa de humedales (Inventario Nacional + humedales urbanos Ley 21.202)~~ ✅ 2026-10-10 | Caso de estudio de la tesis | [Investigación › Eje 3](#eje-3--coberturas-humedales-bosque-nativo-y-agua) |
 | 8 | 🟢 Carta IGM 1:50.000 o DEM libre (decidir juntas) | Única capa aprobada en cola; el relieve no existe hoy | [§ 1.4](#14-carta-topográfica-igm-150000-vía-mop-rest-sit---aprobada-en-cola) |
 | 9 | 🟡 Dividir `LayersControl.tsx` y terminar `MapView.tsx` | Siguen creciendo (1.419 y 1.111 líneas) | [Deuda › Frontend](#arquitectura-del-frontend) |
 | 10 | 🟢 Humo E2E con Playwright | Protege el export PNG y las capas remotas | [Deuda › Tests](#tests) |
@@ -1039,13 +1040,16 @@ espacial, Random Forest + SHAP.*
 NDVI y Sentinel-2, Google Earth Engine, agua y derechos de agua, áreas
 protegidas y precio, GBIF.*
 
-- [ ] 🟡 **Humedales** — el caso de estudio de la propuesta y **la capa que
-      falta**. Dos fuentes, ambas del MMA: el **Inventario Nacional de
-      Humedales** y los **humedales urbanos declarados** bajo la Ley 21.202
-      (polígonos oficiales por resolución). Estática si la descarga lo
-      permite. Encaja como Fase 2.4 (restricción del predio) y como
-      covariable de la ficha. Es la capa con más valor combinado para
-      ambos públicos de todo el roadmap.
+- [x] **Humedales** — el caso de estudio de la propuesta. *Hecho
+      (2026-10-10)*: capa dinámica remota contra `SIMBIO_HUMEDALES` del MMA
+      con el **Inventario Nacional** (~118 mil polígonos) y los **137
+      humedales urbanos declarados** (Ley 21.202) con su resolución.
+      No fue estática: 118 mil polígonos no caben en el presupuesto de
+      `public/data/`. *Pendiente*: (a) distancia al humedal más cercano
+      en el popup del punto CBR y en la ficha del predio (covariable de la
+      tesis); (b) filtro de transacciones «dentro / a menos de X m de un
+      humedal»; (c) consultar si el MMA publica la fecha de corte del
+      inventario, hoy no declarada en el servicio.
 - [ ] 🟡 **Bosque nativo vs. plantación**: la leyenda de NDVI Visual debe
       advertir que verde no es nativo (lo que dice la nota), y sumar una
       capa que sí los separe — el mapa de dinámica de bosque nativo y
@@ -1278,6 +1282,8 @@ SIMEF, SNIA, IGM, ODEPA) están catalogadas en
 
 ## Hitos
 
+- **2026-10-10 — Humedales (MMA)**: Inventario Nacional + humedales urbanos
+  declarados (Ley 21.202), capa dinámica remota con estado en la leyenda.
 - **2026-10-10 — Alineación con la investigación**: los seis ejes de
   gabrielpantoja.cl traducidos a trabajo del SIG; humedales y auditoría de
   reidentificación entran a la cola.

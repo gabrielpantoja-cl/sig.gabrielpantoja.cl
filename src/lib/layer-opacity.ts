@@ -3,6 +3,7 @@ import { NDVI_VISUAL_OPACITY } from './ndvi-visual';
 import { SUELOS_OPACITY } from './suelos';
 import { VEGETACIONAL_OPACITY } from './vegetacional';
 import { PROPIEDADES_RURALES_OPACITY } from './propiedades-rurales';
+import { HUMEDALES_OPACITY } from './humedales';
 
 /** Opacidad absoluta; en vectores solo cambia el relleno, no el borde. */
 export const DEFAULT_LAYER_OPACITY = {
@@ -13,6 +14,7 @@ export const DEFAULT_LAYER_OPACITY = {
   propiedadesRurales: PROPIEDADES_RURALES_OPACITY,
   catastroFruticola: 0.32,
   ndviVisual: NDVI_VISUAL_OPACITY,
+  humedales: HUMEDALES_OPACITY,
 };
 
 export type LayerOpacity = typeof DEFAULT_LAYER_OPACITY;
