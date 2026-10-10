@@ -5,7 +5,9 @@
 >
 > **¿Retomas el proyecto?** Lee primero [«Por dónde retomar»](#por-dónde-retomar):
 > la cola ordenada de lo siguiente que conviene hacer. El horizonte largo está
-> en [«Ruta GIS de largo plazo»](#ruta-gis-de-largo-plazo-horizontes-h1h5).
+> en [«Ruta GIS de largo plazo»](#ruta-gis-de-largo-plazo-horizontes-h1h5), y su
+> relación con la investigación del autor en
+> [«Alineación con la investigación»](#alineación-con-la-investigación-gabrielpantojacl).
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
 > públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
@@ -91,12 +93,14 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | # | Qué | Por qué ahora | Sección |
 |---|---|---|---|
 | 1 | ~~🔴 Subir `sharp` (CVE alto en producción) y correr `npm ci` local~~ ✅ 2026-10-10 | Única vulnerabilidad de `npm audit --omit=dev` | [Deuda › Seguridad](#seguridad-y-operación) |
+| 1b | 🔴 Auditoría de reidentificación de `/api/points` y `/api/export` (k-anonimato de rol + fecha + monto + fojas/número) | La Ley 21.719 rige desde diciembre de 2026 y la propia propuesta doctoral lo advierte | [Investigación › Eje 1](#eje-1--el-registro-datos-calidad-y-apertura) |
 | 2 | 🔴 Node 22 en CI + Vercel, `engines`, `packageManager` | Node 20 está fuera de soporte desde abril 2026 | [Deuda › Plataforma](#plataforma-y-release) |
 | 3 | 🔴 Fijar el runner de CI y añadir `npm run build` al workflow | `ubuntu-latest` cambia el 2026-10-19; hoy CI no compila | [Deuda › Plataforma](#plataforma-y-release) |
 | 4 | 🟡 Etiquetar `v0.2.0` | Cambio incompatible + KMZ + coordenadas sin release | [Deuda › Plataforma](#plataforma-y-release) |
 | 5 | 🟡 CONAF informa su estado a la leyenda + popups inline a `map-popups.ts` | Fallas silenciosas y HTML sin tests de escape | [Deuda › Frontend](#arquitectura-del-frontend) |
 | 6 | 🟢 Permalink con estado completo | Habilita compartir hallazgos; barato | [Producto](#producto-y-mercado) |
 | 7 | 🟢 Escala numérica + medición | Lo pide el informe de tasación | [Herramientas SIG](#herramientas-mínimas-de-sig-que-faltan-auditoría-2026-08-28) |
+| 7b | 🟡 Capa de humedales (Inventario Nacional + humedales urbanos Ley 21.202) | Caso de estudio de la tesis y capa ausente | [Investigación › Eje 3](#eje-3--coberturas-humedales-bosque-nativo-y-agua) |
 | 8 | 🟢 Carta IGM 1:50.000 o DEM libre (decidir juntas) | Única capa aprobada en cola; el relieve no existe hoy | [§ 1.4](#14-carta-topográfica-igm-150000-vía-mop-rest-sit---aprobada-en-cola) |
 | 9 | 🟡 Dividir `LayersControl.tsx` y terminar `MapView.tsx` | Siguen creciendo (1.419 y 1.111 líneas) | [Deuda › Frontend](#arquitectura-del-frontend) |
 | 10 | 🟢 Humo E2E con Playwright | Protege el export PNG y las capas remotas | [Deuda › Tests](#tests) |
@@ -956,6 +960,158 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
       de `AGENTS.md`. Las rutas ya comparten el formato de error
       `{ error: { code, message, service, operation } }`.
 
+## Alineación con la investigación (gabrielpantoja.cl)
+
+> Revisado el 2026-10-10 sobre <https://gabrielpantoja.cl/investigacion> y
+> las ~30 notas de <https://gabrielpantoja.cl/notas>. El SIG es el
+> instrumento público de esa línea: **un registro abierto de transacciones
+> de suelo rural para la conservación**. Esta sección traduce cada eje de
+> las notas a trabajo concreto del SIG, para que el producto y la
+> investigación avancen juntos. Los ítems se reparten luego en las fases y
+> en los horizontes H1–H5.
+
+La propuesta tiene dos partes que el SIG debe servir: **(1) el dato** — qué
+se puede afirmar con el registro, con qué error, y cómo publicarlo sin
+exponer a las personas — y **(2) el sistema** — la estructura del precio
+integrada con capas ecológicas y normativas, con los humedales como caso
+de estudio y el bosque nativo como segundo caso.
+
+### Eje 1 — El registro: datos, calidad y apertura
+
+*Notas: datos abiertos de compraventa y conservación, Conservador de Bienes
+Raíces, principios FAIR, anatomía de un dato ecológico, PostGIS + Python,
+coordenadas sin metadatos (datum, huso, proyección).*
+
+- [ ] 🔴 **Auditoría de reidentificación del endpoint público.** La propia
+      propuesta afirma que *rol + fecha + comuna + monto*, juntos, permiten
+      volver a la persona usando el Conservador; `/api/points` y
+      `/api/export` exponen esos campos **y además `fojas`, `numero` y
+      `conservador`**, que apuntan directo a la inscripción. Medir cuántas
+      filas son únicas por combinación de campos (k-anonimato) y decidir qué
+      generalizar (año en vez de fecha, monto en tramos, sin fojas/número)
+      **antes de la entrada en vigor de la Ley 21.719 (diciembre de 2026)**.
+      Es una decisión del autor, no de implementación: cambia el contrato
+      público y la regla «`rol` es intencionalmente público» de `AGENTS.md`.
+- [ ] 🟡 **Capas de calidad del dato** como filtros y como color del punto:
+      monto cercano al avalúo fiscal (posible subdeclaración), montos
+      redondos, duplicados, inscripciones que no son compraventa entre
+      partes independientes y precisión de la georreferenciación. Es el
+      «error caracterizado» del data descriptor hecho visible.
+- [ ] 🟡 **Metadatos FAIR por capa**: cada `meta.json` exportable como DCAT /
+      ISO 19115 mínimo, con licencia, vintage, CRS y procedencia; un
+      catálogo `/datos` que los liste. Se apoya en el esquema de `meta.json`
+      pedido en «Deuda › Datos y ETL».
+- [ ] 🟡 **Releases del registro con DOI** (Zenodo), versionados igual que
+      las notas: la capa de investigación seudonimizada, su diccionario de
+      datos y el protocolo de anonimización. El SIG enlaza la versión que
+      está mostrando.
+- [ ] 🟢 **Conversión de datum en la entrada de coordenadas**: las
+      escrituras y planos antiguos vienen en PSAD56 o SAD69; la búsqueda
+      por coordenadas debe aceptar el datum de origen y convertir a
+      SIRGAS-Chile/WGS84 (la nota sobre CRS explica el desfase de cientos
+      de metros si no se hace).
+
+### Eje 2 — Precio y territorio: métodos espaciales
+
+*Notas: precios hedónicos, autocorrelación espacial (Moran), econometría
+espacial (SEM, Durbin), efectos directos e indirectos, cross-validation
+espacial, Random Forest + SHAP.*
+
+- [ ] 🟡 **Ficha del predio con covariables del modelo** (H3): pendiente,
+      clase de capacidad de uso, cobertura, distancia a camino, a área
+      protegida y a humedal, límite urbano/PRC. Son exactamente las
+      variables con que la propuesta une cada transacción al territorio;
+      el SIG debe calcularlas igual que el notebook de la tesis (mismo
+      código, mismo resultado).
+- [ ] 🟢 **Mapa LISA / Moran local** del $/m² por destino: dónde hay
+      agrupamientos de precios altos o bajos y dónde hay valores atípicos
+      espaciales. Derivado de la misma agregación de `/api/hexbins`.
+- [ ] 🟢 **Capa de residuos del modelo hedónico** (cuando exista uno
+      publicado): dónde el mercado paga más o menos de lo que explican los
+      atributos. Con su intervalo, nunca como «precio automático».
+- [ ] 🟢 **Bloques de validación espacial** visibles: la grilla con que se
+      hace la cross-validation espacial, para que el lector vea por qué un
+      error aleatorio sería demasiado optimista.
+
+### Eje 3 — Coberturas: humedales, bosque nativo y agua
+
+*Notas: humedales urbanos de Valdivia, NDVI no separa nativo de plantación,
+NDVI y Sentinel-2, Google Earth Engine, agua y derechos de agua, áreas
+protegidas y precio, GBIF.*
+
+- [ ] 🟡 **Humedales** — el caso de estudio de la propuesta y **la capa que
+      falta**. Dos fuentes, ambas del MMA: el **Inventario Nacional de
+      Humedales** y los **humedales urbanos declarados** bajo la Ley 21.202
+      (polígonos oficiales por resolución). Estática si la descarga lo
+      permite. Encaja como Fase 2.4 (restricción del predio) y como
+      covariable de la ficha. Es la capa con más valor combinado para
+      ambos públicos de todo el roadmap.
+- [ ] 🟡 **Bosque nativo vs. plantación**: la leyenda de NDVI Visual debe
+      advertir que verde no es nativo (lo que dice la nota), y sumar una
+      capa que sí los separe — el mapa de dinámica de bosque nativo y
+      exótico de Martin-Gallego et al. (2024) si su licencia lo permite, o
+      el uso/subuso de CONAF ya disponible como filtro «nativo / plantación».
+- [ ] 🟡 **Riqueza de especies desde GBIF** (Darwin Core): GBIF agrega eBird,
+      herbarios y SiB en un solo API; empezar por ahí en vez de tres
+      ingestas separadas (§ 6.1). Mostrar el **esfuerzo de muestreo** junto
+      a la riqueza: una celda sin registros no es una celda sin especies
+      (nota «Anatomía de un dato ecológico»).
+- [ ] 🟡 **Derechos de agua** (§ 2.2): la nota sobre el Código de Aguas
+      refuerza su prioridad; mínimo, link-out por punto CBR al Catastro
+      Público de Aguas.
+- [ ] 🟢 **Distancia al área protegida más cercana** en el popup del punto
+      CBR (la variable de la nota «¿Cuánto vale estar cerca de un parque?»).
+
+### Eje 4 — Valoración y contabilidad del capital natural (contexto)
+
+*Notas: capital natural, TEEB, SEEA EA, InVEST en la cuenca del río
+Valdivia, análisis multicriterio para restauración, tasación de arbolado
+urbano.*
+
+- [ ] 🟢 **Servicios ecosistémicos de la cuenca del río Valdivia**: salidas
+      de InVEST (retención de sedimento, rendimiento hídrico, carbono)
+      corridas con datos abiertos, como raster estático del mismo tipo que
+      bioclima. Piloto acotado a una cuenca antes de pensar en escala
+      nacional.
+- [ ] 🟢 **Herramienta multicriterio (AHP)**: el usuario pondera capas
+      activas (pendiente, cobertura, distancia a cauce, áreas protegidas) y
+      obtiene un mapa de prioridad de restauración. Todo en el navegador,
+      sobre rasters ya publicados.
+- [ ] 🟢 **Cuentas de extensión SEEA EA por comuna**: hectáreas por tipo de
+      ecosistema (CONAF + humedales) en una tabla descargable. Es el primer
+      peldaño de las cuentas que describe la nota.
+
+### Eje 5 — Escala del precio (contexto)
+
+*Notas: efecto escala, alometría del precio del suelo (exponente 0,677 del
+SII).*
+
+- [ ] 🟢 **Gráfico log-log de $/ha contra superficie** para la selección
+      actual, con el exponente ajustado y su intervalo, y la recta del SII
+      (0,677) como referencia.
+- [ ] 🟢 **Exponente por comuna** como capa coropleta, con `n` y bandas de
+      confianza; comunas con pocos datos en gris.
+
+### Eje 6 — Normativa y práctica pericial (contexto)
+
+*Notas: expropiaciones (DL 2.186), decretos de perito, PRC de Valdivia.*
+
+- [ ] 🟢 **Planes reguladores comunales** completos (zonificación, no solo
+      el límite urbano), empezando por el PRC de Valdivia que analiza la
+      nota de humedales urbanos.
+- [ ] 🟢 **Contexto expropiatorio**: el art. 38 del DL 2.186 tasa existencia
+      extraíble y no ve el humedal; una vista que muestre, para un polígono,
+      qué cubre la tasación expropiatoria y qué capital natural queda
+      fuera. Producto de la ficha del predio (H3).
+
+### Enlaces entre el sitio y el SIG
+
+- [ ] 🟢 **Cada capa enlaza su nota**: en el panel de capas, un «Leer la
+      nota →» hacia el artículo que explica la fuente o el método (NDVI,
+      áreas protegidas, agua, CBR, coordenadas). Y en sentido inverso, las
+      notas pueden abrir el SIG con un permalink a la vista que discuten
+      — otra razón para priorizar el permalink.
+
 ## Ruta GIS de largo plazo (horizontes H1–H5)
 
 Mirada de varios años, ordenada por **horizontes**, no por fechas. Cada
@@ -1122,6 +1278,9 @@ SIMEF, SNIA, IGM, ODEPA) están catalogadas en
 
 ## Hitos
 
+- **2026-10-10 — Alineación con la investigación**: los seis ejes de
+  gabrielpantoja.cl traducidos a trabajo del SIG; humedales y auditoría de
+  reidentificación entran a la cola.
 - **2026-10-10 — Revisión del roadmap**: deuda verificada contra el código,
   nuevas secciones (higiene del repo público, datos/ETL, rendimiento), cola
   «Por dónde retomar» y ruta de largo plazo H1–H5.
