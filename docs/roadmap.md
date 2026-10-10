@@ -90,7 +90,7 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 
 | # | Qué | Por qué ahora | Sección |
 |---|---|---|---|
-| 1 | 🔴 Subir `sharp` (CVE alto en producción) y correr `npm ci` local | Única vulnerabilidad de `npm audit --omit=dev` | [Deuda › Seguridad](#seguridad-y-operación) |
+| 1 | ~~🔴 Subir `sharp` (CVE alto en producción) y correr `npm ci` local~~ ✅ 2026-10-10 | Única vulnerabilidad de `npm audit --omit=dev` | [Deuda › Seguridad](#seguridad-y-operación) |
 | 2 | 🔴 Node 22 en CI + Vercel, `engines`, `packageManager` | Node 20 está fuera de soporte desde abril 2026 | [Deuda › Plataforma](#plataforma-y-release) |
 | 3 | 🔴 Fijar el runner de CI y añadir `npm run build` al workflow | `ubuntu-latest` cambia el 2026-10-19; hoy CI no compila | [Deuda › Plataforma](#plataforma-y-release) |
 | 4 | 🟡 Etiquetar `v0.2.0` | Cambio incompatible + KMZ + coordenadas sin release | [Deuda › Plataforma](#plataforma-y-release) |
@@ -929,7 +929,7 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
 
 ### Seguridad y operación
 
-- [ ] 🔴 **`sharp` 0.35.4 vulnerable** *(nuevo)*: CVE-2026-96889 vía
+- [x] **`sharp` 0.35.4 vulnerable** — subido a 0.35.5 el 2026-10-10: CVE-2026-96889 vía
       `librsvg` (GHSA-wq5f-xc86-pv6w), severidad alta, es la única alerta de
       `npm audit --omit=dev`. Llega como dependencia de `next`; `npm audit
       fix` la sube a ≥ 0.35.5 sin tocar `next`. Verificar luego que

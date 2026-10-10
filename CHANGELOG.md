@@ -29,6 +29,10 @@ versionado.
 
 ### Seguridad
 
+- **`sharp` 0.35.4 → 0.35.5** (dependencia de `next`). Cierra
+  GHSA-wq5f-xc86-pv6w (alta, vía `librsvg`); `npm audit --omit=dev` vuelve
+  a 0. El mismo cambio repone `fflate` en el `package-lock.json`: faltaba
+  desde la carga de KMZ y `npm ci` fallaba en CI.
 - **`POST /api/ndvi/serie` rechaza cuerpos de más de 1 MB** (413
   `BODY_TOO_LARGE`) antes de parsearlos; antes `req.json()` aceptaba
   cualquier tamaño y recién después contaba vértices.
