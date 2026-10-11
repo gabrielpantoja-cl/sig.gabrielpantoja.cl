@@ -43,7 +43,8 @@ export interface CbrDataCallbacks {
   /** Avance 0..1 de la descarga de /api/points. */
   onDownloadProgress?: (fraction: number) => void;
   /** Puntos y estadísticas listos (falta pintarlos en el mapa). */
-  onDecoded?: () => void;
+  /** Dataset decodificado; `count` = transacciones recibidas (puede ser 0). */
+  onDecoded?: (count: number) => void;
   /** Falló la carga del query vigente. */
   onError?: () => void;
 }
@@ -94,7 +95,7 @@ export function useCbrData(debouncedQs: string, callbacks: CbrDataCallbacks = {}
     ])
       .then(([pts, st]: [MapPoint[], Stats]) => {
         if (id !== reqId.current) return;
-        callbacksRef.current.onDecoded?.();
+        callbacksRef.current.onDecoded?.(Array.isArray(pts) ? pts.length : 0);
         setPoints(Array.isArray(pts) ? pts : []);
         setStats(st);
         setLoadedQs(debouncedQs);
