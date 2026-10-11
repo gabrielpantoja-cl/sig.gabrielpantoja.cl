@@ -6,6 +6,8 @@ import type { GeocodeResult } from '@/lib/types';
 import type { LayerMetadataEntry } from '@/lib/map-export';
 import { SUELOS_SERVICE_NAME, type SuelosStatus } from '@/lib/suelos';
 import { HUMEDALES_SERVICE_NAME, type HumedalesStatus } from '@/lib/humedales';
+import type { RelieveModo } from '@/lib/relieve';
+import type { RemoteRasterStatus } from '@/lib/remote-raster';
 import { NDVI_VISUAL_SERVICE_NAME, type NdviVisualEstado } from '@/lib/ndvi-visual';
 import {
   PROPIEDADES_RURALES_SERVICE_NAME,
@@ -323,6 +325,9 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   const [humedalesStatus, setHumedalesStatus] = useState<HumedalesStatus>({ kind: 'idle' });
   const [showNdviVisual, setShowNdviVisual] = useState(on('ndvi_visual'));
   const [ndviVisualStatus, setNdviVisualStatus] = useState<NdviVisualEstado>({ kind: 'idle' });
+  const [showRelieve, setShowRelieve] = useState(on('relieve'));
+  const [relieveModo, setRelieveModo] = useState<RelieveModo>(initial.relieve);
+  const [relieveStatus, setRelieveStatus] = useState<RemoteRasterStatus>({ kind: 'idle' });
   // Mapa de calor de valor. El destino arranca en habitacional: es el 57 % de
   // la base y el caso urbano que el usuario quiere ver primero.
   const [showHexbins, setShowHexbins] = useState(on('mapa_calor'));
@@ -370,10 +375,11 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     humedales: showHumedales,
     propiedades_rurales: showPropiedadesRurales,
     ndvi_visual: showNdviVisual,
+    relieve: showRelieve,
   }) satisfies Record<PermalinkLayer, boolean>, [
     showPoints, showHexbins, showProtected, showUrbanLimit, showComunas,
     showRedVial, showRedDrenaje, showLineasTransmision, showSuelos, showBioclima,
-    showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showNdviVisual,
+    showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showNdviVisual, showRelieve,
   ]);
   // Permalink: todo lo que define la vista, menos el encuadre (que llega de
   // MapView en cada `moveend`). `satisfies` arriba obliga a que cada capa
@@ -382,11 +388,12 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     layers: (Object.keys(layerFlags) as PermalinkLayer[]).filter((layer) => layerFlags[layer]),
     basemap,
     bioclima: bioclimaVariable,
+    relieve: relieveModo,
     destino: hexbinDestino,
     minN: hexbinMinN,
     filters: { comuna, anioMin: anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol },
   }), [
-    layerFlags, basemap, bioclimaVariable, hexbinDestino, hexbinMinN,
+    layerFlags, basemap, bioclimaVariable, relieveModo, hexbinDestino, hexbinMinN,
     comuna, anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol,
   ]);
   const { onViewChange, flush: flushPermalink } = usePermalinkSync(permalinkState, initial.view);
@@ -466,6 +473,8 @@ function SigApp({ initial }: { initial: PermalinkState }) {
         showHumedales,
         showPropiedadesRurales,
         showNdviVisual,
+        showRelieve,
+        relieveModo,
         showHexbins,
         hexbinStatus,
         comuna,
@@ -496,7 +505,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     showBioclima, bioclimaVariable,
     showPoints, showProtected, showUrbanLimit, showComunas, showRedVial,
     showRedDrenaje, showLineasTransmision, showSuelos, showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales,
-    showNdviVisual,
+    showNdviVisual, showRelieve, relieveModo,
     showHexbins, hexbinStatus,
     comuna, anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol,
     stats, kmlLayers,
@@ -724,6 +733,11 @@ function SigApp({ initial }: { initial: PermalinkState }) {
           showNdviVisual={showNdviVisual}
           onToggleNdviVisual={setShowNdviVisual}
           ndviVisualStatus={ndviVisualStatus}
+          showRelieve={showRelieve}
+          onToggleRelieve={setShowRelieve}
+          relieveModo={relieveModo}
+          onRelieveModo={setRelieveModo}
+          relieveStatus={relieveStatus}
           kmlLayers={kmlLayers}
           kmlError={kmlError}
           onAddKmlFiles={addKmlFiles}
@@ -773,6 +787,9 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               showPropiedadesRurales={showPropiedadesRurales}
               showNdviVisual={showNdviVisual}
               onNdviVisualStatus={setNdviVisualStatus}
+              showRelieve={showRelieve}
+              relieveModo={relieveModo}
+              onRelieveStatus={setRelieveStatus}
               onPropiedadesRuralesStatus={setPropiedadesRuralesStatus}
               selectedRuralFeature={selectedRuralFeature}
               showHexbins={showHexbins}

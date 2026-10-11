@@ -30,6 +30,13 @@ import { VEGETACIONAL_ATTRIBUTION, speciesPairs, type VegetacionalProps } from '
 import { destinoLabel, hexEdgeLabel, type HexbinMeta, type HexbinProps } from '@/lib/hexbins';
 import { SUELOS_ATTRIBUTION, suelosClassColor } from '@/lib/suelos';
 import {
+  clasePendiente,
+  formatoCota,
+  formatoExposicion,
+  formatoPendiente,
+  type RelievePunto,
+} from '@/lib/relieve';
+import {
   PROPIEDADES_RURALES_ATTRIBUTION,
   PROPIEDADES_RURALES_COLOR,
   PROPIEDADES_RURALES_DISCLAIMER,
@@ -510,6 +517,27 @@ export function buildSuelosResult(clase: string, region: string): string {
     `border:1px solid rgba(0,0,0,.15)">Suelos agrológicos CIREN</div>` +
     (region ? `<div style="opacity:.7">${esc(region)}</div>` : '') +
     `<div style="margin-top:.25rem;font-size:0.62rem;opacity:.5">${esc(SUELOS_ATTRIBUTION)}</div>`
+  );
+}
+
+/** Relieve de un punto a 30 m (sección de la consulta). */
+export function buildRelieveResult(r: RelievePunto): string {
+  const clase = clasePendiente(r.pendientePct);
+  const rows: [string, string][] = [
+    ['Cota', esc(formatoCota(r.cota))],
+    ['Pendiente', esc(formatoPendiente(r.pendientePct, r.pendienteGrados))],
+    ['Exposición', esc(formatoExposicion(r.exposicion, r.pendientePct))],
+  ];
+  return (
+    `<div style="display:inline-block;margin:0 0 .3rem;padding:1px 7px;border-radius:9px;font-size:.68rem;` +
+    `font-weight:600;color:${r.pendientePct >= 30 ? '#fff' : '#1e293b'};background:${clase.color};` +
+    `border:1px solid rgba(0,0,0,.15)">Clase ${esc(clase.clase)} · ${esc(clase.nombre)} (SAG)</div>` +
+    `<table style="border-collapse:collapse">${popupRows(rows)}</table>` +
+    (r.pendientePct >= 45
+      ? '<div style="margin-top:.3rem">≥ 45 %: umbral del bosque nativo de conservación y protección (Ley 20.283, art. 2 N° 5).</div>'
+      : '') +
+    `<div style="margin-top:.3rem;font-size:.62rem;opacity:.55">Copernicus GLO-30, celda de 30 m. Modelo de superficie: ` +
+    `en bosque o ciudad mide el dosel o el techo, no el suelo.</div>`
   );
 }
 

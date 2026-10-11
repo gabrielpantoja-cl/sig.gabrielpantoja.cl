@@ -47,6 +47,9 @@ versionado.
 
 ### Corregido
 
+- **El cajetín del PNG parte las líneas largas.** Los descargos extensos
+  (propiedades rurales, licencias) se salían del recuadro blanco.
+
 - **La pantalla de carga ya no queda trabada** cuando un permalink abre con
   las transacciones apagadas o un filtro devuelve 0 resultados: el clúster
   nunca avisaba que terminó de pintar. Ahora el arranque se da por cumplido
@@ -54,6 +57,15 @@ versionado.
 
 ### Añadido
 
+- **Capa de relieve (Copernicus GLO-30)**, en tres modos: **sombreado**
+  para leer el terreno, **pendiente** en las clases A–I de la Pauta para
+  Estudio de Suelos del SAG (2011) y **exposición** de laderas. Al hacer
+  clic, «¿Qué hay aquí?» informa la cota, la pendiente en % y en grados, la
+  clase y hacia dónde mira la ladera, a 30 m; si la pendiente llega a 45 %,
+  avisa que ese es el umbral del bosque nativo de conservación y protección
+  (Ley 20.283). Funciona desde zoom 10, entra al PNG y al enlace compartido.
+  Es un modelo de superficie: en bosques y ciudades mide el dosel o los
+  techos, y la leyenda lo advierte.
 - **Medir distancias y superficies.** Botón «Medir» (regla) sobre «Ir a mi
   ubicación»: se marcan puntos en el mapa y se lee la distancia (m/km) o la
   superficie (m², ha) con su perímetro. Tocar el último punto termina una

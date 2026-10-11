@@ -30,8 +30,8 @@ async function failure(
 /**
  * Ciclo de vida común de las capas remotas que se piden como UNA imagen por
  * vista a un proxy ArcGIS (suelos CIREN, recursos vegetacionales CONAF,
- * humedales MMA, propiedades rurales CIREN). Antes eran cuatro copias casi
- * iguales de este código.
+ * humedales MMA, propiedades rurales CIREN) o a nuestro propio renderizador
+ * (relieve Copernicus). Antes eran cuatro copias casi iguales de este código.
  *
  * - **Una petición por vista, y solo si cambió**: espera `RASTER_DEBOUNCE_MS`
  *   tras el último `moveend` y ajusta el encuadre a una grilla
@@ -138,7 +138,9 @@ export function useViewportRaster({
       const params = new URLSearchParams({ bbox: req.bbox.join(','), size: req.size.join(',') });
       let candidate: string | null = null;
       try {
-        const response = await fetch(`${exportUrl}?${params}`, { signal: ctrl.signal });
+        // `exportUrl` puede traer ya su propia query (el modo del relieve).
+        const sep = exportUrl.includes('?') ? '&' : '?';
+        const response = await fetch(`${exportUrl}${sep}${params}`, { signal: ctrl.signal });
         if (id !== sequence || ctrl.signal.aborted) return;
         if (response.status === 204) {
           report({ kind: 'ready' });

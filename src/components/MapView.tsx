@@ -38,8 +38,16 @@ import { useHexbinLayer, type HexbinSamples } from '@/components/map/useHexbinLa
 import { useNdviVisualLayer } from '@/components/map/useNdviVisualLayer';
 import { useBioclimaLayer } from '@/components/map/useBioclimaLayer';
 import { useLocateControl } from '@/components/map/useLocateControl';
+import {
+  RELIEVE_DEFAULT_MODO,
+  RELIEVE_EXPORT_URL,
+  RELIEVE_MIN_ZOOM,
+  RELIEVE_SERVICE_NAME,
+  type RelieveModo,
+} from '@/lib/relieve';
 import { useMeasureControl, type MedicionFijada } from '@/components/map/useMeasureControl';
 import { formatoEscala } from '@/lib/medicion';
+import type { RemoteRasterStatus } from '@/lib/remote-raster';
 import { useViewportRaster } from '@/components/map/useViewportRaster';
 import { usePointQuery, type PointQueryFlags } from '@/components/map/usePointQuery';
 import {
@@ -126,6 +134,9 @@ export default function MapView({
   showHumedales = false,
   showPropiedadesRurales = false,
   showNdviVisual = false,
+  showRelieve = false,
+  relieveModo = RELIEVE_DEFAULT_MODO,
+  onRelieveStatus,
   showHexbins = false,
   hexbinDestino,
   hexbinMinN,
@@ -172,6 +183,10 @@ export default function MapView({
   showPropiedadesRurales?: boolean;
   /** NDVI Visual: raster continuo por viewport (Sentinel-2 vía /api/ndvi/export). */
   showNdviVisual?: boolean;
+  /** Relieve Copernicus GLO-30: PNG por viewport calculado en /api/relieve/export. */
+  showRelieve?: boolean;
+  relieveModo?: RelieveModo;
+  onRelieveStatus?: (status: RemoteRasterStatus) => void;
   /** Mapa de calor de valor: hexbins de $/m² agregados en Neon por viewport. */
   showHexbins?: boolean;
   /** Código de destino SII sobre el que se agrega. Obligatorio: la mediana de
@@ -243,6 +258,7 @@ export default function MapView({
   const vegetacionalRef = useRef<L.ImageOverlay | null>(null);
   const humedalesRef = useRef<L.ImageOverlay | null>(null);
   const ndviVisualRef = useRef<L.ImageOverlay | null>(null);
+  const relieveRef = useRef<L.ImageOverlay | null>(null);
   const propiedadesRuralesRef = useRef<L.ImageOverlay | null>(null);
   const propiedadRuralHighlightRef = useRef<L.GeoJSON | null>(null);
   const hexbinsRef = useRef<L.ImageOverlay | null>(null);
@@ -267,6 +283,7 @@ export default function MapView({
     if (previous.vegetacional !== layerOpacity.vegetacional) vegetacionalRef.current?.setOpacity(layerOpacity.vegetacional);
     if (previous.humedales !== layerOpacity.humedales) humedalesRef.current?.setOpacity(layerOpacity.humedales);
     if (previous.ndviVisual !== layerOpacity.ndviVisual) ndviVisualRef.current?.setOpacity(layerOpacity.ndviVisual);
+    if (previous.relieve !== layerOpacity.relieve) relieveRef.current?.setOpacity(layerOpacity.relieve);
     if (previous.propiedadesRurales !== layerOpacity.propiedadesRurales) propiedadesRuralesRef.current?.setOpacity(layerOpacity.propiedadesRurales);
   }, [layerOpacity]);
   // Muestras de la superficie vigente. El raster no es clicable, así que el
@@ -301,6 +318,7 @@ export default function MapView({
   const onHumedalesStatusRef = useRef(onHumedalesStatus);
   const onPropiedadesRuralesStatusRef = useRef(onPropiedadesRuralesStatus);
   const onNdviVisualStatusRef = useRef(onNdviVisualStatus);
+  const onRelieveStatusRef = useRef(onRelieveStatus);
   const onHexbinStatusRef = useRef(onHexbinStatus);
   // Modo NDVI en ref: los handlers de clic de otras capas (declarados en
   // effects con deps estables) deben poder consultar el estado vigente del
@@ -315,10 +333,11 @@ export default function MapView({
     onHumedalesStatusRef.current = onHumedalesStatus;
     onPropiedadesRuralesStatusRef.current = onPropiedadesRuralesStatus;
     onNdviVisualStatusRef.current = onNdviVisualStatus;
+    onRelieveStatusRef.current = onRelieveStatus;
     onHexbinStatusRef.current = onHexbinStatus;
     ndviModeRef.current = ndviMode;
     onNdviPointRef.current = onNdviPoint;
-  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onViewChange, onHumedalesStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onHexbinStatus, ndviMode, onNdviPoint]);
+  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onViewChange, onHumedalesStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onRelieveStatus, onHexbinStatus, ndviMode, onNdviPoint]);
 
   // Publica el método de export en el ref entregado por la página. La closure
   // se re-bindea en cada cambio de flags para que la captura refleje siempre
@@ -351,6 +370,7 @@ export default function MapView({
         showHumedales,
         showPropiedadesRurales,
         showNdviVisual,
+        showRelieve,
         showHexbins,
         basemap,
         cluster: clusterRef.current,
@@ -379,6 +399,7 @@ export default function MapView({
     showHumedales,
     showPropiedadesRurales,
     showNdviVisual,
+    showRelieve,
     showHexbins,
     basemap,
     ndvi,
@@ -454,6 +475,10 @@ export default function MapView({
     // orden final bioclima | ndvi | comunas | resto. La capa va encima de la
     // superficie climática y debajo de todo vector, que es donde un ráster de
     // contexto debe estar.
+    // El relieve va ENCIMA del NDVI y del bioclima: el sombreado es casi todo
+    // transparente y sombrea esas superficies en vez de taparlas. Se hunde
+    // antes que ellas, así queda bioclima | ndvi | relieve | comunas | resto.
+    relieveRef.current?.bringToBack();
     ndviVisualRef.current?.bringToBack();
     // Bioclima queda por debajo incluso de comunas: es una superficie continua
     // que cubre todo el territorio, así que sobre cualquier otra capa las
@@ -597,6 +622,7 @@ export default function MapView({
       vegetacionalRef.current = null;
       humedalesRef.current = null;
       ndviVisualRef.current = null;
+      relieveRef.current = null;
       propiedadesRuralesRef.current = null;
       propiedadRuralHighlightRef.current = null;
       hexbinsRef.current = null;
@@ -1019,6 +1045,14 @@ export default function MapView({
     onStatusRef: onHumedalesStatusRef, reorderOverlays,
   });
 
+  useViewportRaster({
+    mapRef, overlayRef: relieveRef, show: showRelieve,
+    exportUrl: `${RELIEVE_EXPORT_URL}?modo=${relieveModo}`, minZoom: RELIEVE_MIN_ZOOM,
+    serviceName: RELIEVE_SERVICE_NAME, attribution: 'Copernicus WorldDEM-30 © DLR e.V., © Airbus DS',
+    opacity: () => opacityRef.current.relieve,
+    onStatusRef: onRelieveStatusRef, reorderOverlays,
+  });
+
   useLocateControl({ mapRef });
 
   // «Medir»: se apila sobre «Ir a mi ubicación». Mientras está activa, la
@@ -1032,6 +1066,7 @@ export default function MapView({
   // encender o apagar una capa no vuelva a registrar el manejador.
   const pointQueryFlagsRef = useRef<PointQueryFlags>({
     humedales: showHumedales,
+    relieve: showRelieve,
     suelos: showSuelos,
     vegetacional: showVegetacional,
     propiedadesRurales: showPropiedadesRurales,
@@ -1040,12 +1075,13 @@ export default function MapView({
   useEffect(() => {
     pointQueryFlagsRef.current = {
       humedales: showHumedales,
+      relieve: showRelieve,
       suelos: showSuelos,
       vegetacional: showVegetacional,
       propiedadesRurales: showPropiedadesRurales,
       hexbins: showHexbins,
     };
-  }, [showHumedales, showSuelos, showVegetacional, showPropiedadesRurales, showHexbins]);
+  }, [showHumedales, showRelieve, showSuelos, showVegetacional, showPropiedadesRurales, showHexbins]);
   usePointQuery({
     mapRef,
     flagsRef: pointQueryFlagsRef,
