@@ -35,14 +35,11 @@ import {
 import { cbrPinSvg } from '@/lib/cbr-points';
 import { useStaticGeoJsonLayer } from '@/components/map/useStaticGeoJsonLayer';
 import { useHexbinLayer, type HexbinSamples } from '@/components/map/useHexbinLayer';
-import { useVegetacionalLayer } from '@/components/map/useVegetacionalLayer';
 import { useNdviVisualLayer } from '@/components/map/useNdviVisualLayer';
 import { useBioclimaLayer } from '@/components/map/useBioclimaLayer';
-import { useSuelosLayer } from '@/components/map/useSuelosLayer';
-import { useHumedalesLayer } from '@/components/map/useHumedalesLayer';
 import { useLocateControl } from '@/components/map/useLocateControl';
+import { useViewportRaster } from '@/components/map/useViewportRaster';
 import { usePointQuery, type PointQueryFlags } from '@/components/map/usePointQuery';
-import { usePropiedadesRuralesLayer } from '@/components/map/usePropiedadesRuralesLayer';
 import {
   buildKmlPopup,
   buildLineaTransmisionPopup,
@@ -71,13 +68,18 @@ import {
   type CatastroFruticolaProps,
 } from '@/lib/catastro-fruticola';
 import { type HexbinRampId, type HexbinStatus } from '@/lib/hexbins';
-import { type SuelosStatus } from '@/lib/suelos';
-import { type HumedalesStatus } from '@/lib/humedales';
+import { SUELOS_EXPORT_URL, SUELOS_MIN_ZOOM, SUELOS_SERVICE_NAME, type SuelosStatus } from '@/lib/suelos';
+import { HUMEDALES_EXPORT_URL, HUMEDALES_MIN_ZOOM, HUMEDALES_SERVICE_NAME, type HumedalesStatus } from '@/lib/humedales';
+import { VEGETACIONAL_EXPORT_URL, VEGETACIONAL_MIN_ZOOM, VEGETACIONAL_SERVICE_NAME } from '@/lib/vegetacional';
 import type { PermalinkView } from '@/lib/permalink';
 import { BIOCLIMA_DEFAULT_VARIABLE, type BioclimaVariable } from '@/lib/bioclima';
 import { DEFAULT_LAYER_OPACITY, type LayerOpacity } from '@/lib/layer-opacity';
 import {
+  PROPIEDADES_RURALES_ATTRIBUTION,
   PROPIEDADES_RURALES_COLOR,
+  PROPIEDADES_RURALES_EXPORT_URL,
+  PROPIEDADES_RURALES_MIN_ZOOM,
+  PROPIEDADES_RURALES_SERVICE_NAME,
   type PropiedadesRuralesStatus,
   type PropiedadRuralFeatureResponse,
 } from '@/lib/propiedades-rurales';
@@ -976,15 +978,32 @@ export default function MapView({
 
   useHexbinLayer({ mapRef, hexbinsRef, hexbinSamplesRef, showHexbins, hexbinDestino, hexbinMinN, hexbinFiltersQs, hexbinRamp, onHexbinStatusRef, reorderOverlays });
 
-  useVegetacionalLayer({ mapRef, vegetacionalRef, showVegetacional, opacityRef, reorderOverlays });
+  // Capas remotas pedidas como UNA imagen por vista a un proxy ArcGIS. Mismo
+  // ciclo para las cuatro (ver `useViewportRaster`): una petición solo si la
+  // vista cambió de celda, 429 con reintento propio, sin imagen vieja.
+  useViewportRaster({
+    mapRef, overlayRef: vegetacionalRef, show: showVegetacional,
+    exportUrl: VEGETACIONAL_EXPORT_URL, minZoom: VEGETACIONAL_MIN_ZOOM, serviceName: VEGETACIONAL_SERVICE_NAME,
+    attribution: 'CONAF · Recursos vegetacionales', opacity: () => opacityRef.current.vegetacional, reorderOverlays,
+  });
 
   useNdviVisualLayer({ mapRef, ndviVisualRef, showNdviVisual, opacityRef, onNdviVisualStatusRef, reorderOverlays });
 
   useBioclimaLayer({ mapRef, bioclimaRef, showBioclima, bioclimaVariable, opacityRef, reorderOverlays });
 
-  useSuelosLayer({ mapRef, suelosRef, showSuelos, opacityRef, onSuelosStatusRef });
+  useViewportRaster({
+    mapRef, overlayRef: suelosRef, show: showSuelos,
+    exportUrl: SUELOS_EXPORT_URL, minZoom: SUELOS_MIN_ZOOM, serviceName: SUELOS_SERVICE_NAME,
+    attribution: 'CIREN · Estudios Agrológicos', opacity: () => opacityRef.current.suelos,
+    onStatusRef: onSuelosStatusRef, reorderOverlays,
+  });
 
-  useHumedalesLayer({ mapRef, humedalesRef, showHumedales, opacityRef, onHumedalesStatusRef, reorderOverlays });
+  useViewportRaster({
+    mapRef, overlayRef: humedalesRef, show: showHumedales,
+    exportUrl: HUMEDALES_EXPORT_URL, minZoom: HUMEDALES_MIN_ZOOM, serviceName: HUMEDALES_SERVICE_NAME,
+    attribution: 'MMA · Humedales', opacity: () => opacityRef.current.humedales,
+    onStatusRef: onHumedalesStatusRef, reorderOverlays,
+  });
 
   useLocateControl({ mapRef });
 
@@ -1014,7 +1033,13 @@ export default function MapView({
     layers: { protectedRef, urbanLimitRef, comunasRef, catastroFruticolaRef, hexbinSamplesRef },
   });
 
-  usePropiedadesRuralesLayer({ mapRef, propiedadesRuralesRef, showPropiedadesRurales, opacityRef, onPropiedadesRuralesStatusRef, reorderOverlays });
+  useViewportRaster({
+    mapRef, overlayRef: propiedadesRuralesRef, show: showPropiedadesRurales,
+    exportUrl: PROPIEDADES_RURALES_EXPORT_URL, minZoom: PROPIEDADES_RURALES_MIN_ZOOM,
+    serviceName: PROPIEDADES_RURALES_SERVICE_NAME, attribution: PROPIEDADES_RURALES_ATTRIBUTION,
+    opacity: () => opacityRef.current.propiedadesRurales,
+    onStatusRef: onPropiedadesRuralesStatusRef, reorderOverlays,
+  });
 
   // Resultado seleccionado por ROL: una única geometría vectorial sobre el
   // raster CIREN. No escucha moveend ni vive en estado Leaflet de React; al

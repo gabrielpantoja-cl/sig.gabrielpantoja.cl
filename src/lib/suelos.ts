@@ -1,3 +1,5 @@
+import type { RemoteRasterStatus } from '@/lib/remote-raster';
+
 /**
  * Capa Suelos Agrológicos — Capacidad de Uso (CIREN, clases I a VIII).
  *
@@ -34,12 +36,8 @@ export const SUELOS_SERVICE_NAME =
 
 export type SuelosOperation = 'export' | 'identify';
 
-export type SuelosStatus =
-  | { kind: 'idle' }
-  | { kind: 'zoom-required'; minZoom: number }
-  | { kind: 'loading' }
-  | { kind: 'ready' }
-  | { kind: 'error'; service: string; operation: SuelosOperation };
+/** Mismo estado que las demás capas remotas por vista (`useViewportRaster`). */
+export type SuelosStatus = RemoteRasterStatus;
 
 export interface SuelosProxyErrorBody {
   error?: {

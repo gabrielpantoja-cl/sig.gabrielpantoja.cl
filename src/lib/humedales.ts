@@ -1,3 +1,5 @@
+import type { RemoteRasterStatus } from '@/lib/remote-raster';
+
 /**
  * Capa Humedales (MMA) — Inventario Nacional de Humedales + Humedales Urbanos
  * Declarados bajo la Ley 21.202.
@@ -58,12 +60,8 @@ export const HUMEDALES_URBANOS_COLOR = '#00fb37';
 
 export type HumedalesOperation = 'export' | 'identify';
 
-export type HumedalesStatus =
-  | { kind: 'idle' }
-  | { kind: 'zoom-required'; minZoom: number }
-  | { kind: 'loading' }
-  | { kind: 'ready' }
-  | { kind: 'error'; service: string; operation: HumedalesOperation };
+/** Mismo estado que las demás capas remotas por vista (`useViewportRaster`). */
+export type HumedalesStatus = RemoteRasterStatus;
 
 export interface HumedalesProxyErrorBody {
   error?: {

@@ -2,6 +2,7 @@
 
 import { useEffect, type RefObject } from 'react';
 import L from 'leaflet';
+import { retryAfterSeconds } from '@/lib/remote-raster';
 import type { FeatureCollection, Point } from 'geojson';
 import {
   DESTINO_DEFAULT,
@@ -126,6 +127,12 @@ export function useHexbinLayer({
 
       try {
         const response = await fetch(`${HEXBINS_URL}?${params}`, { signal: ctrl.signal });
+        if (response.status === 429) {
+          // Límite de consultas del SIG, no una falla: se reintenta solo.
+          if (debounce) clearTimeout(debounce);
+          debounce = setTimeout(() => void refresh(), retryAfterSeconds(response) * 1000);
+          return;
+        }
         if (!response.ok) throw new Error(String(response.status));
         const data = (await response.json()) as FeatureCollection<Point, HexbinProps> &
           HexbinMeta;

@@ -2,6 +2,7 @@
 
 import { useEffect, type RefObject } from 'react';
 import L from 'leaflet';
+import { retryAfterSeconds } from '@/lib/remote-raster';
 import { redondearCoordenada } from '@/lib/ndvi';
 import { NDVI_VISUAL_EXPORT_URL, NDVI_VISUAL_MIN_ZOOM, type NdviVisualEstado } from '@/lib/ndvi-visual';
 import type { LayerOpacity } from '@/lib/layer-opacity';
@@ -112,6 +113,13 @@ export function useNdviVisualLayer({
           // capa queda transparente y el mapa base se ve solo. No es falla.
           clearRaster(cajaCuantizada);
           onNdviVisualStatusRef.current?.({ kind: 'ready', fecha: null });
+          return;
+        }
+        if (response.status === 429) {
+          const retryIn = retryAfterSeconds(response);
+          onNdviVisualStatusRef.current?.({ kind: 'rate-limited', retryIn });
+          if (debounce) clearTimeout(debounce);
+          debounce = setTimeout(() => void refresh(), retryIn * 1000);
           return;
         }
         if (!response.ok) {

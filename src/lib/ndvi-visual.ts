@@ -52,6 +52,8 @@ export type NdviVisualEstado =
   | { kind: 'zoom-required'; minZoom: number }
   | { kind: 'loading' }
   | { kind: 'ready'; fecha: string | null }
+  /** Límite de consultas del SIG (no Earth Search): reintenta solo. */
+  | { kind: 'rate-limited'; retryIn: number }
   | { kind: 'error' };
 
 // ── Ramp de color ───────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { corsHeaders, createRateLimiter, enforce } from '@/lib/security';
+import { corsHeaders, createRateLimiterWithRetry, enforce, rateLimitResponse } from '@/lib/security';
 import {
   NDVI_VISUAL_SIZE_MAX,
   NDVI_VISUAL_SIZE_MIN,
@@ -34,7 +34,7 @@ const CHILE = { oeste: -76.5, este: -66, sur: -56.5, norte: -17 };
 // cada viewport dispara una composición con decenas de MB de COG.
 const VENTANA_MS = 10 * 60 * 1000;
 const MAX_POR_VENTANA = 120;
-const excedeLimite = createRateLimiter(VENTANA_MS, MAX_POR_VENTANA);
+const esperaLimite = createRateLimiterWithRetry(VENTANA_MS, MAX_POR_VENTANA);
 
 function ndviExportError(req: Request, status: number, code: string, message: string): Response {
   return proxyErrorResponse(req, status, { code, message, service: SERVICE, operation: OPERATION });
@@ -77,9 +77,8 @@ export async function GET(req: Request) {
       'La caja debe estar dentro de Chile continental y medir como máximo ~360 × 340 km.',
     );
   }
-  if (excedeLimite(req)) {
-    return ndviExportError(req, 429, 'RATE_LIMITED', 'Demasiadas consultas NDVI seguidas. Espera unos minutos.');
-  }
+  const espera = esperaLimite(req);
+  if (espera > 0) return rateLimitResponse(req, espera, 'Demasiadas consultas NDVI seguidas. Espera unos minutos.');
 
   const controller = new AbortController();
   let presupuestoVencido = false;

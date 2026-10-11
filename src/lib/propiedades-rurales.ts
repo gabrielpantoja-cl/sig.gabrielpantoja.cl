@@ -1,5 +1,6 @@
 /** Capa dinámica CIREN de propiedades rurales y ROL predial referencial. */
 import type { Feature, MultiPolygon, Polygon } from 'geojson';
+import type { RemoteRasterStatus } from '@/lib/remote-raster';
 
 export interface PropiedadRuralProps {
   rol: string | null;
@@ -25,12 +26,8 @@ export const PROPIEDADES_RURALES_COLOR = '#dc2626';
 export const PROPIEDADES_RURALES_LAYER_IDS = Array.from({ length: 14 }, (_, i) => i);
 
 export type PropiedadesRuralesOperation = 'export' | 'identify' | 'search' | 'feature';
-export type PropiedadesRuralesStatus =
-  | { kind: 'idle' }
-  | { kind: 'zoom-required'; minZoom: number }
-  | { kind: 'loading' }
-  | { kind: 'ready' }
-  | { kind: 'error'; service: string; operation: PropiedadesRuralesOperation };
+/** Mismo estado que las demás capas remotas por vista (`useViewportRaster`). */
+export type PropiedadesRuralesStatus = RemoteRasterStatus;
 
 export interface PropiedadesRuralesProxyErrorBody {
   error?: { service?: string; operation?: PropiedadesRuralesOperation };

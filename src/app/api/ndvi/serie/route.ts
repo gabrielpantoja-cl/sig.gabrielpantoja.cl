@@ -1,4 +1,4 @@
-import { corsHeaders, createRateLimiter, enforce } from '@/lib/security';
+import { corsHeaders, createRateLimiterWithRetry, enforce, rateLimitResponse } from '@/lib/security';
 import { proxyErrorResponse } from '@/lib/arcgis-proxy';
 import { calcularSerieNdvi } from '@/lib/ndvi-serie';
 import {
@@ -25,7 +25,7 @@ const CHILE = { oeste: -76.5, este: -66, sur: -56.5, norte: -17 };
 // una consulta lee cientos de MB de COG y dura decenas de segundos.
 const VENTANA_MS = 10 * 60 * 1000;
 const MAX_POR_VENTANA = 12;
-const excedeLimite = createRateLimiter(VENTANA_MS, MAX_POR_VENTANA);
+const esperaLimite = createRateLimiterWithRetry(VENTANA_MS, MAX_POR_VENTANA);
 
 // Caché de polígonos por instancia. Los POST no pasan por la CDN.
 const cachePoligonos = new Map<string, NdviSerie>();
@@ -104,9 +104,8 @@ export async function GET(req: Request) {
   if (!Number.isInteger(radio) || radio < NDVI_RADIO_MIN || radio > NDVI_RADIO_MAX) {
     return error(req, 400, 'INVALID_RADIUS', `El radio debe ser un entero entre ${NDVI_RADIO_MIN} y ${NDVI_RADIO_MAX} m.`);
   }
-  if (excedeLimite(req)) {
-    return error(req, 429, 'RATE_LIMITED', 'Demasiadas consultas NDVI seguidas. Espera unos minutos.');
-  }
+  const espera = esperaLimite(req);
+  if (espera > 0) return rateLimitResponse(req, espera, 'Demasiadas consultas NDVI seguidas. Espera unos minutos.');
   return responder(
     req,
     { tipo: 'punto', lat: redondearCoordenada(lat), lng: redondearCoordenada(lng), radio },
@@ -171,9 +170,8 @@ export async function POST(req: Request) {
   if (enCache) {
     return Response.json(enCache, { headers: { ...corsHeaders(req), 'Cache-Control': 'no-store', Vary: 'Origin' } });
   }
-  if (excedeLimite(req)) {
-    return error(req, 429, 'RATE_LIMITED', 'Demasiadas consultas NDVI seguidas. Espera unos minutos.');
-  }
+  const espera = esperaLimite(req);
+  if (espera > 0) return rateLimitResponse(req, espera, 'Demasiadas consultas NDVI seguidas. Espera unos minutos.');
   const respuesta = await responder(req, { tipo: 'poligono', anillos: limpio }, false);
   if (respuesta.ok) {
     const serie = (await respuesta.clone().json()) as NdviSerie;
