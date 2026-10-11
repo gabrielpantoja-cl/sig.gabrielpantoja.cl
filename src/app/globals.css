@@ -117,6 +117,45 @@ body {
   }
 }
 
+/* Pantalla de carga (RetroLoader): viñeta sobre toda la página. El centro, donde
+   está la barra, queda nítido; los bordes se desenfocan y oscurecen. Son dos
+   capas porque el desenfoque necesita una máscara (backdrop-filter no admite
+   gradientes) y el oscurecimiento es un gradiente de color. */
+.sig-loader-blur,
+.sig-loader-dim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.sig-loader-blur {
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+  -webkit-mask-image: radial-gradient(ellipse at center, transparent 18%, #000 62%);
+  mask-image: radial-gradient(ellipse at center, transparent 18%, #000 62%);
+}
+.sig-loader-dim {
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--background) 25%, transparent) 15%,
+    color-mix(in srgb, var(--background) 82%, transparent) 75%
+  );
+}
+/* Sin desenfoque disponible (o si el sistema pide menos transparencia): solo
+   oscurecer, más fuerte para que la interfaz de atrás no parezca usable. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sig-loader-dim {
+    background: color-mix(in srgb, var(--background) 88%, transparent);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .sig-loader-blur {
+    display: none;
+  }
+  .sig-loader-dim {
+    background: color-mix(in srgb, var(--background) 92%, transparent);
+  }
+}
+
 /* «Ir a mi ubicación» (useLocateControl): botón cuadrado como los de zoom de
    Leaflet, sobre la atribución en la esquina inferior derecha. El mensaje
    (precisión o error) sale a su izquierda para no tapar el mapa hacia arriba. */

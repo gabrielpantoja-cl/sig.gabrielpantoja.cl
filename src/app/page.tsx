@@ -160,6 +160,18 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   const [bootProgress, setBootProgress] = useState(3);
   const [bootDone, setBootDone] = useState(false);
   const booting = useRef(true);
+  // «Saltar y explorar mientras carga»: el loader se va, la carga sigue y una
+  // píldora avisa el avance y el final. Mientras el loader está a la vista la
+  // página queda `inert`: nada parece usable antes de tiempo.
+  const [loaderSkipped, setLoaderSkipped] = useState(false);
+  const [loaderGone, setLoaderGone] = useState(false);
+  const [loadedNotice, setLoadedNotice] = useState(false);
+  const loaderSkippedRef = useRef(false);
+  const loadedNoticeTimer = useRef(0);
+  // Si las transacciones están apagadas (permalink sin `puntos`) o el filtro
+  // devuelve 0, el clúster nunca informa que terminó de pintar: el arranque
+  // se da por cumplido al decodificar. Antes el loader quedaba trabado.
+  const showPointsRef = useRef(initial.layers.includes('puntos'));
 
   const handleRenderProgress = useCallback((processed: number, total: number) => {
     if (!booting.current || total === 0) return;
@@ -173,7 +185,24 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     setBootDone(true);
     // Tiempo real hasta el mapa usable: la métrica a optimizar (21 MB de puntos).
     track('boot', { ms: Math.round(performance.now()) });
+    if (loaderSkippedRef.current) {
+      setLoadedNotice(true);
+      window.clearTimeout(loadedNoticeTimer.current);
+      loadedNoticeTimer.current = window.setTimeout(() => setLoadedNotice(false), 5000);
+    }
   }, []);
+  useEffect(() => () => window.clearTimeout(loadedNoticeTimer.current), []);
+
+  const bootProgressRef = useRef(3);
+  useEffect(() => {
+    bootProgressRef.current = bootProgress;
+  }, [bootProgress]);
+  const handleSkipLoader = useCallback(() => {
+    loaderSkippedRef.current = true;
+    setLoaderSkipped(true);
+    track('boot_skip', { pct: bootProgressRef.current });
+  }, []);
+  const handleLoaderGone = useCallback(() => setLoaderGone(true), []);
 
   const queryString = useMemo(() => {
     const p = new URLSearchParams();
@@ -209,8 +238,12 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     onDownloadProgress: (frac) => {
       if (booting.current) setBootProgress(5 + Math.round(frac * 55));
     },
-    onDecoded: () => {
-      if (booting.current) setBootProgress(64); // dataset decodificado; falta el render
+    onDecoded: (count) => {
+      if (!booting.current) return;
+      setBootProgress(64); // dataset decodificado; falta el render
+      // Sin marcadores que pintar no habrá aviso del clúster: se cierra aquí,
+      // después de que el estado nuevo alcance a renderizar.
+      if (count === 0 || !showPointsRef.current) window.setTimeout(handleRenderComplete, 0);
     },
     onError: () => {
       // Cierra el loader para que el mensaje de error quede visible.
@@ -270,6 +303,9 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   // pero el perito las puede ocultar para componer una vista limpia (por ej.
   // al exportar el mapa como anexo PNG de un informe de tasación).
   const [showPoints, setShowPoints] = useState(on('puntos'));
+  useEffect(() => {
+    showPointsRef.current = showPoints;
+  }, [showPoints]);
   const [showProtected, setShowProtected] = useState(on('areas_protegidas'));
   const [showUrbanLimit, setShowUrbanLimit] = useState(on('limite_urbano'));
   const [showComunas, setShowComunas] = useState(on('comunas'));
@@ -519,8 +555,22 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     <StatsFields loading={loading} stats={stats} fmtCLP={fmtCLP} fmtInt={fmtInt} />
   );
 
+  const pageInert = !loaderGone && !loaderSkipped;
   return (
-    <main className="flex flex-1 flex-col md:max-h-screen md:overflow-hidden">
+    <>
+    {/* Fuera de <main> para cubrir también la cabecera; se desmonta solo. */}
+    <RetroLoader
+      progress={bootProgress}
+      done={bootDone}
+      skipped={loaderSkipped}
+      onSkip={handleSkipLoader}
+      onGone={handleLoaderGone}
+    />
+    <main
+      className="flex flex-1 flex-col md:max-h-screen md:overflow-hidden"
+      inert={pageInert}
+      aria-busy={pageInert}
+    >
       {/* Desktop app shell: the column is capped at the viewport so the layer
           dock (a flex sibling of the map) can never make the whole page grow
           and push the map below the fold — its own body scrolls instead.
@@ -744,8 +794,26 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               ndvi={ndviExport}
             />
           </div>
-          {/* Se desmonta solo (gone) tras llegar al 100% y hacer fade-out. */}
-          <RetroLoader progress={bootProgress} done={bootDone} />
+          {/* Carga en segundo plano tras «Saltar»: avance y aviso de término. */}
+          {loaderSkipped && !error && (!bootDone || loadedNotice) && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="pointer-events-none absolute left-1/2 top-28 z-[640] -translate-x-1/2 whitespace-nowrap rounded-full border border-black/15 bg-[var(--background)]/95 px-3 py-1.5 text-xs shadow-lg backdrop-blur md:top-16 dark:border-white/20"
+            >
+              {bootDone ? (
+                <>
+                  <span aria-hidden="true" className="mr-1 text-[hsl(153_40%_40%)]">✓</span>
+                  {fmtInt(points.length)} transacciones cargadas
+                </>
+              ) : (
+                <>
+                  <span aria-hidden="true" className="mr-1 inline-block animate-pulse">◌</span>
+                  Cargando transacciones en segundo plano · {Math.min(99, bootProgress)} %
+                </>
+              )}
+            </div>
+          )}
 
           {showSuelos && suelosStatus.kind === 'error' && (
             <div
@@ -935,5 +1003,6 @@ function SigApp({ initial }: { initial: PermalinkState }) {
         </section>
       </div>
     </main>
+    </>
   );
 }

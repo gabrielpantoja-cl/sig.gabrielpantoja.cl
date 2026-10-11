@@ -33,6 +33,7 @@ export const ANALYTICS_EVENTS = [
   'export_data', // descarga CSV/GeoJSON (prop `format`)
   'ndvi_query', // consulta puntual NDVI sobre Sentinel-2
   'kml_upload', // el usuario cargó un KML propio
+  'boot_skip', // saltó la pantalla de carga (prop `pct`: avance al saltar)
   'locate', // «Ir a mi ubicación» (props `ok`, `error`; NUNCA la posición)
   'share', // «Compartir vista» (prop `method`; NUNCA la URL, que lleva filtros)
 ] as const;

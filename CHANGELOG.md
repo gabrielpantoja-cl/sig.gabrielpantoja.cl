@@ -23,6 +23,14 @@ versionado.
 
 ### Cambiado
 
+- **La pantalla de carga enfoca la atención.** Cubre toda la página con una
+  viñeta: el recuadro de carga queda nítido al centro y los bordes (cabecera
+  y controles incluidos) se desenfocan y oscurecen. Mientras carga, la página
+  no responde a toques ni teclado, así nada parece usable antes de tiempo.
+  Un enlace discreto, **«Saltar y explorar el mapa mientras carga»**, la
+  cierra: las transacciones siguen cargando en segundo plano, una píldora
+  muestra el avance y otra avisa «✓ N transacciones cargadas» al terminar.
+  Con «reducir transparencia» del sistema, solo oscurece.
 - **Menos consultas al mover el mapa.** Suelos, recursos vegetacionales,
   humedales y propiedades rurales esperan a que el mapa se detenga (250 ms) y
   piden la imagen con el centro ajustado a una grilla: un paneo pequeño
@@ -36,6 +44,13 @@ versionado.
   breve» en ámbar y la capa (y el NDVI y el mapa de calor) se recarga sola al
   cumplirse el plazo. **Cambio de contrato** para clientes externos: antes el
   cuerpo era `{ "error": "Rate limit exceeded…" }` (un texto).
+
+### Corregido
+
+- **La pantalla de carga ya no queda trabada** cuando un permalink abre con
+  las transacciones apagadas o un filtro devuelve 0 resultados: el clúster
+  nunca avisaba que terminó de pintar. Ahora el arranque se da por cumplido
+  al recibir los datos.
 
 ### Añadido
 
