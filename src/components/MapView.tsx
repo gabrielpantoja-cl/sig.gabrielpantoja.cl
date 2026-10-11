@@ -76,6 +76,7 @@ import {
 import { type HexbinRampId, type HexbinStatus } from '@/lib/hexbins';
 import { type SuelosStatus } from '@/lib/suelos';
 import { type HumedalesStatus } from '@/lib/humedales';
+import type { PermalinkView } from '@/lib/permalink';
 import { BIOCLIMA_DEFAULT_VARIABLE, type BioclimaVariable } from '@/lib/bioclima';
 import { DEFAULT_LAYER_OPACITY, type LayerOpacity } from '@/lib/layer-opacity';
 import {
@@ -131,6 +132,8 @@ export default function MapView({
   kmlLayers = [],
   basemap = DEFAULT_BASEMAP_ID,
   focus = null,
+  initialView = null,
+  onViewChange,
   onRenderProgress,
   onRenderComplete,
   onSuelosStatus,
@@ -185,6 +188,10 @@ export default function MapView({
   basemap?: BasemapId;
   /** Resultado del geocoder: el mapa vuela ahí y deja un marcador pulsante. */
   focus?: GeocodeResult | null;
+  /** Encuadre con que nace el mapa (permalink). Solo se lee al crear el mapa. */
+  initialView?: PermalinkView | null;
+  /** Se llama al terminar cada paneo o zoom, para escribir el permalink. */
+  onViewChange?: (view: PermalinkView) => void;
   /** Avance del render de marcadores (procesados, total) — alimenta el loader. */
   onRenderProgress?: (processed: number, total: number) => void;
   /** Los marcadores ya están pintados en pantalla — el loader puede cerrar. */
@@ -287,6 +294,9 @@ export default function MapView({
   const onRenderProgressRef = useRef(onRenderProgress);
   const onRenderCompleteRef = useRef(onRenderComplete);
   const onSuelosStatusRef = useRef(onSuelosStatus);
+  const onViewChangeRef = useRef(onViewChange);
+  // Solo el valor del primer render importa: el mapa se crea una vez.
+  const initialViewRef = useRef(initialView);
   const onHumedalesStatusRef = useRef(onHumedalesStatus);
   const onPropiedadesRuralesStatusRef = useRef(onPropiedadesRuralesStatus);
   const onNdviVisualStatusRef = useRef(onNdviVisualStatus);
@@ -300,13 +310,14 @@ export default function MapView({
     onRenderProgressRef.current = onRenderProgress;
     onRenderCompleteRef.current = onRenderComplete;
     onSuelosStatusRef.current = onSuelosStatus;
+    onViewChangeRef.current = onViewChange;
     onHumedalesStatusRef.current = onHumedalesStatus;
     onPropiedadesRuralesStatusRef.current = onPropiedadesRuralesStatus;
     onNdviVisualStatusRef.current = onNdviVisualStatus;
     onHexbinStatusRef.current = onHexbinStatus;
     ndviModeRef.current = ndviMode;
     onNdviPointRef.current = onNdviPoint;
-  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onHumedalesStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onHexbinStatus, ndviMode, onNdviPoint]);
+  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onViewChange, onHumedalesStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onHexbinStatus, ndviMode, onNdviPoint]);
 
   // Publica el método de export en el ref entregado por la página. La closure
   // se re-bindea en cada cambio de flags para que la captura refleje siempre
@@ -476,9 +487,10 @@ export default function MapView({
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
     const container = containerRef.current;
+    const start = initialViewRef.current;
     const map = L.map(container, {
-      center: MAP_CENTER,
-      zoom: 7,
+      center: start ? [start.lat, start.lng] : MAP_CENTER,
+      zoom: start?.zoom ?? 7,
       maxZoom: MAP_MAX_ZOOM,
       preferCanvas: true,
       scrollWheelZoom: true,
@@ -519,6 +531,17 @@ export default function MapView({
     map.on('mouseout', () => {
       cancelAnimationFrame(cuadro);
       coordenadas.hidden = true;
+    });
+    // Permalink: cada encuadre final sube a la página, que lo escribe en la URL.
+    // `moveend` (no `move`) y con longitud normalizada: un mapa que dio la
+    // vuelta al mundo no debe producir -433°.
+    map.on('moveend', () => {
+      const center = map.getCenter();
+      onViewChangeRef.current?.({
+        lat: center.lat,
+        lng: L.Util.wrapNum(center.lng, [-180, 180], true),
+        zoom: map.getZoom(),
+      });
     });
     mapRef.current = map;
 

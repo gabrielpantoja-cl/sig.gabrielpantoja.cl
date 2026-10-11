@@ -99,7 +99,7 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | 3 | ~~🔴 Fijar el runner de CI y añadir `npm run build` al workflow~~ ✅ 2026-10-10 | `ubuntu-latest` cambia el 2026-10-19; hoy CI no compila | [Deuda › Plataforma](#plataforma-y-release) |
 | 4 | ~~🟡 Etiquetar `v0.2.0`~~ ✅ 2026-10-10 | Cambio incompatible + KMZ + coordenadas sin release | [Deuda › Plataforma](#plataforma-y-release) |
 | 5 | 🟡 CONAF informa su estado a la leyenda + popups inline a `map-popups.ts` | Fallas silenciosas y HTML sin tests de escape | [Deuda › Frontend](#arquitectura-del-frontend) |
-| 6 | 🟢 Permalink con estado completo | Habilita compartir hallazgos; barato | [Producto](#producto-y-mercado) |
+| 6 | ~~🟢 Permalink con estado completo~~ ✅ 2026-10-10 | Habilita compartir hallazgos; barato | [Producto](#producto-y-mercado) |
 | 7 | 🟢 Escala numérica + medición | Lo pide el informe de tasación | [Herramientas SIG](#herramientas-mínimas-de-sig-que-faltan-auditoría-2026-08-28) |
 | 7b | ~~🟡 Capa de humedales (Inventario Nacional + humedales urbanos Ley 21.202)~~ ✅ 2026-10-10 | Caso de estudio de la tesis | [Investigación › Eje 3](#eje-3--coberturas-humedales-bosque-nativo-y-agua) |
 | 8 | 🟢 Carta IGM 1:50.000 o DEM libre (decidir juntas) | Única capa aprobada en cola; el relieve no existe hoy | [§ 1.4](#14-carta-topográfica-igm-150000-vía-mop-rest-sit---aprobada-en-cola) |
@@ -761,9 +761,12 @@ que amplían el uso diario del perito:
 - [ ] **Export DXF** (AutoCAD) del viewport + el punto seleccionado con
       capas activas: para peritos que llevan la información a su
       software CAD. Complemento al export CSV/GeoJSON ya existente.
-- [ ] **Permalink con estado completo** (filtros, capas, zoom, marker
-      seleccionado): hoy el URL no captura la sesión. Es un cambio
-      chico pero habilita compartir hallazgos.
+- [x] **Permalink con estado completo** — hecho el 2026-10-10: la URL
+      lleva encuadre, capas, mapa base, filtros, variable de bioclima y
+      opciones del mapa de calor (`src/lib/permalink.ts`), con botón
+      «Compartir vista». *Pendiente*: el punto CBR o el humedal
+      seleccionado (abrir el enlace con su popup), y enlazar desde las
+      notas de gabrielpantoja.cl a vistas concretas.
 - [ ] **Modo "imprimir" / PDF** de la vista con leyenda: para anexar
       al informe de tasación.
 - [ ] **Reverso del geocoder**: click derecho sobre cualquier punto
@@ -885,9 +888,15 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
 - [ ] 🟢 **Estilos inline en el HTML de popups**: cada popup repite
       `style="font-size:…"`. Pasar a clases (`.sig-popup-*`) en
       `globals.css` para que el tema oscuro y la impresión los alcancen.
-- [ ] 🟢 **Estado de la página en la URL**: filtros, capas, zoom y base viven
-      en estado de React y `localStorage`; un único módulo de estado
-      serializable sería la base del permalink y de las vistas guardadas.
+- [x] **Estado de la página en la URL** — resuelto con el permalink
+      (2026-10-10): `PermalinkState` es ese módulo serializable; las vistas
+      guardadas pueden construirse encima.
+- [ ] 🟡 **Un 429 propio se informa como caída del organismo** *(nuevo,
+      2026-10-10)*: cuando el limitador de `/api/*` corta (p. ej. muchos
+      paneos seguidos), los avisos de capas remotas dicen «No responde MMA ·
+      SIMBIO_HUMEDALES» u otro servicio, aunque el organismo esté bien.
+      Distinguir `RATE_LIMITED` en el contrato de error y mostrar «demasiadas
+      consultas seguidas, reintenta en unos segundos».
 
 ### Datos y ETL *(nuevo, 2026-10-10)*
 
@@ -1286,6 +1295,8 @@ SIMEF, SNIA, IGM, ODEPA) están catalogadas en
 
 ## Hitos
 
+- **2026-10-10 — Permalink**: la URL describe la vista (encuadre, capas,
+  fondo, filtros) y el botón «Compartir vista» la copia o la comparte.
 - **2026-10-10 — v0.2.0**: humedales, ubicación GPS, Node 22 en CI y Vercel,
   runner fijo, build en CI y el aviso de error CBR que ya no bloquea el mapa.
 - **2026-10-10 — Humedales (MMA)**: Inventario Nacional + humedales urbanos

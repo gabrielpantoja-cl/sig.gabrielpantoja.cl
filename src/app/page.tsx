@@ -11,7 +11,7 @@ import {
   PROPIEDADES_RURALES_SERVICE_NAME,
   type PropiedadesRuralesStatus,
 } from '@/lib/propiedades-rurales';
-import { DESTINO_DEFAULT, HEXBIN_MIN_N_DEFAULT, type HexbinStatus } from '@/lib/hexbins';
+import { type HexbinStatus } from '@/lib/hexbins';
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
 import { DEFAULT_LAYER_OPACITY } from '@/lib/layer-opacity';
@@ -33,6 +33,8 @@ import { useCbrData } from '@/hooks/useCbrData';
 import { useKmlLayers } from '@/hooks/useKmlLayers';
 import { useNdviQuery } from '@/hooks/useNdviQuery';
 import { useRuralRolSearch } from '@/hooks/useRuralRolSearch';
+import { PERMALINK_DEFAULTS, usePermalinkSync } from '@/hooks/usePermalink';
+import { parsePermalink, type PermalinkLayer, type PermalinkState } from '@/lib/permalink';
 
 // El RetroLoader de page.tsx cubre también la carga del módulo, así que el
 // dynamic no necesita fallback propio (evita dos loaders superpuestos).
@@ -84,6 +86,13 @@ const StatsIcon = (
   </svg>
 );
 
+const ShareIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5" />
+    <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5" />
+  </svg>
+);
+
 const CrosshairIcon = (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
     <circle cx="12" cy="12" r="7" />
@@ -103,17 +112,39 @@ const CrosshairIcon = (
 type MapExportArgs = { metadata?: LayerMetadataEntry[] };
 type MapExportFn = (args?: MapExportArgs) => Promise<void>;
 
+// La query con que se abrió la pestaña, leída una sola vez: las escrituras
+// posteriores del permalink (replaceState) no deben volver a montar la app.
+let openingSearch: string | null = null;
+const subscribeNever = () => () => {};
+const getOpeningSearch = () => (openingSearch ??= window.location.search);
+const getServerSearch = () => '';
+
+/**
+ * El servidor no conoce la query (la página es estática), así que pinta la
+ * vista por defecto. Si la pestaña se abrió con un permalink, al hidratar la
+ * query cambia, cambia la `key` y `SigApp` se monta de nuevo con ese estado
+ * en sus `useState` iniciales — sin desajuste de hidratación y sin cascadas de
+ * `setState` en efectos. Sin query (el caso común) la key no cambia y no hay
+ * segundo montaje.
+ */
 export default function Home() {
-  const [comuna, setComuna] = useState('todas');
-  const [anioFrom, setAnioFrom] = useState<number | null>(null);
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
-  const [montoMin, setMontoMin] = useState('');
-  const [montoMax, setMontoMax] = useState('');
-  const [supMin, setSupMin] = useState('');
-  const [supMax, setSupMax] = useState('');
-  const [predio, setPredio] = useState('');
-  const [rol, setRol] = useState('');
+  const search = useSyncExternalStore(subscribeNever, getOpeningSearch, getServerSearch);
+  const initial = useMemo(() => parsePermalink(search, PERMALINK_DEFAULTS), [search]);
+  return <SigApp key={search} initial={initial} />;
+}
+
+function SigApp({ initial }: { initial: PermalinkState }) {
+  const on = (layer: PermalinkLayer) => initial.layers.includes(layer);
+  const [comuna, setComuna] = useState(initial.filters.comuna);
+  const [anioFrom, setAnioFrom] = useState<number | null>(initial.filters.anioMin);
+  const [fechaDesde, setFechaDesde] = useState(initial.filters.fechaDesde);
+  const [fechaHasta, setFechaHasta] = useState(initial.filters.fechaHasta);
+  const [montoMin, setMontoMin] = useState(initial.filters.montoMin);
+  const [montoMax, setMontoMax] = useState(initial.filters.montoMax);
+  const [supMin, setSupMin] = useState(initial.filters.supMin);
+  const [supMax, setSupMax] = useState(initial.filters.supMax);
+  const [predio, setPredio] = useState(initial.filters.predio);
+  const [rol, setRol] = useState(initial.filters.rol);
 
   // Resultado del geocoder: MapView vuela ahí y deja un marcador pulsante.
   const [focus, setFocus] = useState<GeocodeResult | null>(null);
@@ -204,7 +235,7 @@ export default function Home() {
   };
 
   // Capa CIREN de propiedades rurales: la enciende también la búsqueda por ROL.
-  const [showPropiedadesRurales, setShowPropiedadesRurales] = useState(false);
+  const [showPropiedadesRurales, setShowPropiedadesRurales] = useState(on('propiedades_rurales'));
   const [propiedadesRuralesStatus, setPropiedadesRuralesStatus] = useState<PropiedadesRuralesStatus>({ kind: 'idle' });
 
   // El ROL encontrado enciende la capa CIREN y libera la pantalla en móvil.
@@ -238,42 +269,48 @@ export default function Home() {
   // Las transacciones CBR son la capa principal y vienen activadas por defecto,
   // pero el perito las puede ocultar para componer una vista limpia (por ej.
   // al exportar el mapa como anexo PNG de un informe de tasación).
-  const [showPoints, setShowPoints] = useState(true);
-  const [showProtected, setShowProtected] = useState(false);
-  const [showUrbanLimit, setShowUrbanLimit] = useState(false);
-  const [showComunas, setShowComunas] = useState(false);
-  const [showRedVial, setShowRedVial] = useState(false);
-  const [showRedDrenaje, setShowRedDrenaje] = useState(false);
-  const [showLineasTransmision, setShowLineasTransmision] = useState(false);
-  const [showSuelos, setShowSuelos] = useState(false);
+  const [showPoints, setShowPoints] = useState(on('puntos'));
+  const [showProtected, setShowProtected] = useState(on('areas_protegidas'));
+  const [showUrbanLimit, setShowUrbanLimit] = useState(on('limite_urbano'));
+  const [showComunas, setShowComunas] = useState(on('comunas'));
+  const [showRedVial, setShowRedVial] = useState(on('red_vial'));
+  const [showRedDrenaje, setShowRedDrenaje] = useState(on('red_drenaje'));
+  const [showLineasTransmision, setShowLineasTransmision] = useState(on('lineas_transmision'));
+  const [showSuelos, setShowSuelos] = useState(on('suelos'));
   const [suelosStatus, setSuelosStatus] = useState<SuelosStatus>({ kind: 'idle' });
-  const [showBioclima, setShowBioclima] = useState(false);
-  const [bioclimaVariable, setBioclimaVariable] = useState<'temperature' | 'precipitation'>('precipitation');
+  const [showBioclima, setShowBioclima] = useState(on('bioclima'));
+  const [bioclimaVariable, setBioclimaVariable] = useState<'temperature' | 'precipitation'>(initial.bioclima);
   const [layerOpacity, setLayerOpacity] = useState(DEFAULT_LAYER_OPACITY);
-  const [showCatastroFruticola, setShowCatastroFruticola] = useState(false);
-  const [showVegetacional, setShowVegetacional] = useState(false);
-  const [showHumedales, setShowHumedales] = useState(false);
+  const [showCatastroFruticola, setShowCatastroFruticola] = useState(on('catastro_fruticola'));
+  const [showVegetacional, setShowVegetacional] = useState(on('vegetacional'));
+  const [showHumedales, setShowHumedales] = useState(on('humedales'));
   const [humedalesStatus, setHumedalesStatus] = useState<HumedalesStatus>({ kind: 'idle' });
-  const [showNdviVisual, setShowNdviVisual] = useState(false);
+  const [showNdviVisual, setShowNdviVisual] = useState(on('ndvi_visual'));
   const [ndviVisualStatus, setNdviVisualStatus] = useState<NdviVisualEstado>({ kind: 'idle' });
   // Mapa de calor de valor. El destino arranca en habitacional: es el 57 % de
   // la base y el caso urbano que el usuario quiere ver primero.
-  const [showHexbins, setShowHexbins] = useState(false);
-  const [hexbinDestino, setHexbinDestino] = useState(DESTINO_DEFAULT);
-  const [hexbinMinN, setHexbinMinN] = useState(HEXBIN_MIN_N_DEFAULT);
+  const [showHexbins, setShowHexbins] = useState(on('mapa_calor'));
+  const [hexbinDestino, setHexbinDestino] = useState(initial.destino);
+  const [hexbinMinN, setHexbinMinN] = useState(initial.minN);
   const [hexbinStatus, setHexbinStatus] = useState<HexbinStatus>({ kind: 'idle' });
 
   // Mapa base. La preferencia vive en localStorage y se lee por
   // `useSyncExternalStore` (ver lib/basemap-store.ts): el servidor pinta el
   // fondo por defecto, el cliente el guardado, sin hidratación rota ni
   // parpadeo del mapa al montar.
-  const basemap = useSyncExternalStore(
+  const storedBasemap = useSyncExternalStore(
     subscribeBasemap,
     getBasemapSnapshot,
     getBasemapServerSnapshot,
   );
+  // Un permalink con `fondo=` manda sobre la preferencia guardada, pero sin
+  // pisarla: abrir un enlace ajeno no cambia el fondo por defecto del usuario.
+  // En cuanto elige otro fondo, vuelve a mandar su preferencia.
+  const [linkBasemap, setLinkBasemap] = useState(initial.basemap);
+  const basemap = linkBasemap ?? storedBasemap;
   const handleBasemap = useCallback((id: Parameters<typeof setBasemapPreference>[0]) => {
     track('basemap', { basemap: id });
+    setLinkBasemap(null);
     setBasemapPreference(id);
   }, []);
 
@@ -297,11 +334,57 @@ export default function Home() {
     humedales: showHumedales,
     propiedades_rurales: showPropiedadesRurales,
     ndvi_visual: showNdviVisual,
-  }), [
+  }) satisfies Record<PermalinkLayer, boolean>, [
     showPoints, showHexbins, showProtected, showUrbanLimit, showComunas,
     showRedVial, showRedDrenaje, showLineasTransmision, showSuelos, showBioclima,
     showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showNdviVisual,
   ]);
+  // Permalink: todo lo que define la vista, menos el encuadre (que llega de
+  // MapView en cada `moveend`). `satisfies` arriba obliga a que cada capa
+  // nueva también entre al enlace.
+  const permalinkState = useMemo(() => ({
+    layers: (Object.keys(layerFlags) as PermalinkLayer[]).filter((layer) => layerFlags[layer]),
+    basemap,
+    bioclima: bioclimaVariable,
+    destino: hexbinDestino,
+    minN: hexbinMinN,
+    filters: { comuna, anioMin: anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol },
+  }), [
+    layerFlags, basemap, bioclimaVariable, hexbinDestino, hexbinMinN,
+    comuna, anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol,
+  ]);
+  const { onViewChange, flush: flushPermalink } = usePermalinkSync(permalinkState, initial.view);
+
+  // «Compartir vista»: en celulares abre la hoja de compartir del sistema; en
+  // escritorio copia el enlace. Antes se fuerza la escritura pendiente de la
+  // URL para no compartir una vista atrasada.
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const shareTimer = useRef(0);
+  const handleShare = useCallback(async () => {
+    flushPermalink();
+    const url = window.location.href;
+    const say = (text: string) => {
+      setShareMessage(text);
+      window.clearTimeout(shareTimer.current);
+      shareTimer.current = window.setTimeout(() => setShareMessage(null), 3500);
+    };
+    try {
+      if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
+        await navigator.share({ title: 'SIG de suelo', url });
+        track('share', { method: 'native' });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      say('Enlace copiado. Incluye encuadre, capas, fondo y filtros.');
+      track('share', { method: 'clipboard' });
+    } catch (err) {
+      // Cancelar la hoja de compartir no es un error que haya que mostrar.
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      say('No se pudo copiar: copia el enlace desde la barra de direcciones.');
+    }
+  }, [flushPermalink]);
+  useEffect(() => () => window.clearTimeout(shareTimer.current), []);
+
   const prevLayerFlags = useRef(layerFlags);
   useEffect(() => {
     const prev = prevLayerFlags.current;
@@ -448,7 +531,25 @@ export default function Home() {
         <h1 className="text-[0.65rem] uppercase tracking-[0.18em] opacity-60 md:text-xs">
           SIG de suelo · Datos abiertos
         </h1>
-        <div className="flex items-center gap-3">
+        <div className="relative flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleShare}
+            title="Copia un enlace a esta vista: encuadre, capas, mapa base y filtros. Las capas KML propias no se incluyen."
+            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-black/15 px-2.5 text-xs transition-colors hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(153_28%_35%)] dark:border-white/20 dark:hover:bg-white/10"
+          >
+            {ShareIcon}
+            <span className="hidden sm:inline">Compartir vista</span>
+            <span className="sr-only sm:hidden">Compartir vista</span>
+          </button>
+          {shareMessage && (
+            <div
+              role="status"
+              className="absolute right-0 top-10 z-[1300] w-max max-w-[min(20rem,calc(100vw-2rem))] rounded-md border border-black/10 bg-[var(--background)] px-3 py-2 text-xs shadow-lg dark:border-white/15"
+            >
+              {shareMessage}
+            </div>
+          )}
           <a
             href="https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl"
             target="_blank"
@@ -632,6 +733,8 @@ export default function Home() {
               kmlLayers={kmlLayers}
               basemap={basemap}
               focus={focus}
+              initialView={initial.view}
+              onViewChange={onViewChange}
               onRenderProgress={handleRenderProgress}
               onRenderComplete={handleRenderComplete}
               mapExportRef={mapExportRef}
