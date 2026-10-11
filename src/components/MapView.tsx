@@ -40,6 +40,7 @@ import { useNdviVisualLayer } from '@/components/map/useNdviVisualLayer';
 import { useBioclimaLayer } from '@/components/map/useBioclimaLayer';
 import { useSuelosLayer } from '@/components/map/useSuelosLayer';
 import { useHumedalesLayer } from '@/components/map/useHumedalesLayer';
+import { useLocateControl } from '@/components/map/useLocateControl';
 import { usePropiedadesRuralesLayer } from '@/components/map/usePropiedadesRuralesLayer';
 import {
   buildCatastroFruticolaPopup,
@@ -972,6 +973,8 @@ export default function MapView({
   useSuelosLayer({ mapRef, suelosRef, showSuelos, opacityRef, onSuelosStatusRef, ndviModeRef });
 
   useHumedalesLayer({ mapRef, humedalesRef, showHumedales, opacityRef, onHumedalesStatusRef, ndviModeRef, reorderOverlays });
+
+  useLocateControl({ mapRef });
 
   usePropiedadesRuralesLayer({ mapRef, propiedadesRuralesRef, showPropiedadesRurales, opacityRef, onPropiedadesRuralesStatusRef, ndviModeRef, reorderOverlays });
 

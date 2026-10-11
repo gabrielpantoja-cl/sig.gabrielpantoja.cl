@@ -23,6 +23,12 @@ versionado.
 
 ### Añadido
 
+- **«Ir a mi ubicación»**: botón abajo a la derecha del mapa que pide una
+  posición al GPS del dispositivo, centra el mapa y deja el punto azul con su
+  círculo de precisión. Siempre informa la precisión (y advierte si supera
+  500 m, típico de una ubicación por IP o wifi) y explica cada falla: permiso
+  denegado, sin señal, tiempo agotado o conexión no segura. La posición nunca
+  sale del navegador.
 - **Capa Humedales (MMA)**: Inventario Nacional de Humedales (~118 mil
   polígonos por tipo: continentales, artificiales, marinos y costeros) y los
   137 humedales urbanos declarados bajo la Ley 21.202, con su resolución
