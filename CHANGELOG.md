@@ -23,6 +23,17 @@ versionado.
 
 ### Añadido
 
+- **Consulta integrada del punto («¿Qué hay aquí?»)**: un clic en el mapa
+  abre un solo popup con las coordenadas (decimal y UTM) y una sección por
+  cada capa activa: humedales, suelos, recursos vegetacionales y propiedades
+  rurales (consultados en paralelo a sus servicios), áreas protegidas, límite
+  urbano, comunas y catastro frutícola (resueltos en el navegador) y la celda
+  del mapa de calor. Antes cada capa abría su propio popup y el último pisaba
+  a los demás; un clic dentro de una comuna anulaba la consulta de suelos o
+  humedales. Cada sección distingue «sin dato en este punto», «acerca el
+  mapa», «no responde el servicio» y «demasiadas consultas seguidas» (el
+  límite propio del SIG, que antes se informaba como caída del organismo).
+  Pines CBR, líneas (caminos, drenaje, transmisión) y KML conservan su popup.
 - **Permalink: la URL describe la vista del SIG.** Encuadre, capas
   encendidas, mapa base, filtros (con los mismos nombres de la API: `comuna`,
   `anio_min`, `monto_min`…), variable de bioclima y opciones del mapa de calor
