@@ -80,6 +80,19 @@ import {
   bioclimaRamp,
   type BioclimaVariable,
 } from '@/lib/bioclima';
+import {
+  EXPOSICION_PLANO_COLOR,
+  EXPOSICION_SECTORES,
+  PENDIENTE_CLASES,
+  PENDIENTE_FUENTE,
+  RELIEVE_ATTRIBUTION,
+  RELIEVE_DESCARGO,
+  RELIEVE_DESCARGO_LICENCIA,
+  RELIEVE_MIN_ZOOM,
+  RELIEVE_SOURCE_URL,
+  type RelieveModo,
+} from '@/lib/relieve';
+import type { RemoteRasterStatus } from '@/lib/remote-raster';
 import { type PanelId } from '@/components/MapPanel';
 import { LayerSidebar, type LayerSidebarView } from '@/components/LayerSidebar';
 import {
@@ -247,9 +260,66 @@ function LayerRow({
   );
 }
 
+/** Leyenda del relieve según el modo: la misma tabla de clases y colores que
+ *  pinta el servidor (`relieve.ts`), así no pueden separarse. */
+function RelieveLegend({ modo }: { modo: RelieveModo }) {
+  const swatch = (color: string, alpha = 1) => (
+    <span
+      className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-black/20 dark:border-white/25"
+      style={{ background: color, opacity: alpha }}
+    />
+  );
+  if (modo === 'pendiente') {
+    return (
+      <>
+        <ul className="mt-1 space-y-1 text-xs">
+          {PENDIENTE_CLASES.map((c) => (
+            <li key={c.clase} className="flex items-center gap-1.5 leading-tight">
+              {swatch(c.color)}
+              <span className="opacity-80">
+                <strong className="font-semibold">{c.clase}</strong> {c.rango}
+                <span className="opacity-60"> · {c.nombre}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-1.5 text-[0.6rem] leading-snug opacity-60">{PENDIENTE_FUENTE} Bajo 5 % las clases están dentro del error del modelo.</p>
+      </>
+    );
+  }
+  if (modo === 'exposicion') {
+    return (
+      <>
+        <ul className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+          {EXPOSICION_SECTORES.map((s) => (
+            <li key={s.sigla} className="flex items-center gap-1.5 leading-tight">
+              {swatch(s.color)}
+              <span className="opacity-80">{s.sigla}<span className="opacity-60"> · {s.nombre}</span></span>
+            </li>
+          ))}
+          <li className="col-span-2 flex items-center gap-1.5 leading-tight">
+            {swatch(EXPOSICION_PLANO_COLOR, 0.5)}
+            <span className="opacity-80">Plano<span className="opacity-60"> · pendiente bajo 2 %</span></span>
+          </li>
+        </ul>
+        <p className="mt-1.5 text-[0.6rem] leading-snug opacity-60">
+          Hacia dónde mira la ladera. En Chile las de exposición norte reciben más sol; el color se
+          atenúa en pendientes suaves, donde la dirección es poco confiable.
+        </p>
+      </>
+    );
+  }
+  return (
+    <p className="mt-1 text-xs leading-snug opacity-80">
+      Luz del noroeste a 45°: las laderas al sol se aclaran y las opuestas se oscurecen; lo plano queda
+      transparente. Para leer el relieve, no para medirlo: usa «Pendiente» o la consulta del punto.
+    </p>
+  );
+}
+
 /** Estado de una capa remota por viewport. `provider` nombra al organismo en
  *  los mensajes («CIREN», «MMA»); el estado tiene la misma forma en ambas. */
-function RemoteStatusNotice({ status, provider }: { status: SuelosStatus | HumedalesStatus; provider: string }) {
+function RemoteStatusNotice({ status, provider }: { status: RemoteRasterStatus; provider: string }) {
   const activeLegend = useContext(ActiveLegendContext);
   if (!activeLegend) return null;
   if (status.kind === 'idle') return null;
@@ -618,6 +688,11 @@ export function LayersControl({
   showNdviVisual,
   onToggleNdviVisual,
   ndviVisualStatus,
+  showRelieve,
+  onToggleRelieve,
+  relieveModo,
+  onRelieveModo,
+  relieveStatus,
   kmlLayers,
   kmlError,
   onAddKmlFiles,
@@ -673,6 +748,11 @@ export function LayersControl({
   propiedadesRuralesStatus: PropiedadesRuralesStatus;
   showNdviVisual: boolean;
   onToggleNdviVisual: (v: boolean) => void;
+  showRelieve: boolean;
+  onToggleRelieve: (v: boolean) => void;
+  relieveModo: RelieveModo;
+  onRelieveModo: (modo: RelieveModo) => void;
+  relieveStatus: RemoteRasterStatus;
   /** Estado del raster por viewport: la leyenda lo muestra para no presentar
    *  una falla del servicio como "sin datos". */
   ndviVisualStatus: NdviVisualEstado;
@@ -745,12 +825,27 @@ export function LayersControl({
       </label>
     </>
   );
+  const relieveControls = (
+    <>
+      {opacityControl('relieve')}
+      <label className="block text-xs">
+        <span className="font-medium">Mostrar</span>
+        <select value={relieveModo}
+          onChange={(event) => onRelieveModo(event.target.value as RelieveModo)}
+          className="mt-1 w-full rounded border border-black/15 bg-[var(--background)] px-1.5 py-1 text-xs text-[var(--foreground)] dark:border-white/20">
+          <option value="sombreado">Sombreado del relieve</option>
+          <option value="pendiente">Pendiente (clases SAG A–I)</option>
+          <option value="exposicion">Exposición de laderas</option>
+        </select>
+      </label>
+    </>
+  );
   const hasActiveLegend = showHexbins || showProtected || showUrbanLimit || showComunas ||
     showRedVial || showRedDrenaje || showLineasTransmision || showSuelos || showBioclima ||
-    showCatastroFruticola || showVegetacional || showHumedales || showPropiedadesRurales || showNdviVisual;
+    showCatastroFruticola || showVegetacional || showHumedales || showPropiedadesRurales || showNdviVisual || showRelieve;
   const activeLayerCount = [showHexbins, showProtected, showUrbanLimit, showComunas,
     showRedVial, showRedDrenaje, showLineasTransmision, showSuelos, showBioclima,
-    showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showNdviVisual].filter(Boolean).length;
+    showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showNdviVisual, showRelieve].filter(Boolean).length;
   const catalogue = (
       <div className="space-y-2">
         <LayerGroupHeader id="cbr" />
@@ -1226,6 +1321,34 @@ export function LayersControl({
             </p>
           </LayerRow>
           {showNdviVisual && <NdviVisualStatusNotice status={ndviVisualStatus} />}
+        </div>
+
+        <LayerGroupHeader id="terrain" />
+        <div>
+          <LayerRow
+            checked={showRelieve}
+            onChange={onToggleRelieve}
+            layerId="relieve"
+            label="Relieve (Copernicus GLO-30)"
+            controls={relieveControls}
+            swatch={
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-sm"
+                style={{ background: 'linear-gradient(135deg, #f5f1e6 0%, #9ca3af 55%, #374151 100%)' }}
+              />
+            }
+          >
+            <RelieveLegend modo={relieveModo} />
+            <p className="mt-2 text-[0.6rem] leading-snug opacity-50">
+              <strong>Desde zoom {RELIEVE_MIN_ZOOM}.</strong> Resolución nativa de 30 m desde zoom 12; más
+              lejos se calcula a 60–240 m y la pendiente sale suavizada (la consulta del punto usa
+              siempre 30 m). {RELIEVE_DESCARGO} {RELIEVE_ATTRIBUTION}. {RELIEVE_DESCARGO_LICENCIA}{' '}
+              <a href={RELIEVE_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-100">
+                Ver fuente →
+              </a>
+            </p>
+          </LayerRow>
+          {showRelieve && <RemoteStatusNotice status={relieveStatus} provider="Copernicus DEM (AWS)" />}
         </div>
 
         <LayerGroupHeader id="climate" />

@@ -46,7 +46,7 @@ Cuatro direcciones:
 (paneles flotantes, capas estáticas + dinámicas, atribución obligatoria, selectors de
 rango temporal para series).
 
-## Estado actual (al 2026-10-10)
+## Estado actual (al 2026-10-11)
 
 **Quince capas en producción** (detalle técnico en
 [`arquitectura-capas.md`](./arquitectura-capas.md)):
@@ -68,6 +68,7 @@ rango temporal para series).
 | 13 | Bioclima (WorldClim) | Estática, PNG reproyectado | 75 KB |
 | 14 | NDVI Visual (Sentinel-2) | Dinámica remota (PNG compuesto en el servidor por viewport) | — |
 | 15 | Humedales (MMA): inventario nacional + urbanos Ley 21.202 | Dinámica remota (PNG por viewport + `identify`) | — |
+| 16 | Relieve (Copernicus GLO-30): sombreado, pendiente SAG A–I, exposición | Dinámica remota calculada por nosotros (COG de AWS → PNG por viewport + valor por punto) | — |
 
 Además:
 
@@ -106,7 +107,7 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | 8 | 🟢 Carta IGM 1:50.000 o DEM libre (decidir juntas) | Única capa aprobada en cola; el relieve no existe hoy | [§ 1.4](#14-carta-topográfica-igm-150000-vía-mop-rest-sit---aprobada-en-cola) |
 | 9 | 🟡 Dividir `LayersControl.tsx` y terminar `MapView.tsx` | Siguen creciendo (1.419 y 1.111 líneas) | [Deuda › Frontend](#arquitectura-del-frontend) |
 | 10 | 🟢 Humo E2E con Playwright | Protege el export PNG y las capas remotas | [Deuda › Tests](#tests) |
-| 11 | 🟢 Relieve: pendiente y exposición desde Copernicus GLO-30 (PNG estático + valor por punto en la consulta integrada) | La aptitud del suelo es el confusor central de la tesis | [§ 1.4](#14-carta-topográfica-igm-150000-vía-mop-rest-sit---aprobada-en-cola) |
+| 11 | ~~🟢 Relieve: pendiente y exposición desde Copernicus GLO-30~~ ✅ 2026-10-11 (por viewport, no PNG estático: a 30 m un PNG nacional sería inmanejable) | La aptitud del suelo es el confusor central de la tesis | [§ 1.4](#14-carta-topográfica-igm-150000-vía-mop-rest-sit---aprobada-en-cola) |
 | 12 | 🟢 NDVI antes / después (dos fechas y su diferencia) | Leer incendios, cosechas, humedales que se secan | [§ 5.2](#52-ndvi-sentinel-2--en-producción-2026-09-17--2026-09-27) |
 | 13 | 🟢 Riqueza de especies GBIF con esfuerzo de muestreo | Biodiversidad sin confundir «sin muestreo» con «sin especies» | [Investigación › Eje 3](#eje-3--coberturas-humedales-bosque-nativo-y-agua) |
 
@@ -291,6 +292,17 @@ el código:
 - [ ] **`identify` sobre curvas**: el campo de cota es `ZV2`. Confirmar unidad
       (se asume m s.n.m.) y si el clic devuelve la curva más cercana con una
       tolerancia usable.
+
+> **Actualización 2026-10-11 — el DEM libre ya está en producción** como capa
+> «Relieve (Copernicus GLO-30)»: sombreado, pendiente en clases SAG A–I y
+> exposición, más cota/pendiente/exposición a 30 m en «¿Qué hay aquí?». No
+> se hizo como PNG estático (a 30 m, Chile serían ~140.000 × 15.000 px) sino
+> por viewport, leyendo los COG públicos de AWS como NDVI. Lo que sigue
+> pendiente de esta sección es la carta IGM, por la toponimia oficial.
+> Mejoras posibles del relieve: curvas de nivel derivadas (marching squares
+> sobre el mismo mosaico), un DTM en vez del DSM cuando haya uno libre para
+> Chile (FABDEM es CC BY-NC-SA: no sirve para uso comercial), y precargar en
+> la CDN las vistas de las comunas con más transacciones.
 
 **Alternativa complementaria — no sustituta — un DEM libre.** Si lo que se
 busca es *pendiente*, el camino barato y sin ataduras es un modelo de

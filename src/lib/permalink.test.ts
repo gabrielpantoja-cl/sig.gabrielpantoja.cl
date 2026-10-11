@@ -9,13 +9,16 @@ import {
   type PermalinkState,
 } from '@/lib/permalink';
 
-const DEFAULTS: PermalinkDefaults = { basemap: 'neutro', bioclima: 'precipitation', destino: 'H', minN: 2 };
+const DEFAULTS: PermalinkDefaults = {
+  basemap: 'neutro', bioclima: 'precipitation', relieve: 'sombreado', destino: 'H', minN: 2,
+};
 
 const initial: PermalinkState = {
   view: null,
   layers: DEFAULT_LAYERS,
   basemap: 'neutro',
   bioclima: 'precipitation',
+  relieve: 'sombreado',
   destino: 'H',
   minN: 2,
   filters: DEFAULT_FILTERS,
@@ -59,15 +62,23 @@ describe('serializePermalink', () => {
     );
     expect(on).toBe('capas=puntos,mapa_calor,bioclima&bioclima=temperatura&destino=A&min_n=5');
   });
+
+  it('writes the relief mode only when the layer is on and not the default', () => {
+    expect(serializePermalink({ ...initial, relieve: 'pendiente' }, DEFAULTS)).toBe('');
+    expect(serializePermalink({ ...initial, layers: ['relieve'], relieve: 'sombreado' }, DEFAULTS)).toBe('capas=relieve');
+    expect(serializePermalink({ ...initial, layers: ['relieve'], relieve: 'exposicion' }, DEFAULTS))
+      .toBe('capas=relieve&relieve=exposicion');
+  });
 });
 
 describe('parsePermalink', () => {
   it('reads what serializePermalink wrote (round trip)', () => {
     const state: PermalinkState = {
       view: { lat: -39.85067, lng: -73.23874, zoom: 15 },
-      layers: ['puntos', 'mapa_calor', 'humedales'],
+      layers: ['puntos', 'mapa_calor', 'humedales', 'relieve'],
       basemap: 'topografico',
       bioclima: 'precipitation',
+      relieve: 'pendiente',
       destino: 'W',
       minN: 4,
       filters: {
@@ -102,6 +113,7 @@ describe('parsePermalink', () => {
 
   it('treats a list of only unknown layers as a broken link, but `capas=` as all off', () => {
     expect(parsePermalink('?capas=<script>', DEFAULTS).layers).toEqual(DEFAULT_LAYERS);
+    expect(parsePermalink('?capas=relieve&relieve=<script>', DEFAULTS).relieve).toBe('sombreado');
     expect(parsePermalink('?capas=', DEFAULTS).layers).toEqual([]);
   });
 

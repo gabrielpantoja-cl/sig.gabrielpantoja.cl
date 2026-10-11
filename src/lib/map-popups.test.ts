@@ -7,6 +7,7 @@ import {
   esc,
   formatDateCL,
   safeHref,
+  buildRelieveResult,
 } from '@/lib/map-popups';
 import type { MapPoint } from '@/lib/types';
 import type { KmlLayer } from '@/lib/kml';
@@ -101,5 +102,22 @@ describe('popups escape data values', () => {
     expect(html).not.toContain('<script');
     expect(html).not.toContain('<img');
     expect(html).not.toContain('<b>');
+  });
+});
+
+describe('buildRelieveResult', () => {
+  it('shows elevation, slope class and aspect, with the DSM caveat', () => {
+    const html = buildRelieveResult({ cota: 757.6, pendientePct: 44.77, pendienteGrados: 24.12, exposicion: 101 });
+    expect(html).toContain('Clase G · Moderadamente escarpado (SAG)');
+    expect(html).toContain('758 m s.n.m.');
+    expect(html).toContain('45 % (24,1°)');
+    expect(html).toContain('E · 101°');
+    expect(html).toContain('Modelo de superficie');
+    expect(html).not.toContain('Ley 20.283');
+  });
+
+  it('flags the 45 % native-forest threshold', () => {
+    expect(buildRelieveResult({ cota: 300, pendientePct: 52, pendienteGrados: 27.5, exposicion: 0 }))
+      .toContain('Ley 20.283');
   });
 });

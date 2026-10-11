@@ -691,12 +691,34 @@ function drawMetadataCard(
   // Layout plano: cada title o detail line termina en un renglón. Los '\n'
   // dentro de `details` se respetan. Entre entries NO insertamos línea en
   // blanco: el tipo de letra del título bold crea el corte visual.
+  // Los renglones de detalle se parten por palabras al ancho máximo de la
+  // tarjeta: sin esto, un detalle largo (el aviso de licencia de Copernicus,
+  // el descargo de CIREN) se salía del fondo blanco y quedaba ilegible.
+  const maxTextWidth = canvas.width * 0.42 - padding * 2 - textIndent;
+  const wrap = (line: string): string[] => {
+    ctx.save();
+    ctx.font = detailFont;
+    const out: string[] = [];
+    let current = '';
+    for (const word of line.split(' ')) {
+      const next = current ? `${current} ${word}` : word;
+      if (current && ctx.measureText(next).width > maxTextWidth) {
+        out.push(current);
+        current = word;
+      } else {
+        current = next;
+      }
+    }
+    if (current) out.push(current);
+    ctx.restore();
+    return out;
+  };
   const layout: LayoutLine[] = [];
   for (const entry of entries) {
     if (entry.title) layout.push({ text: entry.title, isTitle: true, entry });
     const detailLines = entry.details.split('\n');
     for (const line of detailLines) {
-      if (line.length > 0) layout.push({ text: line, isTitle: false });
+      if (line.length > 0) for (const part of wrap(line)) layout.push({ text: part, isTitle: false });
     }
   }
   if (layout.length === 0) return;
@@ -861,6 +883,7 @@ function drawFrame(
   if (opts.showPropiedadesRurales) atts.push(ATTRIBUTION_PROPIEDADES_RURALES);
   if (opts.showHexbins) atts.push(ATTRIBUTION_HEXBINS);
   if (opts.showNdviVisual) atts.push(NDVI_VISUAL_ATTRIBUTION);
+  if (opts.showRelieve) atts.push('Produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014, © Airbus DS 2014-2018 · COPERNICUS, EU/ESA');
   if (opts.ndvi) atts.push(ndviAtribucion(opts.ndvi.serie.anios));
   drawAttributionStrip(ctx, atts);
 }
@@ -891,6 +914,9 @@ export type LayerExportFlags = {
    *  del overlayPane que `drawOverlayPaneToCanvas` compositea con su
    *  opacidad); la bandera solo exige la atribución Copernicus del PNG. */
   showNdviVisual: boolean;
+  /** Relieve Copernicus: los píxeles entran solos (L.ImageOverlay); la
+   *  bandera agrega el aviso obligatorio de la licencia. */
+  showRelieve?: boolean;
 };
 
 /**

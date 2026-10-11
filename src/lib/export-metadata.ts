@@ -3,6 +3,7 @@ import { kmlDisplayName, type KmlLayer } from '@/lib/kml';
 import type { LayerMetadataEntry } from '@/lib/map-export';
 import { LINEAS_TRANSMISION_COLOR } from '@/lib/lineas-transmision';
 import { HUMEDALES_COLOR } from '@/lib/humedales';
+import { RELIEVE_MODO_LABEL, type RelieveModo } from '@/lib/relieve';
 import { HEXBINS_COLOR, destinoLabel, hexEdgeLabel, type HexbinStatus } from '@/lib/hexbins';
 import { bioclimaRamp, type BioclimaVariable } from '@/lib/bioclima';
 
@@ -47,6 +48,9 @@ export type BuildMetadataInput = {
   showHumedales: boolean;
   showPropiedadesRurales: boolean;
   showNdviVisual: boolean;
+  /** Relieve Copernicus: optional para no romper a quien no lo conoce. */
+  showRelieve?: boolean;
+  relieveModo?: RelieveModo;
   showHexbins: boolean;
   hexbinStatus: HexbinStatus;
   comuna: string;
@@ -227,6 +231,23 @@ export function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEnt
         'Índice de vigor vegetal por viewport, escala -0,1 a 0,9; escenas de los últimos días con máscara SCL\n' +
         'Contiene datos modificados de Copernicus Sentinel vía Element 84 / AWS Open Data',
       color: '#3e8f49', // verde medio de la rampa (parada 0,7)
+      shape: 'square',
+    });
+  }
+  if (input.showRelieve) {
+    const modo = input.relieveModo ?? 'sombreado';
+    const detalle =
+      modo === 'pendiente'
+        ? 'Pendiente en %, clases A–I de la Pauta para Estudio de Suelos (SAG 2011)'
+        : modo === 'exposicion'
+          ? 'Exposición de laderas en 8 sectores (gris: plano, < 2 %)'
+          : 'Sombreado del relieve, luz del noroeste a 45°';
+    entries.push({
+      title: `Relieve: ${RELIEVE_MODO_LABEL[modo].toLowerCase()} (Copernicus GLO-30)`,
+      details:
+        `${detalle}; resolución 30 m o menor según el zoom. Modelo de superficie (DSM), incluye árboles y edificios\n` +
+        'Produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved',
+      color: modo === 'pendiente' ? '#f46d43' : modo === 'exposicion' ? '#377eb8' : '#4b5563',
       shape: 'square',
     });
   }

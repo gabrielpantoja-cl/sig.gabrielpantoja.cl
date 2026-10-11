@@ -9,11 +9,13 @@ import {
   type PermalinkState,
   type PermalinkView,
 } from '@/lib/permalink';
+import { RELIEVE_DEFAULT_MODO } from '@/lib/relieve';
 
 /** Valores que no se escriben en la URL (ver `serializePermalink`). */
 export const PERMALINK_DEFAULTS: PermalinkDefaults = {
   basemap: DEFAULT_BASEMAP_ID,
   bioclima: 'precipitation',
+  relieve: RELIEVE_DEFAULT_MODO,
   destino: DESTINO_DEFAULT,
   minN: HEXBIN_MIN_N_DEFAULT,
 };

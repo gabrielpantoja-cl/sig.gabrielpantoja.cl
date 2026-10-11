@@ -12,12 +12,14 @@ import {
   buildConsultaPuntoPopup,
   buildHexbinPopup,
   buildHumedalesPopup,
+  buildRelieveResult,
   buildPropiedadRuralResult,
   buildProtectedPopup,
   buildSuelosResult,
   buildUrbanLimitPopup,
   buildVegetacionalPopup,
 } from '@/lib/map-popups';
+import { RELIEVE_MIN_ZOOM, RELIEVE_PUNTO_URL, RELIEVE_SERVICE_NAME, type RelievePunto } from '@/lib/relieve';
 import { HUMEDALES_IDENTIFY_URL, HUMEDALES_MIN_ZOOM, HUMEDALES_SERVICE_NAME, type HumedalIdentifyResult } from '@/lib/humedales';
 import { SUELOS_IDENTIFY_URL, SUELOS_MIN_ZOOM, SUELOS_SERVICE_NAME } from '@/lib/suelos';
 import { VEGETACIONAL_IDENTIFY_URL, VEGETACIONAL_MIN_ZOOM, VEGETACIONAL_SERVICE_NAME, type VegetacionalProps } from '@/lib/vegetacional';
@@ -34,6 +36,7 @@ import type { CatastroFruticolaProps } from '@/lib/catastro-fruticola';
 /** Qué capas consultables están encendidas. Se lee al momento del clic. */
 export interface PointQueryFlags {
   humedales: boolean;
+  relieve: boolean;
   suelos: boolean;
   vegetacional: boolean;
   propiedadesRurales: boolean;
@@ -147,6 +150,7 @@ export function usePointQuery({
         url: string,
         servicio: string,
         resolver: (data: T) => ConsultaSeccion,
+        query = identifyParams,
       ) => {
         if (zoom < minZoom) {
           secciones.push({ id, titulo, estado: 'vacio', mensaje: `Acerca el mapa (zoom ${minZoom} o más) para consultar esta capa.` });
@@ -155,7 +159,7 @@ export function usePointQuery({
         secciones.push({ id, titulo, estado: 'cargando' });
         remotas.push(async () => {
           try {
-            const response = await fetch(`${url}?${identifyParams}`, { signal: ctrl.signal });
+            const response = await fetch(`${url}?${query}`, { signal: ctrl.signal });
             if (!response.ok) {
               set({ id, titulo, estado: 'error', mensaje: mensajeFalla(response.status, servicio) });
               return;
@@ -204,6 +208,17 @@ export function usePointQuery({
               ? { id: 'suelos', titulo: 'Suelos agrológicos · CIREN', estado: 'listo', html: buildSuelosResult(hit.soilClass, hit.layerName ?? '') }
               : { id: 'suelos', titulo: 'Suelos agrológicos · CIREN', estado: 'vacio', mensaje: 'Sin clase CIREN en este punto (fuera del área estudiada o sin clasificar).' };
           });
+      }
+      if (flags.relieve) {
+        // Cota y pendiente redondeadas a 5 decimales (~1 m): la misma celda de
+        // 30 m da la misma URL y la CDN la reutiliza.
+        const punto = `${latlng.lng.toFixed(5)},${latlng.lat.toFixed(5)}`;
+        remota<{ relieve: RelievePunto | null }>('relieve', 'Relieve · Copernicus', RELIEVE_MIN_ZOOM, RELIEVE_PUNTO_URL,
+          RELIEVE_SERVICE_NAME, (data) =>
+            data.relieve
+              ? { id: 'relieve', titulo: 'Relieve · Copernicus', estado: 'listo', html: buildRelieveResult(data.relieve) }
+              : { id: 'relieve', titulo: 'Relieve · Copernicus', estado: 'vacio', mensaje: 'Sin modelo de elevación en este punto (mar).' },
+          new URLSearchParams({ punto }).toString());
       }
       if (flags.vegetacional) {
         remota<{ results?: Array<{ layerName: string; attributes: VegetacionalProps }> }>('vegetacional',

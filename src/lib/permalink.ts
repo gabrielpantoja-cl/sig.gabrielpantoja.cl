@@ -25,6 +25,7 @@
  */
 
 import type { BasemapId } from '@/lib/basemap';
+import { esRelieveModo, type RelieveModo } from '@/lib/relieve';
 
 /** Capas que viajan en el enlace. Mismos nombres que `layer_on`. */
 export const PERMALINK_LAYERS = [
@@ -43,6 +44,7 @@ export const PERMALINK_LAYERS = [
   'humedales',
   'propiedades_rurales',
   'ndvi_visual',
+  'relieve',
 ] as const;
 
 export type PermalinkLayer = (typeof PERMALINK_LAYERS)[number];
@@ -77,6 +79,7 @@ export interface PermalinkState {
   /** `null` = el enlace no impone fondo; manda la preferencia guardada. */
   basemap: BasemapId | null;
   bioclima: 'temperature' | 'precipitation';
+  relieve: RelieveModo;
   destino: string;
   minN: number;
   filters: PermalinkFilters;
@@ -99,6 +102,7 @@ export interface PermalinkDefaults {
   /** Fondo por defecto del SIG: no se escribe en la URL. */
   basemap: BasemapId;
   bioclima: 'temperature' | 'precipitation';
+  relieve: RelieveModo;
   destino: string;
   minN: number;
 }
@@ -161,6 +165,9 @@ export function parsePermalink(search: string, defaults: PermalinkDefaults): Per
       ? 'precipitation'
       : defaults.bioclima;
 
+  const relieveUrl = params.get('relieve');
+  const relieve = esRelieveModo(relieveUrl) ? relieveUrl : defaults.relieve;
+
   const destino = pattern(params, 'destino', DESTINO_RE) || defaults.destino;
   const minNRaw = Number(params.get('min_n'));
   const minN = Number.isInteger(minNRaw) && minNRaw >= 1 && minNRaw <= 50 ? minNRaw : defaults.minN;
@@ -173,6 +180,7 @@ export function parsePermalink(search: string, defaults: PermalinkDefaults): Per
     layers,
     basemap: fondo && BASEMAPS.includes(fondo) ? fondo : null,
     bioclima,
+    relieve,
     destino,
     minN,
     filters: {
@@ -220,6 +228,7 @@ export function serializePermalink(state: PermalinkState, defaults: PermalinkDef
   if (layers.includes('bioclima') && state.bioclima !== defaults.bioclima) {
     params.set('bioclima', BIOCLIMA_URL[state.bioclima]);
   }
+  if (layers.includes('relieve') && state.relieve !== defaults.relieve) params.set('relieve', state.relieve);
   if (layers.includes('mapa_calor')) {
     if (state.destino !== defaults.destino) params.set('destino', state.destino);
     if (state.minN !== defaults.minN) params.set('min_n', String(state.minN));

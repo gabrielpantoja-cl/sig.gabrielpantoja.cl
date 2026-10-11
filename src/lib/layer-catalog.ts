@@ -135,6 +135,18 @@ export const LAYER_CATALOG = [
     ],
   },
   {
+    id: 'terrain',
+    title: 'Relieve',
+    keywords: 'relieve terreno topografia elevacion altura cota dem pendiente exposicion ladera sombreado hillshade copernicus',
+    layers: [
+      {
+        id: 'relieve',
+        label: 'Relieve (Copernicus GLO-30)',
+        description: 'Sombreado, pendiente en clases SAG A–I y exposición de laderas; cota y pendiente por punto a 30 m',
+      },
+    ],
+  },
+  {
     id: 'climate',
     title: 'Bioclima',
     keywords: 'clima bioclimatico worldclim temperatura precipitacion variables',
