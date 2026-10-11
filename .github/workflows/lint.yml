@@ -14,7 +14,9 @@ jobs:
     # The job name is the required status check in the `Protect main`
     # ruleset: renaming it would block every push until the ruleset is updated.
     name: ESLint + TypeScript
-    runs-on: ubuntu-latest
+    # Pinned: `ubuntu-latest` moves to Ubuntu 26 on 2026-10-19. Bump this
+    # deliberately, in its own commit, once the job is known to pass there.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
@@ -23,7 +25,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: "20.x"
+          # Must match `engines.node` in package.json, which is also what
+          # Vercel reads to pick the runtime.
+          node-version: "22.x"
           cache: "npm"
 
       - name: Install dependencies
@@ -37,3 +41,9 @@ jobs:
 
       - name: Run unit tests
         run: npm test
+
+      # Catches what only fails at compile time (route segment config,
+      # `server-only` imports, prerender). No secrets: every route must
+      # tolerate a missing NEON_DATABASE_URL at build time.
+      - name: Build
+        run: npm run build

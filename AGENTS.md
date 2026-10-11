@@ -40,7 +40,7 @@ Single-page Next.js 16 App Router app. One route (`/`), one page. Maps ~85k CBR 
 | `npm run data:build` | Run all data:build sub-tasks |
 | `npm run analytics:report [-- días]` | Print the internal usage report (visits, location, devices, features, load time) from `analytics.events` |
 
-Unit tests use **Vitest 4** (`vitest.config.mts`) and cover the pure server/lib logic: `filters`, `arcgis-proxy`, `humedales` (alias mapping + popup), `security`, `hexbins`, `heat-surface`, KMZ extraction, ramps and ROL normalization. Tests sit next to the module (`foo.test.ts`). `server-only` is aliased to an empty stub (`test/server-only.ts`) because outside Next's bundler the package is not resolvable. Vitest 4, not 5: CI runs Node 20 and Vitest 5 requires Node ≥ 22.12.
+Unit tests use **Vitest 4** (`vitest.config.mts`) and cover the pure server/lib logic: `filters`, `arcgis-proxy`, `humedales` (alias mapping + popup), `security`, `hexbins`, `heat-surface`, KMZ extraction, ramps and ROL normalization. Tests sit next to the module (`foo.test.ts`). `server-only` is aliased to an empty stub (`test/server-only.ts`) because outside Next's bundler the package is not resolvable. CI and Vercel run **Node 22** (`engines.node: 22.x` in `package.json` is what Vercel reads; keep it equal to `node-version` in `.github/workflows/lint.yml`). Moving to Vitest 5 (needs Node ≥ 22.12) is now possible but has not been done.
 
 ## Architecture
 
@@ -193,7 +193,7 @@ Protected areas layer has 12 legal categories with distinct colors (see `src/lib
 
 ## Versioning
 
-SemVer `MAYOR.MENOR.PARCHE`, currently **0.1.0** (`package.json` and
+SemVer `MAYOR.MENOR.PARCHE`, currently **0.2.0** (`package.json` and
 `src/lib/version.ts` must agree — the API route reports the latter).
 
 The leading `0` is a factual claim, not modesty: **the public `/api/*`
@@ -255,7 +255,7 @@ These must never be violated:
   be edited; real `.env` / `.env.*` files require explicit approval and remain
   forbidden from commits
 - **NEVER remove semicolons** — the codebase uses them consistently in source files
-- **NEVER `--force` push to `main`** — the `Protect main` ruleset (Settings → Rules) blocks force pushes and deletion of `main` (GitHub-side enforcement, no need for a local `pre-push` hook). Direct push to `main` is allowed for solo-maintainer workflows: the `ESLint + TypeScript` check fires on every push to `main` (`.github/workflows/lint.yml`), so a red build will reject the commit. Run `npm run lint` locally before pushing as your safety net. The ruleset also grants the repo admin a bypass actor for emergencies. The PR template stays in `.github/PULL_REQUEST_TEMPLATE.md` for anyone who prefers the branch + PR flow.
+- **NEVER `--force` push to `main`** — the `Protect main` ruleset (Settings → Rules) blocks force pushes and deletion of `main` (GitHub-side enforcement, no need for a local `pre-push` hook). Direct push to `main` is allowed for solo-maintainer workflows: the `ESLint + TypeScript` check (lint, typecheck, unit tests and `npm run build`, on a pinned `ubuntu-24.04` runner) fires on every push to `main` (`.github/workflows/lint.yml`), so a red build will reject the commit. Run `npm run lint` locally before pushing as your safety net. The ruleset also grants the repo admin a bypass actor for emergencies. The PR template stays in `.github/PULL_REQUEST_TEMPLATE.md` for anyone who prefers the branch + PR flow.
 
 ## AI tooling
 
