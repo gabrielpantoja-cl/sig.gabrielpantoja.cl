@@ -23,6 +23,10 @@ versionado.
 
 ### Cambiado
 
+- **Sin el botón «Consulta NDVI» en la barra superior.** Ocupaba espacio en
+  la vista principal para una herramienta poco usada; la serie mensual de
+  NDVI sigue en «Capas › Herramientas de consulta», y el NDVI del área se ve
+  con la capa «NDVI Visual».
 - **La pantalla de carga enfoca la atención.** Cubre toda la página con una
   viñeta: el recuadro de carga queda nítido al centro y los bordes (cabecera
   y controles incluidos) se desenfocan y oscurecen. Mientras carga, la página
