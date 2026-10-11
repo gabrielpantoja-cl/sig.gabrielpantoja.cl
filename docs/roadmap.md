@@ -1152,6 +1152,101 @@ SII).*
       notas pueden abrir el SIG con un permalink a la vista que discuten
       — otra razón para priorizar el permalink.
 
+## Revisión externa: informe Gemini Deep Research (2026-10-10)
+
+> Informe «Mejora SIG Suelo Rural Chile» (Gemini Deep Research, 10
+> recomendaciones; copia en el Drive del autor). Se contrastó punto por punto
+> contra el código y el estado real del SIG antes de incorporarlo. Regla: una
+> recomendación entra al roadmap solo si sobrevive ese contraste; lo que el
+> informe afirma sin respaldo queda en «Por verificar».
+
+### Lo que confirma (ya existe en el SIG)
+
+El informe recomienda varias cosas que el SIG ya tiene, lo que valida el rumbo
+pero significa que esas partes **no** son trabajo nuevo:
+
+- **Consulta integrada «¿Qué hay aquí?»** (su § 6.1) — en producción desde
+  2026-10-10 (`usePointQuery`).
+- **Cajetín de trazabilidad en el PNG** (su § 6.2 y la comparación con el
+  Catastro de España) — existe desde v0.1.0 (`export-metadata.ts`).
+- **KML procesado solo en el navegador** (su § 6.3) — existe, KMZ incluido.
+  *Adoptado*: anunciarlo en la UI («tus archivos no salen de tu
+  navegador»), cambio S.
+- **Mapa de calor con mediana por celda y umbral mínimo** (su § 5.1.1) —
+  existe (`min_n`).
+
+### Lo que se corrige del informe (no aplicar tal cual)
+
+- **«Leaflet dibuja SVG y colapsa con 86k puntos»**: falso para este SIG. Usa
+  `preferCanvas` y MarkerCluster, y el arranque medido es ~1 s. MapLibre
+  sigue siendo una buena evaluación (H2), pero por teselas vectoriales y
+  estilos por datos, no por un colapso que no ocurre.
+- **«El catastro frutícola es una capa WMS»**: es GeoJSON estático. Las
+  capas remotas son suelos, CONAF, propiedades rurales y humedales.
+- **«PMTiles para todas las capas del Estado y apagar los proxies»**: solo
+  donde la licencia permite **redistribuir**. Propiedades rurales CIREN se
+  dejó remota a propósito (consultable no es redistribuible) y la carta IGM
+  está protegida por la Ley 17.336. Candidatas reales a PMTiles: humedales
+  MMA (CC0), áreas protegidas (CC0), red vial, drenaje, comunas, catastro
+  frutícola; suelos y CONAF solo tras confirmar su licencia de
+  redistribución.
+- **«Migrar las transacciones a GeoParquet + DuckDB-WASM y apagar
+  Postgres»**: no como reemplazo. El mapa de calor (`ST_HexagonGrid`), los
+  filtros servidos y la analítica viven en Neon, y publicar TODO el registro
+  como archivo descargable choca con la protección de datos (ver abajo). Sí
+  como **producto de descarga** versionado (GeoParquet ordenado por Hilbert,
+  con la generalización que corresponda), al estilo del Price Paid Data del
+  HM Land Registry.
+- **«Reemplazar el mapa de calor por un COG precalculado offline»**: perdería
+  lo que lo hace útil — que respeta los filtros del usuario en vivo.
+- **Cifras legales** (multas de 20.000 UTM, facultades de la APDP): el
+  informe no las respalda con la norma; verificarlas en el texto de la Ley
+  21.719 antes de usarlas.
+- **Plazos «semanas 1-2…»** del plan de migración: irreales para un solo
+  desarrollador con otras obligaciones; el roadmap usa horizontes, no fechas.
+
+### Lo que se adopta (y dónde queda)
+
+| Recomendación del informe | Decisión | Dónde |
+|---|---|---|
+| Almacenamiento estático en **Cloudflare R2** (sin costo de salida, rangos HTTP) | Proveedor elegido para la «Migración de almacenamiento» | [Migración](#migración-de-almacenamiento-de-geojson-planeada-q4-2026), H2 |
+| **PMTiles** generados con tippecanoe | Para capas con licencia redistribuible (lista arriba); humedales CC0 primero | H2 |
+| **COG + lectura en el navegador** (geotiff.js / protocolo COG) | Para DEM (relieve), bioclima con valores crudos y futuras clasificaciones | H2, cola #11 |
+| **GeoParquet descargable**, ordenado espacialmente, con DOI (Zenodo) | Producto de datos versionado, no reemplazo de la API | Eje 1, H5 |
+| **Bosque nativo vs. plantación por fenología Sentinel-2** con bandas *red-edge* (B5-B7), compuestos estacionales y Random Forest | Línea de trabajo de la tesis; salida anual en COG | Eje 3, H4 |
+| **Métricas de paisaje precalculadas** (fragmentación, conectividad; p. ej. `landscapemetrics`) como atributos de cada transacción, sin «valor total del ecosistema» | Adoptado, con su advertencia: no sumar valor de cambio con valor de bienestar (SEEA EA ≠ InVEST) | Eje 4, H5 |
+| **MGWR** (anchos de banda por covariable) + **validación cruzada por bloques espaciales** + **SHAP con intervalos** | Modelo offline; el SIG muestra coeficientes locales y explicaciones, nunca un precio sin intervalo | Eje 2, H5 |
+| **Estadísticas en un radio** alrededor de un punto (estilo MapBiomas: % de cobertura) | Extensión natural de la consulta integrada | Producto, H3 |
+| **Comparador deslizante** (*swipe*) entre dos capas | Útil para NDVI antes/después y clasificaciones | Banco de ideas → H4 |
+| **Datos de MapBiomas Chile** (coberturas anuales) como fuente | Candidata fuerte; verificar colección, licencia y descarga | Fuentes por evaluar |
+| **Financiamiento ANID** (FONDEF IDeA I+D, Ciencia Pública) y alianzas con CIREN, IDE Minagri y MMA presentando el SIG como «inteligencia territorial devuelta al Estado» | Nueva sección de sostenibilidad | [Sostenibilidad](#sostenibilidad-y-financiamiento) |
+
+### Sobre la protección de datos
+
+El informe insiste — como la propia propuesta doctoral — en que la Ley
+21.719 (vigente desde diciembre de 2026) trata la publicación sistemática y
+georreferenciada de compraventas como tratamiento de datos personales aunque
+provengan de un registro público, y propone: generalización (supresión de
+celdas con `k < 3`), perturbación de coordenadas de 50-150 m en las
+descargas y minimización de campos. **La auditoría de reidentificación sigue
+pospuesta por decisión del autor (2026-10-10)**; se registra aquí la
+recomendación externa para cuando se retome. Dos medidas baratas quedan
+anotadas por si se decide antes: subir el `min_n` por defecto del mapa de
+calor de 2 a 3, y aplicar la perturbación solo al futuro GeoParquet
+descargable (no al mapa).
+
+### Por verificar antes de actuar
+
+- [ ] Licencia de redistribución de suelos CIREN y del catastro CONAF (¿se
+      pueden empaquetar en PMTiles?).
+- [ ] MapBiomas Chile: colección vigente, licencia, formato de descarga.
+- [ ] Texto de la Ley 21.719 sobre fuentes de acceso público, fines de
+      investigación y sanciones (las cifras del informe no traen fuente
+      primaria).
+- [ ] Bases y fechas de FONDEF IDeA I+D y Ciencia Pública del ciclo 2027.
+- [ ] Peso real de DuckDB-WASM en el arranque frente al JSON actual de
+      `/api/points` (21 MB), antes de considerarlo para la vista.
+
 ## Ruta GIS de largo plazo (horizontes H1–H5)
 
 Mirada de varios años, ordenada por **horizontes**, no por fechas. Cada
@@ -1178,8 +1273,12 @@ dirección del producto. Al retomar, el horizonte activo es el primero con
 
 *Objetivo: dejar de bajar archivos completos al navegador.*
 
-- Migración de almacenamiento (bucket + CDN) y **PMTiles** para las capas
-  vectoriales grandes (catastro frutícola, drenaje, red vial).
+- Migración de almacenamiento a **Cloudflare R2** (sin costo de salida,
+  rangos HTTP) y **PMTiles** (tippecanoe) para las capas vectoriales con
+  licencia redistribuible: humedales MMA (CC0) primero, luego catastro
+  frutícola, drenaje, red vial, áreas protegidas y comunas. Una capa
+  remota que pasa a PMTiles deja de gastar el límite de consultas y de
+  depender del servidor del organismo.
 - Evaluar **MapLibre GL** como motor (teselas vectoriales, estilos por
   datos, relieve 3D, rotación). Es el cambio más grande del proyecto:
   hacerlo detrás de una bandera y migrando capa por capa, no en bloque.
@@ -1187,6 +1286,9 @@ dirección del producto. Al retomar, el horizonte activo es el primero con
   los ~85k puntos.
 - Raster propio en COG (bioclima, DEM, pendiente) leído por rangos HTTP, el
   mismo patrón que ya usa NDVI con Sentinel-2.
+- **GeoParquet descargable** del registro (ordenado espacialmente, versionado
+  con DOI), como producto de datos para investigadores; la vista sigue
+  sirviéndose desde la API.
 - Consulta puntual de cualquier raster (clic → valor real, no color).
 
 ### H3 — Del visor al análisis del predio
@@ -1216,6 +1318,10 @@ dirección del producto. Al retomar, el horizonte activo es el primero con
   temporada, cambio de uso CONAF/SIMEF entre catastros.
 - Detección de cambio sobre Sentinel-2 (pérdida de cobertura, nuevas
   plantaciones, construcción) por predio y por comuna.
+- **Bosque nativo vs. plantación por fenología**: compuestos estacionales de
+  Sentinel-2 con bandas *red-edge* (B5-B7) y clasificación Random Forest,
+  publicada como COG anual.
+- **Comparador deslizante** (*swipe*) entre dos capas o dos fechas.
 - Series del mercado: $/m² mediano por comuna y año, con el mapa de calor
   animado por período.
 - Ortoimágenes históricas donde la licencia lo permita (§ 4.3).
@@ -1227,9 +1333,14 @@ dirección del producto. Al retomar, el horizonte activo es el primero con
 *Objetivo: que el SIG produzca conocimiento y que otros construyan encima.*
 
 - **Modelo de valor explicable**: regresión espacial (hedónica / Durbin
-  espacial, la línea de la tesis) con las capas del SIG como covariables;
-  publicar coeficientes, error y mapa de residuos — nunca un «precio
-  automático» sin intervalo.
+  espacial, la línea de la tesis; **MGWR** para que cada covariable tenga su
+  propia escala) con las capas del SIG como covariables, validado con
+  **validación cruzada por bloques espaciales**; publicar coeficientes
+  locales, error, mapa de residuos y explicaciones **SHAP** con intervalo —
+  nunca un «precio automático» sin intervalo.
+- **Métricas de paisaje precalculadas** (fragmentación, conectividad) como
+  atributos de cada transacción, sin sumar valores de cambio y de bienestar
+  (SEEA EA ≠ InVEST).
 - Conectividad y fragmentación de hábitat (§ 5.4) y biodiversidad (Fase 6)
   como capas derivadas, reproducibles desde el ETL.
 - **API pública `1.0.0`** documentada (OpenAPI), con cuotas y ejemplos en
@@ -1256,6 +1367,26 @@ analítica o un usuario las justifique.
 - Integración con QGIS: publicar las capas derivadas como servicio OGC
   (WMS/WFS/OGC API Features) de solo lectura.
 - Alertas: «avísame si aparece una transacción nueva en esta comuna».
+
+## Sostenibilidad y financiamiento
+
+*(Nuevo, 2026-10-10, a partir de la revisión externa.)* El SIG lo mantiene una
+persona y su costo es casi cero; el riesgo no es la infraestructura sino la
+continuidad cuando termine la etapa doctoral.
+
+- [ ] **Postular a ANID**: FONDEF IDeA I+D (transferencia: corrige
+      asimetrías de información en la tasación de suelo rural y ayuda a
+      fiscalizar parcelaciones sobre humedales) y Ciencia Pública
+      (democratización del dato territorial). Verificar bases del ciclo 2027.
+- [ ] **Alianzas con los productores de datos** (CIREN, IDE Minagri, MMA):
+      presentar el SIG como una plataforma que devuelve inteligencia
+      territorial al Estado, no como un extractor; pedir canales estables de
+      descarga y avisos de actualización.
+- [ ] **Data descriptor** del registro en una revista revisada por pares y
+      depósito versionado en Zenodo (ya en el Eje 1): institucionaliza el uso
+      científico del dato.
+- [ ] **Comunidad**: issues `good first issue`, guía «cómo agregar una capa»
+      (ya en H5).
 
 ## Riesgos transversales (revisar al cerrar cada fase)
 
@@ -1290,6 +1421,10 @@ analítica o un usuario las justifique.
 
 ## Fuentes por evaluar
 
+Pendiente de evaluar tras la revisión externa: **MapBiomas Chile**
+(coberturas anuales; verificar colección, licencia y descarga) y
+**Copernicus GLO-30** (DEM, COG en AWS Open Data) para el relieve.
+
 Las fuentes encontradas al armar este roadmap (IDE Minagri, erosión CIREN,
 SIMEF, SNIA, IGM, ODEPA) están catalogadas en
 [`fuentes-gis-chile.md`](./fuentes-gis-chile.md).
@@ -1318,6 +1453,12 @@ SIMEF, SNIA, IGM, ODEPA) están catalogadas en
 
 ## Hitos
 
+- **2026-10-10 — Revisión externa (Gemini Deep Research)** contrastada con
+  el código: se adoptan R2 + PMTiles (capas redistribuibles), COG, GeoParquet
+  descargable, fenología red-edge, MGWR + bloques espaciales + SHAP y
+  financiamiento ANID; se corrigen sus errores sobre el SIG actual.
+- **2026-10-10 — Menos consultas y 429 honesto**: grilla + debounce en las
+  capas ArcGIS (≈ 2,3× menos peticiones) y un solo `useViewportRaster`.
 - **2026-10-10 — Consulta integrada del punto**: un clic, un popup con
   todas las capas activas (remotas en paralelo, estáticas por punto en
   polígono, mapa de calor), en lugar de popups que se pisaban.
