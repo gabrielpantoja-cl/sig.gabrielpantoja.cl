@@ -89,11 +89,14 @@ export function usePointQuery({
   flagsRef,
   layers,
   ndviModeRef,
+  measureActiveRef,
 }: {
   mapRef: RefObject<L.Map | null>;
   flagsRef: RefObject<PointQueryFlags>;
   layers: PointQueryLayers;
   ndviModeRef: RefObject<boolean>;
+  /** La herramienta «Medir» activa: los clics son vértices, no consultas. */
+  measureActiveRef: RefObject<boolean>;
 }): void {
   const { protectedRef, urbanLimitRef, comunasRef, catastroFruticolaRef, hexbinSamplesRef } = layers;
 
@@ -111,7 +114,7 @@ export function usePointQuery({
     };
 
     const onClick = (e: L.LeafletMouseEvent) => {
-      if (popupOpenedThisTurn || ndviModeRef.current) return;
+      if (popupOpenedThisTurn || ndviModeRef.current || measureActiveRef.current) return;
       const flags = flagsRef.current;
       const latlng = e.latlng;
       const zoom = map.getZoom();
@@ -274,5 +277,5 @@ export function usePointQuery({
       map.off('popupopen', onPopupOpen);
       map.off('click', onClick);
     };
-  }, [mapRef, flagsRef, ndviModeRef, protectedRef, urbanLimitRef, comunasRef, catastroFruticolaRef, hexbinSamplesRef]);
+  }, [mapRef, flagsRef, ndviModeRef, measureActiveRef, protectedRef, urbanLimitRef, comunasRef, catastroFruticolaRef, hexbinSamplesRef]);
 }

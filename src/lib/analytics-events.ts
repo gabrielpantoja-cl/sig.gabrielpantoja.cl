@@ -36,6 +36,7 @@ export const ANALYTICS_EVENTS = [
   'boot_skip', // saltó la pantalla de carga (prop `pct`: avance al saltar)
   'locate', // «Ir a mi ubicación» (props `ok`, `error`; NUNCA la posición)
   'share', // «Compartir vista» (prop `method`; NUNCA la URL, que lleva filtros)
+  'measure', // medición fijada (props `mode`, `vertices`; NUNCA las coordenadas ni el resultado)
 ] as const;
 
 /**
