@@ -117,6 +117,72 @@ body {
   }
 }
 
+/* «Ir a mi ubicación» (useLocateControl): botón cuadrado como los de zoom de
+   Leaflet, sobre la atribución en la esquina inferior derecha. El mensaje
+   (precisión o error) sale a su izquierda para no tapar el mapa hacia arriba. */
+.sig-ubicacion {
+  position: relative;
+}
+.sig-ubicacion-boton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 4px;
+  background: #fff;
+  color: #1f2937;
+  cursor: pointer;
+}
+.sig-ubicacion-boton:hover {
+  background: #f4f4f4;
+}
+.sig-ubicacion-boton:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.sig-ubicacion-boton:disabled {
+  cursor: progress;
+}
+.sig-ubicacion-buscando svg {
+  color: #2563eb;
+  animation: geo-buscando 1s ease-in-out infinite;
+}
+@keyframes geo-buscando {
+  50% {
+    opacity: 0.35;
+  }
+}
+.sig-ubicacion-mensaje {
+  position: absolute;
+  right: 42px;
+  bottom: 0;
+  width: max-content;
+  max-width: min(18rem, calc(100vw - 5rem));
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.96);
+  color: #1f2937;
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: 0 1px 5px rgb(0 0 0 / 0.3);
+}
+.sig-ubicacion-mensaje[data-error='true'] {
+  color: #991b1b;
+}
+.sig-ubicacion-mensaje[hidden] {
+  display: none;
+}
+/* En mobile el borde inferior lo ocupa el FAB «Buscar y filtrar»: el mensaje
+   sube sobre el botón en vez de salir hacia la izquierda. */
+@media (max-width: 767px) {
+  .sig-ubicacion-mensaje {
+    right: 0;
+    bottom: 42px;
+  }
+}
+
 /* Lectura de coordenadas del cursor (MapView), al estilo de la barra de
    estado de Google Earth Pro: un renglón al pie del mapa, sin tarjeta, a la
    izquierda de la atribución (MapView fija `right` según su ancho). El halo de
