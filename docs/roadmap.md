@@ -101,7 +101,7 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | 5b | ~~🟢 Consulta integrada del punto («¿Qué hay aquí?»)~~ ✅ 2026-10-10 | Los popups de cada capa se pisaban | [Producto](#producto-y-mercado) |
 | 5c | 🟡 Límite de consultas — *parte 1+2 ✅ 2026-10-10*: grilla + debounce (≈ 2,3× menos peticiones) y 429 honesto con reintento. Falta la parte 3: cupos separados por costo (datos / imágenes / consultas) y tope global por organismo | Con varias capas remotas el cupo único de 60/min se agotaba | [Deuda › Seguridad](#seguridad-y-operación) |
 | 6 | ~~🟢 Permalink con estado completo~~ ✅ 2026-10-10 | Habilita compartir hallazgos; barato | [Producto](#producto-y-mercado) |
-| 7 | 🟢 Escala numérica + medición | Lo pide el informe de tasación | [Herramientas SIG](#herramientas-mínimas-de-sig-que-faltan-auditoría-2026-08-28) |
+| 7 | ~~🟢 Escala numérica + medición~~ ✅ 2026-10-11 | Lo pide el informe de tasación | [Herramientas SIG](#herramientas-mínimas-de-sig-que-faltan-auditoría-2026-08-28) |
 | 7b | ~~🟡 Capa de humedales (Inventario Nacional + humedales urbanos Ley 21.202)~~ ✅ 2026-10-10 | Caso de estudio de la tesis | [Investigación › Eje 3](#eje-3--coberturas-humedales-bosque-nativo-y-agua) |
 | 8 | 🟢 Carta IGM 1:50.000 o DEM libre (decidir juntas) | Única capa aprobada en cola; el relieve no existe hoy | [§ 1.4](#14-carta-topográfica-igm-150000-vía-mop-rest-sit---aprobada-en-cola) |
 | 9 | 🟡 Dividir `LayersControl.tsx` y terminar `MapView.tsx` | Siguen creciendo (1.419 y 1.111 líneas) | [Deuda › Frontend](#arquitectura-del-frontend) |
@@ -692,10 +692,13 @@ que amplían el uso diario del perito:
       (`src/lib/coordenadas.ts`, con tests). *Pendiente*: copiar al
       portapapeles (clic derecho o atajo) y una lectura equivalente en
       pantallas táctiles, donde hoy se oculta.
-- [ ] **Escala numérica** (`1:25.000`) junto a la barra gráfica, en pantalla
-      y en el PNG: el informe de tasación la cita.
-- [ ] **Medición** de distancias y superficies (m/km, m²/ha), fijable para
-      que salga en el PNG exportado.
+- [x] **Escala numérica** (`1:25.000`) junto a la barra gráfica, en pantalla
+      y en el PNG: el informe de tasación la cita. *Hecho (2026-10-11)*: en el
+      centro del mapa, a 96 ppp, dos cifras significativas (`medicion.ts`).
+- [x] **Medición** de distancias y superficies (m/km, m²/ha), fijable para
+      que salga en el PNG exportado. *Hecho (2026-10-11)*: `useMeasureControl`,
+      geodesia esférica (< 0,5 %). *Pendiente*: llevar las mediciones al
+      permalink y editar vértices arrastrándolos.
 - [x] **Opacidad por capa** — 2026-09-07, en «Capas activas». El alfa del
       mapa de calor no se toca: codifica soporte de datos.
 - [ ] **Reordenar capas** (o al menos «traer al frente»): el apilado de

@@ -38,6 +38,8 @@ import { useHexbinLayer, type HexbinSamples } from '@/components/map/useHexbinLa
 import { useNdviVisualLayer } from '@/components/map/useNdviVisualLayer';
 import { useBioclimaLayer } from '@/components/map/useBioclimaLayer';
 import { useLocateControl } from '@/components/map/useLocateControl';
+import { useMeasureControl, type MedicionFijada } from '@/components/map/useMeasureControl';
+import { formatoEscala } from '@/lib/medicion';
 import { useViewportRaster } from '@/components/map/useViewportRaster';
 import { usePointQuery, type PointQueryFlags } from '@/components/map/usePointQuery';
 import {
@@ -354,6 +356,7 @@ export default function MapView({
         cluster: clusterRef.current,
         metadata: args?.metadata,
         ndvi,
+        mediciones: measureFixedRef.current,
       });
       downloadCanvas(canvas, exportFilename());
     };
@@ -497,6 +500,17 @@ export default function MapView({
     // El mapa base lo monta el efecto de abajo, que también reacciona al
     // selector: así hay una sola ruta de código que crea capas de tiles.
     L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
+    // Escala numérica junto a la barra (la cita el informe de tasación). Es la
+    // del centro del mapa a 96 ppp: la barra gráfica sigue siendo la referencia
+    // y el número la acompaña (ver src/lib/medicion.ts).
+    const escala = L.DomUtil.create('div', 'sig-escala-numerica', map.getContainer()
+      .querySelector<HTMLElement>('.leaflet-control-scale') ?? map.getContainer());
+    escala.title = 'Escala numérica en el centro del mapa (pantalla a 96 ppp)';
+    const pintarEscala = () => {
+      escala.textContent = formatoEscala(map.getCenter().lat, map.getZoom());
+    };
+    pintarEscala();
+    map.on('zoomend moveend', pintarEscala);
 
     // Lectura de coordenadas del cursor, como la barra de estado de Google Earth
     // Pro: una sola línea al pie del mapa, a la izquierda de la atribución, con
@@ -1007,6 +1021,12 @@ export default function MapView({
 
   useLocateControl({ mapRef });
 
+  // «Medir»: se apila sobre «Ir a mi ubicación». Mientras está activa, la
+  // consulta integrada no dispara (los clics son vértices).
+  const measureActiveRef = useRef(false);
+  const measureFixedRef = useRef<MedicionFijada[]>([]);
+  useMeasureControl({ mapRef, activeRef: measureActiveRef, fixedRef: measureFixedRef });
+
   // Consulta integrada del punto: un solo clic, un solo popup con lo que cada
   // capa activa sabe de ese lugar. Las banderas viajan en una ref para que
   // encender o apagar una capa no vuelva a registrar el manejador.
@@ -1030,6 +1050,7 @@ export default function MapView({
     mapRef,
     flagsRef: pointQueryFlagsRef,
     ndviModeRef,
+    measureActiveRef,
     layers: { protectedRef, urbanLimitRef, comunasRef, catastroFruticolaRef, hexbinSamplesRef },
   });
 

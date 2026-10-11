@@ -222,6 +222,135 @@ body {
   }
 }
 
+/* Escala numérica (MapView): a la derecha de la barra de Leaflet, con su
+   mismo aspecto. La barra es la referencia; el número la acompaña. */
+.leaflet-control-scale {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+.sig-escala-numerica {
+  padding: 0 5px;
+  border: 2px solid #777;
+  border-top: none;
+  background: rgb(255 255 255 / 0.8);
+  color: #333;
+  font-size: 11px;
+  line-height: 1.1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* «Medir» (useMeasureControl): mismo botón que «Ir a mi ubicación»; el panel
+   sale a su izquierda (arriba en mobile, donde abajo está el FAB). */
+.sig-medir {
+  position: relative;
+}
+.sig-medir-activo {
+  background: #ffedd5 !important;
+  color: #c2410c !important;
+}
+.sig-medir-panel {
+  position: absolute;
+  right: 42px;
+  bottom: 0;
+  width: 17rem;
+  max-width: calc(100vw - 5rem);
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.97);
+  color: #1f2937;
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.3);
+}
+.sig-medir-panel[hidden] {
+  display: none;
+}
+.sig-medir-modos,
+.sig-medir-acciones {
+  display: flex;
+  gap: 4px;
+}
+.sig-medir-modo,
+.sig-medir-accion,
+.sig-medir-cerrar {
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  background: #fff;
+  color: #1f2937;
+  padding: 3px 8px;
+  font: inherit;
+  cursor: pointer;
+}
+.sig-medir-modo[aria-pressed='true'] {
+  border-color: #ea580c;
+  background: #ea580c;
+  color: #fff;
+}
+.sig-medir-cerrar {
+  margin-left: auto;
+  padding: 3px 7px;
+}
+.sig-medir-accion:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.sig-medir-principal:not(:disabled) {
+  border-color: #c2410c;
+  color: #c2410c;
+  font-weight: 600;
+}
+.sig-medir-modo:focus-visible,
+.sig-medir-accion:focus-visible,
+.sig-medir-cerrar:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+.sig-medir-resultado {
+  margin: 7px 0 2px;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #9a3412;
+}
+.sig-medir-ayuda,
+.sig-medir-nota {
+  margin: 0 0 6px;
+  color: #4b5563;
+}
+.sig-medir-nota {
+  margin: 6px 0 0;
+  font-size: 10.5px;
+  color: #6b7280;
+}
+.leaflet-tooltip.sig-medir-etiqueta {
+  border: 1.5px solid #ea580c;
+  background: rgb(255 255 255 / 0.94);
+  color: #7c2d12;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: none;
+}
+@media (max-width: 767px) {
+  .sig-medir-panel {
+    right: 0;
+    bottom: 42px;
+    padding: 6px 8px;
+  }
+  /* En el teléfono el panel tapa mapa útil: la nota larga se reduce a una
+     línea (la versión completa queda en el title del panel). */
+  .sig-medir-nota {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sig-medir-ayuda {
+    margin-bottom: 4px;
+  }
+}
+
 /* Lectura de coordenadas del cursor (MapView), al estilo de la barra de
    estado de Google Earth Pro: un renglón al pie del mapa, sin tarjeta, a la
    izquierda de la atribución (MapView fija `right` según su ancho). El halo de

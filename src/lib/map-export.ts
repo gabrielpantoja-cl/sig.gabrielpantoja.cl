@@ -50,6 +50,7 @@ import { NDVI_DESCARGO, NDVI_SOL_BAJO, ndviAtribucion, type NdviSerie } from '@/
 import { NDVI_VISUAL_ATTRIBUTION } from '@/lib/ndvi-visual';
 import { anioPorDefecto, colorDeAnio, layoutGrafico } from '@/lib/ndvi-grafico';
 import { cbrPinSvg } from '@/lib/cbr-points';
+import { formatoEscala } from '@/lib/medicion';
 import {
   BASEMAP_FILTER,
   basemapFilterKey,
@@ -490,6 +491,47 @@ function drawScaleBar(
     x + widthPx / 2,
     y - 8,
   );
+
+  // Escala numérica a la derecha de la barra. El PNG sale a un píxel por
+  // píxel CSS, así que vale la misma convención de 96 ppp que en pantalla;
+  // impreso a otro tamaño, manda la barra.
+  const numerica = formatoEscala(map.getCenter().lat, map.getZoom());
+  if (!numerica) return;
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const tx = x + widthPx + 12;
+  const tw = ctx.measureText(numerica).width;
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fillRect(tx - 4, y - 14, tw + 8, 22);
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+  ctx.strokeRect(tx - 4, y - 14, tw + 8, 22);
+  ctx.fillStyle = '#1f2937';
+  ctx.fillText(numerica, tx, y - 3);
+}
+
+/** Etiquetas de las mediciones fijadas. Las líneas y vértices ya vienen en el
+ *  canvas vectorial del overlayPane; las etiquetas son DOM y se pintan aquí. */
+function drawMeasurementLabels(ctx: CanvasRenderingContext2D, map: L.Map, mediciones: readonly MedicionExport[]): void {
+  ctx.save();
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textBaseline = 'middle';
+  for (const { anchor, texto } of mediciones) {
+    const p = map.latLngToContainerPoint(anchor);
+    const w = ctx.measureText(texto).width + 12;
+    const x = Math.round(p.x - w / 2);
+    const y = Math.round(p.y - 22);
+    if (x + w < 0 || y + 20 < 0 || x > ctx.canvas.width || y > ctx.canvas.height) continue;
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.fillRect(x, y, w, 20);
+    ctx.strokeStyle = '#ea580c';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, 19);
+    ctx.fillStyle = '#7c2d12';
+    ctx.textAlign = 'center';
+    ctx.fillText(texto, x + w / 2, y + 10.5);
+  }
+  ctx.restore();
 }
 
 function drawCompass(
@@ -791,6 +833,8 @@ function drawFrame(
   // `width-margin-r` píxeles del borde derecho).
   drawCompass(ctx, canvas.width - margin - compassR, margin + compassR, compassR);
 
+  if (opts.mediciones && opts.mediciones.length > 0) drawMeasurementLabels(ctx, map, opts.mediciones);
+
   // Cajetín de trazabilidad legal — encima de la barra de escala para no
   // robarnos el bottom-left tradicional. El ancho se adapta al contenido.
   if (opts.metadata && opts.metadata.length > 0) {
@@ -1005,7 +1049,12 @@ export type MapExportOptions = LayerExportFlags & {
   /** Serie NDVI del panel abierto. Si viene, el PNG la incluye como tarjeta con
    *  el mismo gráfico de la pantalla y su atribución Copernicus. */
   ndvi?: NdviExport | null;
+  /** Mediciones fijadas con «Medir»: sus etiquetas (las líneas ya están en el
+   *  canvas vectorial). */
+  mediciones?: readonly MedicionExport[];
 };
+
+export type MedicionExport = { anchor: L.LatLngExpression; texto: string };
 
 export type NdviExport = { serie: NdviSerie; titulo: string; resaltado: number | null };
 

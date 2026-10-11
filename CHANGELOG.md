@@ -54,6 +54,15 @@ versionado.
 
 ### Añadido
 
+- **Medir distancias y superficies.** Botón «Medir» (regla) sobre «Ir a mi
+  ubicación»: se marcan puntos en el mapa y se lee la distancia (m/km) o la
+  superficie (m², ha) con su perímetro. Tocar el último punto termina una
+  distancia y tocar el primero cierra una superficie; también Enter, Escape
+  y Retroceso. Las mediciones fijadas quedan en el mapa y salen en el PNG.
+  Es una medición referencial: la superficie legal es la del plano o el
+  título.
+- **Escala numérica** (`1:6.900`) junto a la barra de escala, en pantalla y
+  en el PNG exportado.
 - **Consulta integrada del punto («¿Qué hay aquí?»)**: un clic en el mapa
   abre un solo popup con las coordenadas (decimal y UTM) y una sección por
   cada capa activa: humedales, suelos, recursos vegetacionales y propiedades
