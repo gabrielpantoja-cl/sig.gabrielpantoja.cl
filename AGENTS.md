@@ -188,6 +188,8 @@ Any client → src/proxy.ts (before CDN cache) on /api/{points,export} → Neon 
 
 `NEON_DATABASE_URL` in `.env.local` (and Vercel). Never prefixed `NEXT_PUBLIC_`.
 
+Node **22** (`.nvmrc`; run `nvm use`). Locally the easiest way to get `.env.local` is `npx vercel link` once and then `npx vercel env pull .env.local --environment=development` — without `NEON_DATABASE_URL` the CBR routes answer 500 and the map shows an alert, but every other layer works.
+
 Optional, for internal analytics: `ANALYTICS_DATABASE_URL` (role `analytics_writer`, see `db/analytics.sql`) and `ANALYTICS_SALT` (32+ random chars). Same rules: server-only, never `NEXT_PUBLIC_`. Locally, put the production URL in `ANALYTICS_REPORT_DATABASE_URL` (read only by `npm run analytics:report`), NOT in `ANALYTICS_DATABASE_URL` — that one would make `npm run dev` write events.
 
 ## Data & privacy
