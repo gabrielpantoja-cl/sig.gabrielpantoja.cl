@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clientIp, corsHeaders, createRateLimiter } from '@/lib/security';
+import { clientIp, corsHeaders, createRateLimiter, createRateLimiterWithRetry, rateLimitResponse } from '@/lib/security';
 
 const fromIp = (ip: string) => new Request('https://sig.test/api/points', {
   headers: { 'x-forwarded-for': `${ip}, 10.0.0.1` },
@@ -59,5 +59,28 @@ describe('corsHeaders', () => {
     const req = new Request('https://sig.test/');
     expect(corsHeaders(req)['Access-Control-Allow-Methods']).toBe('GET, OPTIONS');
     expect(corsHeaders(req, 'GET, POST, OPTIONS')['Access-Control-Allow-Methods']).toBe('GET, POST, OPTIONS');
+  });
+});
+
+describe('createRateLimiterWithRetry', () => {
+  it('returns 0 while allowed and the wait until a slot frees once limited', () => {
+    const wait = createRateLimiterWithRetry(60_000, 2);
+    const req = new Request('https://sig.test/api', { headers: { 'x-forwarded-for': '9.9.9.9' } });
+    expect(wait(req)).toBe(0);
+    expect(wait(req)).toBe(0);
+    const ms = wait(req);
+    expect(ms).toBeGreaterThan(59_000);
+    expect(ms).toBeLessThanOrEqual(60_000);
+  });
+});
+
+describe('rateLimitResponse', () => {
+  it('answers 429 in the shared contract with Retry-After in seconds', async () => {
+    const res = rateLimitResponse(new Request('https://sig.test/api'), 12_300);
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBe('13');
+    const body = await res.json();
+    expect(body.error.code).toBe('RATE_LIMITED');
+    expect(body.error.service).toBe('sig.gabrielpantoja.cl');
   });
 });

@@ -27,12 +27,23 @@ const MAX_TRACKED_KEYS = 5_000;
  * accumulating one entry per IP it has ever seen.
  */
 export function createRateLimiter(windowMs: number, max: number): (req: Request) => boolean {
+  const waitMs = createRateLimiterWithRetry(windowMs, max);
+  return (req) => waitMs(req) > 0;
+}
+
+/**
+ * Same sliding window, but instead of a yes/no it answers how long the client
+ * must wait: `0` = allowed (and counted), otherwise the milliseconds until the
+ * oldest hit leaves the window. That is what goes into `Retry-After`, so the
+ * map can retry by itself instead of showing an outage.
+ */
+export function createRateLimiterWithRetry(windowMs: number, max: number): (req: Request) => number {
   const hits = new Map<string, number[]>();
   return (req) => {
     const ip = clientIp(req);
     const now = Date.now();
     const recent = (hits.get(ip) ?? []).filter((t) => now - t < windowMs);
-    if (recent.length >= max) return true;
+    if (recent.length >= max) return Math.max(1, recent[0] + windowMs - now);
     recent.push(now);
     if (hits.size >= MAX_TRACKED_KEYS) {
       for (const [key, times] of hits) {
@@ -40,11 +51,42 @@ export function createRateLimiter(windowMs: number, max: number): (req: Request)
       }
     }
     hits.set(ip, recent);
-    return false;
+    return 0;
   };
 }
 
-const rateLimited = createRateLimiter(RATE_LIMIT_WINDOW, MAX_REQUESTS_PER_WINDOW);
+const rateLimitWait = createRateLimiterWithRetry(RATE_LIMIT_WINDOW, MAX_REQUESTS_PER_WINDOW);
+
+/** Service name of the rate-limit error: it is OUR limit, never an agency's. */
+export const RATE_LIMIT_SERVICE = 'sig.gabrielpantoja.cl';
+
+/**
+ * 429 in the shared error contract `{ error: { code, message, service,
+ * operation } }`, with `Retry-After` in whole seconds. The map reads both:
+ * `code: RATE_LIMITED` keeps it from blaming CIREN/MMA/CONAF, and the header
+ * tells it when to retry on its own.
+ */
+export function rateLimitResponse(req: Request, waitMs: number, message?: string): Response {
+  return Response.json(
+    {
+      error: {
+        code: 'RATE_LIMITED',
+        message: message ?? 'Too many requests in a short time. Retry after the indicated seconds.',
+        service: RATE_LIMIT_SERVICE,
+        operation: 'rate-limit',
+      },
+    },
+    {
+      status: 429,
+      headers: {
+        ...corsHeaders(req),
+        'Retry-After': String(Math.max(1, Math.ceil(waitMs / 1000))),
+        'Cache-Control': 'no-store',
+        Vary: 'Origin',
+      },
+    },
+  );
+}
 
 function isProd(): boolean {
   return process.env.VERCEL_ENV === 'production';
@@ -96,11 +138,7 @@ export function enforce(req: Request): Response | null {
   if (isProd() && origin && !ALLOWED_ORIGINS.includes(origin)) {
     return Response.json({ error: 'Forbidden' }, { status: 403, headers });
   }
-  if (rateLimited(req)) {
-    return Response.json(
-      { error: 'Rate limit exceeded. Please try again later.' },
-      { status: 429, headers },
-    );
-  }
+  const waitMs = rateLimitWait(req);
+  if (waitMs > 0) return rateLimitResponse(req, waitMs);
   return null;
 }

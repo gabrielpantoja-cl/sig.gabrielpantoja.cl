@@ -21,6 +21,22 @@ versionado.
 
 ## No publicado
 
+### Cambiado
+
+- **Menos consultas al mover el mapa.** Suelos, recursos vegetacionales,
+  humedales y propiedades rurales esperan a que el mapa se detenga (250 ms) y
+  piden la imagen con el centro ajustado a una grilla: un paneo pequeño
+  reutiliza la imagen ya cargada y dos usuarios en la misma zona piden la
+  misma URL, que la CDN sirve desde caché. Medido: 20 paneos con cuatro capas
+  pasaron de ~21 a 9 peticiones por capa. Las cuatro capas comparten ahora un
+  solo ciclo de vida (`useViewportRaster`).
+- **El límite de consultas ya no se presenta como caída del organismo.**
+  `/api/*` responde 429 con el contrato de error común (`code:
+  RATE_LIMITED`) y la cabecera `Retry-After`; la leyenda muestra «pausa
+  breve» en ámbar y la capa (y el NDVI y el mapa de calor) se recarga sola al
+  cumplirse el plazo. **Cambio de contrato** para clientes externos: antes el
+  cuerpo era `{ "error": "Rate limit exceeded…" }` (un texto).
+
 ### Añadido
 
 - **Consulta integrada del punto («¿Qué hay aquí?»)**: un clic en el mapa

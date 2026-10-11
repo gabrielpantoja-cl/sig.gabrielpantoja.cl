@@ -274,6 +274,13 @@ function RemoteStatusNotice({ status, provider }: { status: SuelosStatus | Humed
           icon: '✓',
           text: `Servicio ${provider} operativo en esta vista.`,
         };
+      case 'rate-limited':
+        // El límite de consultas del propio SIG: el organismo está bien.
+        return {
+          tone: 'border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-100',
+          icon: '⏸',
+          text: `Pausa breve: demasiadas consultas seguidas. La capa se recarga sola en ${status.retryIn} s.`,
+        };
       case 'error':
         return {
           tone: 'border-red-500/30 bg-red-500/10 text-red-800 dark:text-red-200',
@@ -313,6 +320,12 @@ function NdviVisualStatusNotice({ status }: { status: NdviVisualEstado }) {
           tone: 'border-amber-500/25 bg-sky-500/10 text-amber-900 dark:text-amber-100',
           icon: '◌',
           text: 'Componiendo el NDVI de la vista con las escenas Sentinel-2 más despejadas…',
+        };
+      case 'rate-limited':
+        return {
+          tone: 'border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-100',
+          icon: '⏸',
+          text: `Pausa breve: demasiadas consultas seguidas. El NDVI se recarga solo en ${status.retryIn} s.`,
         };
       case 'ready':
         return status.fecha
@@ -1163,7 +1176,7 @@ export function LayersControl({
             {PROPIEDADES_RURALES_ATTRIBUTION}. 14 regiones, sin Antofagasta ni Magallanes; levantamientos {PROPIEDADES_RURALES_REGIONS[0][1]}–{PROPIEDADES_RURALES_REGIONS.at(-1)?.[1]}. <strong>Visible desde zoom {PROPIEDADES_RURALES_MIN_ZOOM}.</strong> {PROPIEDADES_RURALES_DISCLAIMER}{' '}
             <a href={PROPIEDADES_RURALES_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-100">Ver fuente oficial →</a>
           </p>
-          {propiedadesRuralesStatus.kind === 'zoom-required' && <p className="mt-1 text-[0.6rem] opacity-50">Acerca el mapa para consultar ROL y comuna.</p>}
+          {showPropiedadesRurales && <RemoteStatusNotice status={propiedadesRuralesStatus} provider="CIREN" />}
         </LayerRow>
 
         <div>

@@ -99,7 +99,7 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | 4 | ~~🟡 Etiquetar `v0.2.0`~~ ✅ 2026-10-10 | Cambio incompatible + KMZ + coordenadas sin release | [Deuda › Plataforma](#plataforma-y-release) |
 | 5 | 🟡 CONAF informa su estado a la leyenda ~~+ popups inline a `map-popups.ts`~~ (popups ✅ con la consulta integrada) | Falla silenciosa del export CONAF | [Deuda › Frontend](#arquitectura-del-frontend) |
 | 5b | ~~🟢 Consulta integrada del punto («¿Qué hay aquí?»)~~ ✅ 2026-10-10 | Los popups de cada capa se pisaban | [Producto](#producto-y-mercado) |
-| 5c | 🟡 Límite de consultas: 60/min por IP compartido por todas las rutas, y el 429 se informa como caída del organismo | Con varias capas remotas, ~15 paneos por minuto lo agotan | [Deuda › Seguridad](#seguridad-y-operación) |
+| 5c | 🟡 Límite de consultas — *parte 1+2 ✅ 2026-10-10*: grilla + debounce (≈ 2,3× menos peticiones) y 429 honesto con reintento. Falta la parte 3: cupos separados por costo (datos / imágenes / consultas) y tope global por organismo | Con varias capas remotas el cupo único de 60/min se agotaba | [Deuda › Seguridad](#seguridad-y-operación) |
 | 6 | ~~🟢 Permalink con estado completo~~ ✅ 2026-10-10 | Habilita compartir hallazgos; barato | [Producto](#producto-y-mercado) |
 | 7 | 🟢 Escala numérica + medición | Lo pide el informe de tasación | [Herramientas SIG](#herramientas-mínimas-de-sig-que-faltan-auditoría-2026-08-28) |
 | 7b | ~~🟡 Capa de humedales (Inventario Nacional + humedales urbanos Ley 21.202)~~ ✅ 2026-10-10 | Caso de estudio de la tesis | [Investigación › Eje 3](#eje-3--coberturas-humedales-bosque-nativo-y-agua) |
@@ -886,14 +886,12 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
 - [ ] 🟡 **Terminar `MapView.tsx` (1.111 líneas, creció desde ~1.070)**: quedan en el componente el
       clúster CBR, la sincronización de capas KML y la publicación del export;
       candidatos a `useCbrClusterLayer` y `useKmlMapLayers`.
-- [ ] 🟡 **Un solo ciclo de vida para los rasters por viewport.** `useSuelosLayer`,
-      `useVegetacionalLayer`, `usePropiedadesRuralesLayer` y
-      `useNdviVisualLayer` repiten overlay + secuencia + abort + blob +
-      precarga. No se unificaron porque difieren a propósito (suelos borra la
-      imagen al pedir otra para no mostrar un raster viejo si CIREN cae;
-      NDVI hace debounce y cuantiza el bbox para la CDN). Un hook común debe
-      hacer explícitas esas diferencias como opciones. Es **prerrequisito**
-      de la carta IGM (§ 1.4): sin él, sería la quinta copia.
+- [x] **Un solo ciclo de vida para los rasters por viewport** — hecho el
+      2026-10-10: `useViewportRaster` reemplaza las cuatro copias ArcGIS
+      (suelos, CONAF, humedales, propiedades rurales). NDVI queda aparte a
+      propósito: lo compone nuestro servidor y su redondeo de caja no sirve
+      para ArcGIS (ver `remote-raster.ts`). La carta IGM (§ 1.4) ya no sería
+      una quinta copia: es una llamada más a `useViewportRaster`.
 - [ ] 🟡 **CONAF no informa su estado a la leyenda.** A diferencia de suelos,
       propiedades rurales y NDVI, `useVegetacionalLayer` no emite
       `loading`/`error`/`zoom-required`: si el servicio cae, la capa queda
