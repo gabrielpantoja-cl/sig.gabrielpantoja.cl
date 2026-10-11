@@ -95,16 +95,6 @@ const ShareIcon = (
   </svg>
 );
 
-const CrosshairIcon = (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-    <circle cx="12" cy="12" r="7" />
-    <line x1="12" y1="2" x2="12" y2="5" />
-    <line x1="12" y1="19" x2="12" y2="22" />
-    <line x1="2" y1="12" x2="5" y2="12" />
-    <line x1="19" y1="12" x2="22" y2="12" />
-  </svg>
-);
-
 /** Handle imperativo hacia MapView para disparar el export a PNG. La función
  *  es provista por el componente (tiene acceso al mapa y a los refs de las
  *  capas) y la página sólo la invoca y la bloquea mientras está corriendo.
@@ -942,25 +932,6 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               {statsFields}
             </MapPanel>
 
-            {/* Herramienta NDVI (chip escritorio): arma el modo cruceta; el
-                móvil entra por «Herramientas de consulta» en el sidebar. */}
-            <button
-              type="button"
-              onClick={() => {
-                setActivePanel(null);
-                setDrawerOpen(false);
-                setNdviMode((m) => !m);
-              }}
-              aria-pressed={ndviMode}
-              className={`flex items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-medium shadow-lg backdrop-blur transition-colors ${
-                ndviMode
-                  ? 'border-[hsl(153_28%_35%)]/70 bg-[var(--background)] text-[hsl(153_28%_25%)]'
-                  : 'border-black/15 bg-[var(--background)]/95 hover:bg-[var(--background)] dark:border-white/20'
-              }`}
-            >
-              {CrosshairIcon}
-              {ndviMode ? 'Cancelar consulta' : 'Consulta NDVI'}
-            </button>
           </div>
 
           {/* Serie NDVI: panel flotante arriba a la derecha. z-[700] = igual
