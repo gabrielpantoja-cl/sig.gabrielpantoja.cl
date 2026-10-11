@@ -95,9 +95,9 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 |---|---|---|---|
 | 1 | ~~🔴 Subir `sharp` (CVE alto en producción) y correr `npm ci` local~~ ✅ 2026-10-10 | Única vulnerabilidad de `npm audit --omit=dev` | [Deuda › Seguridad](#seguridad-y-operación) |
 | 1b | 🔴 Auditoría de reidentificación de `/api/points` y `/api/export` (k-anonimato de rol + fecha + monto + fojas/número) | La Ley 21.719 rige desde diciembre de 2026 y la propia propuesta doctoral lo advierte | [Investigación › Eje 1](#eje-1--el-registro-datos-calidad-y-apertura) |
-| 2 | 🔴 Node 22 en CI + Vercel, `engines`, `packageManager` | Node 20 está fuera de soporte desde abril 2026 | [Deuda › Plataforma](#plataforma-y-release) |
-| 3 | 🔴 Fijar el runner de CI y añadir `npm run build` al workflow | `ubuntu-latest` cambia el 2026-10-19; hoy CI no compila | [Deuda › Plataforma](#plataforma-y-release) |
-| 4 | 🟡 Etiquetar `v0.2.0` | Cambio incompatible + KMZ + coordenadas sin release | [Deuda › Plataforma](#plataforma-y-release) |
+| 2 | ~~🔴 Node 22 en CI + Vercel, `engines`~~ ✅ 2026-10-10 | Node 20 está fuera de soporte desde abril 2026 | [Deuda › Plataforma](#plataforma-y-release) |
+| 3 | ~~🔴 Fijar el runner de CI y añadir `npm run build` al workflow~~ ✅ 2026-10-10 | `ubuntu-latest` cambia el 2026-10-19; hoy CI no compila | [Deuda › Plataforma](#plataforma-y-release) |
+| 4 | ~~🟡 Etiquetar `v0.2.0`~~ ✅ 2026-10-10 | Cambio incompatible + KMZ + coordenadas sin release | [Deuda › Plataforma](#plataforma-y-release) |
 | 5 | 🟡 CONAF informa su estado a la leyenda + popups inline a `map-popups.ts` | Fallas silenciosas y HTML sin tests de escape | [Deuda › Frontend](#arquitectura-del-frontend) |
 | 6 | 🟢 Permalink con estado completo | Habilita compartir hallazgos; barato | [Producto](#producto-y-mercado) |
 | 7 | 🟢 Escala numérica + medición | Lo pide el informe de tasación | [Herramientas SIG](#herramientas-mínimas-de-sig-que-faltan-auditoría-2026-08-28) |
@@ -798,21 +798,21 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
 
 ### Plataforma y release
 
-- [ ] 🟡 **Etiquetar `v0.2.0`.** `/api/ndvi/serie` cambió su cuerpo de error
+- [x] **Etiquetar `v0.2.0`** — hecho el 2026-10-10 (tag + release en GitHub). `/api/ndvi/serie` cambió su cuerpo de error
       (`codigo`/`mensaje` → `code`/`message`): es incompatible, así que no
       corresponde un parche. Desde entonces se sumaron KMZ, coordenadas del
       cursor y el fondo Neutro, que también son MENOR. Subir `package.json` y
       `src/lib/version.ts`, fechar la sección «No publicado» del
       `CHANGELOG.md`, actualizar `CITATION.cff` y crear el tag (y el release
       en GitHub: hoy no hay ninguno publicado).
-- [ ] 🔴 **Salir de Node 20** (fin de vida: abril de 2026). CI corre `20.x`; hay
+- [x] **Salir de Node 20** — hecho el 2026-10-10: CI en `22.x`, `engines.node: 22.x` (Vercel lo lee) y `@types/node` 22. Vitest 5 queda desbloqueado, sin migrar. Texto original: (fin de vida: abril de 2026). CI corre `20.x`; hay
       que pasar a Node 22 en `.github/workflows/lint.yml`, en la configuración
       del proyecto en Vercel (tienen que coincidir) y en `@types/node` (hoy
       `^20`), y declarar `engines.node`. Desbloquea Vitest 5, que exige
       Node ≥ 22.12.
-- [ ] 🔴 **Runner de CI**: `ubuntu-latest` pasa a Ubuntu 26 desde el
+- [x] **Runner de CI** — fijado en `ubuntu-24.04` el 2026-10-10. Pendiente: probar Ubuntu 26 en una rama y subirlo en su propio commit. `ubuntu-latest` pasa a Ubuntu 26 desde el
       2026-10-19. Fijar `ubuntu-24.04` antes de esa fecha y migrar con calma.
-- [ ] 🔴 **CI no compila** *(nuevo)*. El workflow corre lint, typecheck y
+- [x] **CI no compila** — resuelto el 2026-10-10: el workflow ejecuta `npm run build` sin secretos. El workflow corre lint, typecheck y
       tests, pero nunca `npm run build`: un error que solo aparece al
       compilar (rutas, `server-only`, prerender) llega a Vercel sin aviso.
       Añadir el paso (sin variables de entorno, las rutas deben tolerar su
@@ -828,6 +828,10 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
       Con `npx npm@11 install …` funciona y el lockfile resultante lo acepta
       `npm ci` de npm 10. Fijar la versión con `packageManager` en
       `package.json` junto con el paso a Node 22.
+      *Nota 2026-10-10*: no se fijó `packageManager` (Vercel solo lo respeta
+      con corepack experimental). Para agregar dependencias usar
+      `npx npm@11 install …` y luego `npm install --package-lock-only` con el
+      npm de Node 22, que deja el lockfile en la forma que espera CI.
 - [ ] 🟢 **Releases automáticos** *(nuevo)*: un workflow que, al empujar un
       tag `v*`, cree el release de GitHub con la sección correspondiente del
       `CHANGELOG.md`. Evita que versión, tag y changelog se desalineen.
@@ -939,7 +943,7 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
       `npm audit --omit=dev`. Llega como dependencia de `next`; `npm audit
       fix` la sube a ≥ 0.35.5 sin tocar `next`. Verificar luego que
       Dependabot abra el PR equivalente.
-- [ ] 🟢 **`node_modules` local desalineado** *(nuevo)*: en la máquina Linux
+- [x] **`node_modules` local desalineado** — resuelto con `npm ci` el 2026-10-10. en la máquina Linux
       `next` instalado es 16.3.4 mientras el lockfile pide 16.3.8. Correr
       `npm ci` al retomar en cualquier máquina.
 - [ ] 🟡 **Rate limit y cachés por instancia.** `createRateLimiter`, la caché de
@@ -1282,6 +1286,8 @@ SIMEF, SNIA, IGM, ODEPA) están catalogadas en
 
 ## Hitos
 
+- **2026-10-10 — v0.2.0**: humedales, ubicación GPS, Node 22 en CI y Vercel,
+  runner fijo, build en CI y el aviso de error CBR que ya no bloquea el mapa.
 - **2026-10-10 — Humedales (MMA)**: Inventario Nacional + humedales urbanos
   declarados (Ley 21.202), capa dinámica remota con estado en la leyenda.
 - **2026-10-10 — Alineación con la investigación**: los seis ejes de

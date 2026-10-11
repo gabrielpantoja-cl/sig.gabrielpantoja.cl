@@ -21,8 +21,37 @@ versionado.
 
 ## No publicado
 
+_Nada todavía._
+
+---
+
+## [0.2.0] — 2026-10-10
+
+Segundo release. Siete capacidades nuevas sobre `v0.1.0` (humedales, bioclima,
+NDVI en dos formas, ubicación GPS, KMZ y coordenadas del cursor), la
+plataforma pasa a Node 22 y hay **un cambio incompatible en la API**: el
+cuerpo de error de `/api/ndvi/serie` (ver «Cambiado»). Mientras el proyecto
+siga en `0.x`, un cambio así sube el número menor, no el mayor.
+
 ### Añadido
 
+- **Bioclima (WorldClim 2.1)**: temperatura media anual y precipitación
+  anual, climatología 1970–2000, como imagen estática recortada a Chile y
+  reproyectada a Web Mercator (75 KB entre ambas), con selector de variable y
+  leyenda que comparte la rampa con el ETL (2026-09-03).
+- **Lectura multicapa**: inspector «Capas activas» con la leyenda de cada
+  capa encendida y **opacidad por capa**; el PNG respeta el alfa elegido
+  (2026-09-07).
+- **Serie mensual de NDVI** (`/api/ndvi/serie`): 36 meses de mediana, P25/P75
+  y fracción descartada para un punto o un polígono de hasta 3 km, desde
+  Sentinel-2 L2A (2026-09-17).
+- **NDVI Visual (Sentinel-2)**: raster de vigor vegetal compuesto en el
+  servidor por cada vista del mapa, desde zoom 10, con la escena más despejada
+  de los últimos 45 días (2026-09-27).
+- **Nuevo panel de capas** (`LayerSidebar`): dock en escritorio y cajón
+  inferior en móvil, con buscador y grupos (2026-09-27).
+- **Coordenadas del cursor** al pie del mapa, como la barra de estado de
+  Google Earth Pro: decimales, sexagesimales y UTM 18S/19S (2026-10-06).
 - **«Ir a mi ubicación»**: botón abajo a la derecha del mapa que pide una
   posición al GPS del dispositivo, centra el mapa y deja el punto azul con su
   círculo de precisión. Siempre informa la precisión (y advierte si supera
@@ -39,6 +68,15 @@ versionado.
 - **Carga de archivos KMZ** en «Mis capas», además de KML. El ZIP se abre en
   el navegador (fflate): se toma `doc.kml` (o el primer `.kml` menos profundo)
   y se ignoran íconos e imágenes; tope de 150 MB descomprimido contra bombas ZIP.
+
+### Cambiado
+
+- **Neutro es el mapa base por defecto** (OpenStreetMap desaturado, oscuro o
+  claro según el sistema): es el lienzo correcto para el mapa de calor
+  (2026-10-06).
+- **Node 22** en CI y en Vercel (`engines.node: 22.x`); Node 20 está fuera de
+  soporte desde abril de 2026. El runner de CI queda fijo en `ubuntu-24.04`
+  y la CI ahora también ejecuta `npm run build`.
 
 ### Seguridad
 
@@ -59,6 +97,11 @@ versionado.
   las dos rutas NDVI.
 
 ### Corregido
+
+- **Una falla de las transacciones CBR ya no bloquea el mapa.** El aviso «No
+  se pudieron cargar los datos del mapa» cubría todo el mapa y se tragaba los
+  clics, así que las demás capas (que sí funcionaban) quedaban inutilizables.
+  Ahora es un aviso arriba del mapa y el resto sigue respondiendo.
 
 - **Apagar una capa mientras descargaba la dejaba pegada en el mapa.** Seis
   de las siete capas GeoJSON estáticas no abortaban el `fetch`: al llegar el

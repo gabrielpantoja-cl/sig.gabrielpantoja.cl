@@ -587,9 +587,17 @@ export default function Home() {
 
         {/* Mapa a pantalla completa con paneles flotantes */}
         <section className="relative min-h-[70vh] flex-1 md:min-h-0">
+          {/* Falla de las transacciones CBR (Neon). Es un aviso, no una capa:
+              antes cubría todo el mapa (`inset-0`) y se tragaba los clics, así
+              que las capas que sí funcionaban (humedales, suelos, NDVI…)
+              quedaban inutilizables. */}
           {error && (
-            <div className="absolute inset-0 z-[500] flex items-center justify-center text-sm text-red-600">
-              No se pudieron cargar los datos del mapa.
+            <div
+              role="alert"
+              className="absolute left-1/2 top-28 z-[650] w-[min(30rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-center md:top-16 text-xs leading-snug text-red-800 shadow-lg backdrop-blur dark:text-red-200"
+            >
+              <strong>No se pudieron cargar las transacciones CBR.</strong>{' '}
+              Las demás capas del mapa siguen disponibles.
             </div>
           )}
           <div className="absolute inset-0">
@@ -649,7 +657,7 @@ export default function Home() {
           {showHumedales && humedalesStatus.kind === 'error' && (
             <div
               role="alert"
-              className="absolute bottom-20 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs leading-snug text-red-800 shadow-lg backdrop-blur dark:text-red-200"
+              className="absolute bottom-32 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs leading-snug text-red-800 shadow-lg backdrop-blur dark:text-red-200"
             >
               <strong>Capa de humedales temporalmente no disponible.</strong>{' '}
               No responde {humedalesStatus.service || HUMEDALES_SERVICE_NAME} (operación{' '}
