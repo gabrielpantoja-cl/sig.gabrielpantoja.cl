@@ -4,17 +4,13 @@ import { useEffect, type RefObject } from 'react';
 import L from 'leaflet';
 import {
   PROPIEDADES_RURALES_ATTRIBUTION,
-  PROPIEDADES_RURALES_COLOR,
-  PROPIEDADES_RURALES_DISCLAIMER,
   PROPIEDADES_RURALES_EXPORT_URL,
-  PROPIEDADES_RURALES_IDENTIFY_URL,
   PROPIEDADES_RURALES_MIN_ZOOM,
   PROPIEDADES_RURALES_SERVICE_NAME,
   type PropiedadesRuralesStatus,
 } from '@/lib/propiedades-rurales';
 import type { LayerOpacity } from '@/lib/layer-opacity';
 import { TRANSPARENT_PIXEL } from '@/lib/suelos';
-import { esc } from '@/lib/map-popups';
 import { ruralFailureDetails, waitForImage } from '@/components/map/raster-overlay';
 
 /**
@@ -28,7 +24,6 @@ export function usePropiedadesRuralesLayer({
   showPropiedadesRurales,
   opacityRef,
   onPropiedadesRuralesStatusRef,
-  ndviModeRef,
   reorderOverlays,
 }: {
   mapRef: RefObject<L.Map | null>;
@@ -36,7 +31,6 @@ export function usePropiedadesRuralesLayer({
   showPropiedadesRurales: boolean;
   opacityRef: RefObject<LayerOpacity>;
   onPropiedadesRuralesStatusRef: RefObject<((status: PropiedadesRuralesStatus) => void) | undefined>;
-  ndviModeRef: RefObject<boolean>;
   reorderOverlays: () => void;
 }): void {
   useEffect(() => {
@@ -57,8 +51,6 @@ export function usePropiedadesRuralesLayer({
     reorderOverlays();
     let exportSequence = 0;
     let exportController: AbortController | null = null;
-    let identifySequence = 0;
-    let identifyController: AbortController | null = null;
     let activeBlobUrl: string | null = null;
     const clearRaster = (bounds: L.LatLngBounds) => {
       overlay.setUrl(TRANSPARENT_PIXEL);
@@ -102,33 +94,10 @@ export function usePropiedadesRuralesLayer({
     const onMoveEnd = () => void refresh();
     map.on('moveend', onMoveEnd);
     void refresh();
-    let popupGeneration = 0;
-    const onPopupOpen = () => { popupGeneration++; };
-    const onClick = async (e: L.LeafletMouseEvent) => {
-      if (ndviModeRef.current) return;
-      if (map.getZoom() < PROPIEDADES_RURALES_MIN_ZOOM) return;
-      const expectedPopupGeneration = popupGeneration;
-      const id = ++identifySequence;
-      identifyController?.abort();
-      const controller = new AbortController(); identifyController = controller;
-      const bounds = map.getBounds(); const size = map.getSize();
-      const params = new URLSearchParams({ geometry: `${e.latlng.lng},${e.latlng.lat}`, mapExtent: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`, imageDisplay: `${size.x},${size.y},96`, tolerance: '2' });
-      try {
-        const response = await fetch(`${PROPIEDADES_RURALES_IDENTIFY_URL}?${params}`, { signal: controller.signal });
-        if (!response.ok) return;
-        const data = await response.json() as { results?: Array<{ layerName?: string | null; attributes?: { rol?: string | null; comuna?: string | null; codRegion?: string | null; quality?: string } }> };
-        if (id !== identifySequence || controller.signal.aborted || popupGeneration !== expectedPopupGeneration || !mapRef.current || !data.results?.length) return;
-        const item = data.results[0]; const p = item.attributes ?? {};
-        const rows = [['ROL SII del predio', p.rol], ['Comuna', p.comuna], ['Código de región', p.codRegion]].filter((row): row is [string, string] => Boolean(row[1]));
-        const table = rows.map(([k, v]) => `<tr><td style="opacity:.55;padding:1px 8px 1px 0">${k}</td><td>${esc(v)}</td></tr>`).join('');
-        L.popup({ maxWidth: 320 }).setLatLng(e.latlng).setContent(`<div style="font-size:.8rem;line-height:1.45;min-width:230px"><div style="font-weight:600;font-size:.92rem;color:${PROPIEDADES_RURALES_COLOR}">Propiedad rural CIREN</div><table style="border-collapse:collapse;margin-top:.3rem">${table}</table>${p.quality === 'rol-invalid' ? '<div style="margin-top:.3rem;color:#b91c1c">ROL no válido en la fuente.</div>' : ''}<div style="margin-top:.4rem;font-size:.62rem;opacity:.55">${PROPIEDADES_RURALES_DISCLAIMER}<br/>${PROPIEDADES_RURALES_ATTRIBUTION}</div></div>`).openOn(mapRef.current);
-      } catch (error) { if (!controller.signal.aborted) console.error('No se pudo consultar la propiedad rural CIREN.', error); }
-    };
-    map.on('popupopen', onPopupOpen); map.on('click', onClick);
     return () => {
-      exportSequence++; identifySequence++; exportController?.abort(); identifyController?.abort();
+      exportSequence++; exportController?.abort();
       if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
-      map.off('moveend', onMoveEnd); map.off('popupopen', onPopupOpen); map.off('click', onClick);
+      map.off('moveend', onMoveEnd);
       if (map.hasLayer(overlay)) map.removeLayer(overlay);
       if (propiedadesRuralesRef.current === overlay) propiedadesRuralesRef.current = null;
     };
@@ -136,7 +105,6 @@ export function usePropiedadesRuralesLayer({
     showPropiedadesRurales,
     reorderOverlays,
     mapRef,
-    ndviModeRef,
     onPropiedadesRuralesStatusRef,
     opacityRef,
     propiedadesRuralesRef,

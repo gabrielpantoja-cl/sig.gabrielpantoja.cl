@@ -15,7 +15,6 @@ import {
   type HexbinStatus,
 } from '@/lib/hexbins';
 import { quantileScale, renderHeatSurface, type HeatSample } from '@/lib/heat-surface';
-import { buildHexbinPopup } from '@/lib/map-popups';
 import { TRANSPARENT_PIXEL } from '@/lib/suelos';
 
 /** Una muestra de la superficie de calor, con su posición geográfica. */
@@ -59,7 +58,6 @@ export function useHexbinLayer({
   hexbinFiltersQs,
   hexbinRamp,
   onHexbinStatusRef,
-  ndviModeRef,
   reorderOverlays,
 }: {
   mapRef: RefObject<L.Map | null>;
@@ -71,7 +69,6 @@ export function useHexbinLayer({
   hexbinFiltersQs: string;
   hexbinRamp: HexbinRampId;
   onHexbinStatusRef: RefObject<((status: HexbinStatus) => void) | undefined>;
-  ndviModeRef: RefObject<boolean>;
   reorderOverlays: () => void;
 }): void {
   useEffect(() => {
@@ -223,42 +220,17 @@ export function useHexbinLayer({
       debounce = setTimeout(() => void refresh(), 250);
     };
 
-    // La superficie es un raster sin geometría clicable, así que la consulta
-    // puntual se resuelve contra las muestras: se abre el popup de la celda más
-    // cercana al clic, dentro de un radio de una celda y media. Fuera de eso el
-    // clic pertenece a otra capa (o al mapa) y no se intercepta.
-    const onClick = (event: L.LeafletMouseEvent) => {
-      // Con la herramienta NDVI armada el clic pertenece a la consulta, no al
-      // mapa de calor.
-      if (ndviModeRef.current) return;
-      const state = hexbinSamplesRef.current;
-      if (!state || !state.samples.length) return;
-      let best: HexbinSample | null = null;
-      let bestDistance = Infinity;
-      for (const sample of state.samples) {
-        const distance = map.distance(event.latlng, L.latLng(sample.lat, sample.lng));
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          best = sample;
-        }
-      }
-      if (!best || bestDistance > state.meta.edge_m * 1.5) return;
-      L.popup({ maxWidth: 300 })
-        .setLatLng(event.latlng)
-        .setContent(buildHexbinPopup(best.props, state.meta))
-        .openOn(map);
-    };
+    // El clic sobre la superficie lo resuelve la consulta integrada del punto
+    // (`usePointQuery`), que busca la celda más cercana en `hexbinSamplesRef`.
 
     void refresh();
     map.on('moveend', scheduleRefresh);
-    map.on('click', onClick);
     return () => {
       if (debounce) clearTimeout(debounce);
       controller?.abort();
       // Invalida cualquier respuesta en vuelo que ya no tenga dónde pintarse.
       sequence++;
       map.off('moveend', scheduleRefresh);
-      map.off('click', onClick);
       hexbinSamplesRef.current = null;
       if (map.hasLayer(overlay)) map.removeLayer(overlay);
       if (hexbinsRef.current === overlay) hexbinsRef.current = null;
@@ -273,7 +245,6 @@ export function useHexbinLayer({
     hexbinSamplesRef,
     hexbinsRef,
     mapRef,
-    ndviModeRef,
     onHexbinStatusRef,
   ]);
 }

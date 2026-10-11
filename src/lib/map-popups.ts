@@ -28,6 +28,13 @@ import {
 } from '@/lib/catastro-fruticola';
 import { VEGETACIONAL_ATTRIBUTION, speciesPairs, type VegetacionalProps } from '@/lib/vegetacional';
 import { destinoLabel, hexEdgeLabel, type HexbinMeta, type HexbinProps } from '@/lib/hexbins';
+import { SUELOS_ATTRIBUTION, suelosClassColor } from '@/lib/suelos';
+import {
+  PROPIEDADES_RURALES_ATTRIBUTION,
+  PROPIEDADES_RURALES_COLOR,
+  PROPIEDADES_RURALES_DISCLAIMER,
+} from '@/lib/propiedades-rurales';
+import type { ConsultaSeccion } from '@/lib/consulta-punto';
 import {
   HUMEDALES_ATTRIBUTION,
   HUMEDALES_DISCLAIMER,
@@ -491,6 +498,81 @@ export function buildHumedalesPopup(results: HumedalIdentifyResult[]): string {
   return (
     `<div style="font-size:0.8rem;line-height:1.45;min-width:230px;max-width:320px">${body}` +
     `<div style="margin-top:.4rem;font-size:.62rem;opacity:.55">${esc(HUMEDALES_DISCLAIMER)}<br/>${esc(HUMEDALES_ATTRIBUTION)}</div></div>`
+  );
+}
+
+/** Clase de capacidad de uso CIREN de un punto (sección de la consulta). */
+export function buildSuelosResult(clase: string, region: string): string {
+  return (
+    `<div style="font-weight:600;font-size:0.92rem">Capacidad de uso: Clase ${esc(clase)}</div>` +
+    `<div style="display:inline-block;margin:.2rem 0 .3rem;padding:1px 7px;border-radius:9px;` +
+    `font-size:0.68rem;font-weight:600;color:#1e293b;background:${suelosClassColor(clase)};` +
+    `border:1px solid rgba(0,0,0,.15)">Suelos agrológicos CIREN</div>` +
+    (region ? `<div style="opacity:.7">${esc(region)}</div>` : '') +
+    `<div style="margin-top:.25rem;font-size:0.62rem;opacity:.5">${esc(SUELOS_ATTRIBUTION)}</div>`
+  );
+}
+
+/** Propiedad rural CIREN de un punto (sección de la consulta). */
+export function buildPropiedadRuralResult(p: {
+  rol?: string | null;
+  comuna?: string | null;
+  codRegion?: string | null;
+  quality?: string;
+}): string {
+  const rows: [string, string][] = [];
+  if (p.rol) rows.push(['ROL SII del predio', esc(p.rol)]);
+  if (p.comuna) rows.push(['Comuna', esc(p.comuna)]);
+  if (p.codRegion) rows.push(['Código de región', esc(p.codRegion)]);
+  return (
+    `<div style="font-weight:600;font-size:.92rem;color:${PROPIEDADES_RURALES_COLOR}">Propiedad rural CIREN</div>` +
+    `<table style="border-collapse:collapse;margin-top:.2rem">${popupRows(rows)}</table>` +
+    (p.quality === 'rol-invalid' ? '<div style="margin-top:.3rem;color:#b91c1c">ROL no válido en la fuente.</div>' : '') +
+    `<div style="margin-top:.3rem;font-size:.62rem;opacity:.55">${esc(PROPIEDADES_RURALES_DISCLAIMER)}<br/>${esc(PROPIEDADES_RURALES_ATTRIBUTION)}</div>`
+  );
+}
+
+/**
+ * Popup de la consulta integrada del punto: coordenadas arriba (decimal y
+ * UTM, como las cita una escritura) y una sección por capa activa. Las
+ * secciones `listo` traen HTML ya escapado de otro constructor; las demás son
+ * una línea de estado. `vacio` no es una falla: el servicio respondió y el
+ * punto no tiene dato en esa capa.
+ */
+export function buildConsultaPuntoPopup(
+  coords: { latitud: string; longitud: string; utm: string },
+  secciones: ConsultaSeccion[],
+): string {
+  const label = (titulo: string) =>
+    `<div style="font-size:.62rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.5;margin-bottom:.15rem">${esc(titulo)}</div>`;
+  const body = secciones.map((s) => {
+    let content: string;
+    switch (s.estado) {
+      case 'cargando':
+        content = `<div style="opacity:.6">Consultando…</div>`;
+        break;
+      case 'listo':
+        content = s.html;
+        break;
+      case 'vacio':
+        content = `<div style="opacity:.7">${esc(s.mensaje)}</div>`;
+        break;
+      case 'error':
+        content = `<div style="color:#b91c1c">${esc(s.mensaje)}</div>`;
+        break;
+    }
+    return (
+      `<section style="border-top:1px solid rgba(127,127,127,.25);padding-top:.4rem;margin-top:.4rem">` +
+      `${label(s.titulo)}${content}</section>`
+    );
+  });
+  return (
+    `<div style="font-size:0.8rem;line-height:1.45;min-width:240px">` +
+    `<div style="font-weight:600;font-size:.92rem">¿Qué hay aquí?</div>` +
+    `<div style="font-family:var(--font-geist-mono),ui-monospace,monospace;font-size:.7rem;opacity:.7;margin-top:.1rem">` +
+    `${esc(coords.latitud)}, ${esc(coords.longitud)}<br/>${esc(coords.utm)}</div>` +
+    body.join('') +
+    `</div>`
   );
 }
 

@@ -247,6 +247,13 @@ el ejemplo más reciente y completo de cada paso.
    ref en `reorderOverlays()` en la posición correcta del apilado (contexto al
    fondo, puntos CBR siempre al frente). El popup **siempre cierra citando la
    fuente** y, si el límite es referencial, diciéndolo.
+   **Desde 2026-10-10, según la geometría:** una capa de **líneas o puntos**
+   conserva su `bindPopup` (el clic sobre un camino o un río es deliberado);
+   una capa de **polígonos** o una **capa remota** NO abre popup propio: se
+   agrega como sección de la consulta integrada en
+   `src/components/map/usePointQuery.ts` (punto en polígono para las
+   estáticas, `identify` para las remotas), así un clic responde por todas
+   las capas activas en un solo popup.
 
 6. **Agregar la fila en `LayersControl.tsx`** con `LayerRow`: checkbox +
    swatch + nombre, y los detalles (leyenda si hay categorías, atribución,

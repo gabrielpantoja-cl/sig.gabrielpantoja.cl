@@ -94,17 +94,27 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | # | Qué | Por qué ahora | Sección |
 |---|---|---|---|
 | 1 | ~~🔴 Subir `sharp` (CVE alto en producción) y correr `npm ci` local~~ ✅ 2026-10-10 | Única vulnerabilidad de `npm audit --omit=dev` | [Deuda › Seguridad](#seguridad-y-operación) |
-| 1b | 🔴 Auditoría de reidentificación de `/api/points` y `/api/export` (k-anonimato de rol + fecha + monto + fojas/número) | La Ley 21.719 rige desde diciembre de 2026 y la propia propuesta doctoral lo advierte | [Investigación › Eje 1](#eje-1--el-registro-datos-calidad-y-apertura) |
 | 2 | ~~🔴 Node 22 en CI + Vercel, `engines`~~ ✅ 2026-10-10 | Node 20 está fuera de soporte desde abril 2026 | [Deuda › Plataforma](#plataforma-y-release) |
 | 3 | ~~🔴 Fijar el runner de CI y añadir `npm run build` al workflow~~ ✅ 2026-10-10 | `ubuntu-latest` cambia el 2026-10-19; hoy CI no compila | [Deuda › Plataforma](#plataforma-y-release) |
 | 4 | ~~🟡 Etiquetar `v0.2.0`~~ ✅ 2026-10-10 | Cambio incompatible + KMZ + coordenadas sin release | [Deuda › Plataforma](#plataforma-y-release) |
-| 5 | 🟡 CONAF informa su estado a la leyenda + popups inline a `map-popups.ts` | Fallas silenciosas y HTML sin tests de escape | [Deuda › Frontend](#arquitectura-del-frontend) |
+| 5 | 🟡 CONAF informa su estado a la leyenda ~~+ popups inline a `map-popups.ts`~~ (popups ✅ con la consulta integrada) | Falla silenciosa del export CONAF | [Deuda › Frontend](#arquitectura-del-frontend) |
+| 5b | ~~🟢 Consulta integrada del punto («¿Qué hay aquí?»)~~ ✅ 2026-10-10 | Los popups de cada capa se pisaban | [Producto](#producto-y-mercado) |
+| 5c | 🟡 Límite de consultas: 60/min por IP compartido por todas las rutas, y el 429 se informa como caída del organismo | Con varias capas remotas, ~15 paneos por minuto lo agotan | [Deuda › Seguridad](#seguridad-y-operación) |
 | 6 | ~~🟢 Permalink con estado completo~~ ✅ 2026-10-10 | Habilita compartir hallazgos; barato | [Producto](#producto-y-mercado) |
 | 7 | 🟢 Escala numérica + medición | Lo pide el informe de tasación | [Herramientas SIG](#herramientas-mínimas-de-sig-que-faltan-auditoría-2026-08-28) |
 | 7b | ~~🟡 Capa de humedales (Inventario Nacional + humedales urbanos Ley 21.202)~~ ✅ 2026-10-10 | Caso de estudio de la tesis | [Investigación › Eje 3](#eje-3--coberturas-humedales-bosque-nativo-y-agua) |
 | 8 | 🟢 Carta IGM 1:50.000 o DEM libre (decidir juntas) | Única capa aprobada en cola; el relieve no existe hoy | [§ 1.4](#14-carta-topográfica-igm-150000-vía-mop-rest-sit---aprobada-en-cola) |
 | 9 | 🟡 Dividir `LayersControl.tsx` y terminar `MapView.tsx` | Siguen creciendo (1.419 y 1.111 líneas) | [Deuda › Frontend](#arquitectura-del-frontend) |
 | 10 | 🟢 Humo E2E con Playwright | Protege el export PNG y las capas remotas | [Deuda › Tests](#tests) |
+| 11 | 🟢 Relieve: pendiente y exposición desde Copernicus GLO-30 (PNG estático + valor por punto en la consulta integrada) | La aptitud del suelo es el confusor central de la tesis | [§ 1.4](#14-carta-topográfica-igm-150000-vía-mop-rest-sit---aprobada-en-cola) |
+| 12 | 🟢 NDVI antes / después (dos fechas y su diferencia) | Leer incendios, cosechas, humedales que se secan | [§ 5.2](#52-ndvi-sentinel-2--en-producción-2026-09-17--2026-09-27) |
+| 13 | 🟢 Riqueza de especies GBIF con esfuerzo de muestreo | Biodiversidad sin confundir «sin muestreo» con «sin especies» | [Investigación › Eje 3](#eje-3--coberturas-humedales-bosque-nativo-y-agua) |
+
+**Pospuestas por decisión del autor (2026-10-10)** — no encabezan la cola;
+se retoman solo si él lo pide: la auditoría de reidentificación de la API
+pública ([Eje 1](#eje-1--el-registro-datos-calidad-y-apertura)) y la
+distancia al humedal más cercano por transacción
+([Eje 3](#eje-3--coberturas-humedales-bosque-nativo-y-agua)).
 
 ## Criterios de priorización
 
@@ -739,6 +749,16 @@ que amplían el uso diario del perito:
 
 ### Producto y mercado
 
+- [x] **Consulta integrada del punto («¿Qué hay aquí?»)** — hecho el
+      2026-10-10 (`usePointQuery`): un clic abre un solo popup con
+      coordenadas (decimal + UTM) y una sección por capa activa — humedales,
+      suelos, CONAF y propiedades rurales en paralelo; áreas protegidas,
+      límite urbano, comunas y catastro frutícola por punto en polígono en el
+      navegador; y la celda del mapa de calor. *Pendiente*: valor de
+      bioclima (exige publicar los valores crudos, § 5.1), NDVI del punto y
+      relieve cuando exista; un botón «Consultar NDVI aquí» que abra la
+      serie; y exportar la consulta como ficha (base de la ficha del predio,
+      H3).
 - [ ] **Comparador de transacciones lado a lado**: cuando el usuario
       abre el popup de un CBR, permitir comparar hasta 3 transacciones
       comparables (misma comuna + rango de superficie + mismo destino)
@@ -878,10 +898,9 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
       propiedades rurales y NDVI, `useVegetacionalLayer` no emite
       `loading`/`error`/`zoom-required`: si el servicio cae, la capa queda
       vacía sin explicación. (Verificado 2026-10-10: sigue igual.)
-- [ ] 🟡 **Popups que siguen inline**: los de `identify` de suelos (tres
-      variantes, incluidos los errores) y propiedades rurales se arman dentro
-      de sus hooks. Moverlos a `src/lib/map-popups.ts` para que queden bajo
-      los tests de escape. (Verificado 2026-10-10: sigue igual.)
+- [x] **Popups que siguen inline** — resuelto el 2026-10-10 por la consulta
+      integrada: los hooks de suelos, CONAF, humedales y propiedades rurales
+      ya no arman popups; sus secciones viven en `map-popups.ts` con tests.
 - [ ] 🟡 **Dos geocoders en el DOM** (ver «Accesibilidad»): es deuda de
       arquitectura además de accesibilidad; `page.tsx` monta
       `<GeocoderSearch>` dos veces y deja a CSS elegir cuál se ve.
@@ -897,6 +916,12 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
       SIMBIO_HUMEDALES» u otro servicio, aunque el organismo esté bien.
       Distinguir `RATE_LIMITED` en el contrato de error y mostrar «demasiadas
       consultas seguidas, reintenta en unos segundos».
+      *Parcial (2026-10-10)*: la consulta integrada ya lo distingue; faltan
+      los avisos de export de cada capa. Causa de fondo: un solo cupo de
+      60/min por IP para TODAS las rutas, mientras cada paneo con N capas
+      remotas gasta N consultas. Evaluar un cupo propio para los proxies de
+      raster (que además cachea la CDN) sin dejar de proteger a los
+      servidores del Estado.
 
 ### Datos y ETL *(nuevo, 2026-10-10)*
 
@@ -996,7 +1021,7 @@ de estudio y el bosque nativo como segundo caso.
 Raíces, principios FAIR, anatomía de un dato ecológico, PostGIS + Python,
 coordenadas sin metadatos (datum, huso, proyección).*
 
-- [ ] 🔴 **Auditoría de reidentificación del endpoint público.** La propia
+- [ ] ⏸ **Auditoría de reidentificación del endpoint público** — *pospuesta por decisión del autor (2026-10-10)*. La propia
       propuesta afirma que *rol + fecha + comuna + monto*, juntos, permiten
       volver a la persona usando el Conservador; `/api/points` y
       `/api/export` exponen esos campos **y además `fojas`, `numero` y
@@ -1058,7 +1083,7 @@ protegidas y precio, GBIF.*
       con el **Inventario Nacional** (~118 mil polígonos) y los **137
       humedales urbanos declarados** (Ley 21.202) con su resolución.
       No fue estática: 118 mil polígonos no caben en el presupuesto de
-      `public/data/`. *Pendiente*: (a) distancia al humedal más cercano
+      `public/data/`. *Pendiente*: (a) ⏸ *pospuesta por decisión del autor (2026-10-10)*: distancia al humedal más cercano
       en el popup del punto CBR y en la ficha del predio (covariable de la
       tesis); (b) filtro de transacciones «dentro / a menos de X m de un
       humedal»; (c) consultar si el MMA publica la fecha de corte del
@@ -1295,6 +1320,9 @@ SIMEF, SNIA, IGM, ODEPA) están catalogadas en
 
 ## Hitos
 
+- **2026-10-10 — Consulta integrada del punto**: un clic, un popup con
+  todas las capas activas (remotas en paralelo, estáticas por punto en
+  polígono, mapa de calor), en lugar de popups que se pisaban.
 - **2026-10-10 — Permalink**: la URL describe la vista (encuadre, capas,
   fondo, filtros) y el botón «Compartir vista» la copia o la comparte.
 - **2026-10-10 — v0.2.0**: humedales, ubicación GPS, Node 22 en CI y Vercel,

@@ -41,17 +41,14 @@ import { useBioclimaLayer } from '@/components/map/useBioclimaLayer';
 import { useSuelosLayer } from '@/components/map/useSuelosLayer';
 import { useHumedalesLayer } from '@/components/map/useHumedalesLayer';
 import { useLocateControl } from '@/components/map/useLocateControl';
+import { usePointQuery, type PointQueryFlags } from '@/components/map/usePointQuery';
 import { usePropiedadesRuralesLayer } from '@/components/map/usePropiedadesRuralesLayer';
 import {
-  buildCatastroFruticolaPopup,
-  buildComunaPopup,
   buildKmlPopup,
   buildLineaTransmisionPopup,
   buildPopup,
-  buildProtectedPopup,
   buildRedDrenajePopup,
   buildRedVialPopup,
-  buildUrbanLimitPopup,
   esc,
 } from '@/lib/map-popups';
 import {
@@ -797,9 +794,7 @@ export default function MapView({
           smoothFactor: 0.5,
         };
       },
-      onEachFeature(feature, featureLayer) {
-        featureLayer.bindPopup(buildProtectedPopup(feature.properties), { maxWidth: 280 });
-      },
+      // Sin popup propio: el clic lo responde la consulta integrada del punto.
     }),
   });
 
@@ -814,9 +809,7 @@ export default function MapView({
     onAdd: reorderOverlays,
     options: () => ({
       style: URBAN_LIMIT_STYLE,
-      onEachFeature(feature, featureLayer) {
-        featureLayer.bindPopup(buildUrbanLimitPopup(feature.properties), { maxWidth: 280 });
-      },
+      // Sin popup propio: el clic lo responde la consulta integrada del punto.
     }),
   });
 
@@ -840,9 +833,7 @@ export default function MapView({
           fillColor: comunaFillColor(feature?.properties?.CUT_COM),
         };
       },
-      onEachFeature(feature, featureLayer) {
-        featureLayer.bindPopup(buildComunaPopup(feature.properties), { maxWidth: 280 });
-      },
+      // Sin popup propio: el clic lo responde la consulta integrada del punto.
     }),
   });
 
@@ -979,27 +970,51 @@ export default function MapView({
           smoothFactor: 0.6,
         };
       },
-      onEachFeature(feature, featureLayer) {
-        featureLayer.bindPopup(buildCatastroFruticolaPopup(feature.properties), { maxWidth: 280 });
-      },
+      // Sin popup propio: el clic lo responde la consulta integrada del punto.
     }),
   });
 
-  useHexbinLayer({ mapRef, hexbinsRef, hexbinSamplesRef, showHexbins, hexbinDestino, hexbinMinN, hexbinFiltersQs, hexbinRamp, onHexbinStatusRef, ndviModeRef, reorderOverlays });
+  useHexbinLayer({ mapRef, hexbinsRef, hexbinSamplesRef, showHexbins, hexbinDestino, hexbinMinN, hexbinFiltersQs, hexbinRamp, onHexbinStatusRef, reorderOverlays });
 
-  useVegetacionalLayer({ mapRef, vegetacionalRef, showVegetacional, opacityRef, ndviModeRef, reorderOverlays });
+  useVegetacionalLayer({ mapRef, vegetacionalRef, showVegetacional, opacityRef, reorderOverlays });
 
   useNdviVisualLayer({ mapRef, ndviVisualRef, showNdviVisual, opacityRef, onNdviVisualStatusRef, reorderOverlays });
 
   useBioclimaLayer({ mapRef, bioclimaRef, showBioclima, bioclimaVariable, opacityRef, reorderOverlays });
 
-  useSuelosLayer({ mapRef, suelosRef, showSuelos, opacityRef, onSuelosStatusRef, ndviModeRef });
+  useSuelosLayer({ mapRef, suelosRef, showSuelos, opacityRef, onSuelosStatusRef });
 
-  useHumedalesLayer({ mapRef, humedalesRef, showHumedales, opacityRef, onHumedalesStatusRef, ndviModeRef, reorderOverlays });
+  useHumedalesLayer({ mapRef, humedalesRef, showHumedales, opacityRef, onHumedalesStatusRef, reorderOverlays });
 
   useLocateControl({ mapRef });
 
-  usePropiedadesRuralesLayer({ mapRef, propiedadesRuralesRef, showPropiedadesRurales, opacityRef, onPropiedadesRuralesStatusRef, ndviModeRef, reorderOverlays });
+  // Consulta integrada del punto: un solo clic, un solo popup con lo que cada
+  // capa activa sabe de ese lugar. Las banderas viajan en una ref para que
+  // encender o apagar una capa no vuelva a registrar el manejador.
+  const pointQueryFlagsRef = useRef<PointQueryFlags>({
+    humedales: showHumedales,
+    suelos: showSuelos,
+    vegetacional: showVegetacional,
+    propiedadesRurales: showPropiedadesRurales,
+    hexbins: showHexbins,
+  });
+  useEffect(() => {
+    pointQueryFlagsRef.current = {
+      humedales: showHumedales,
+      suelos: showSuelos,
+      vegetacional: showVegetacional,
+      propiedadesRurales: showPropiedadesRurales,
+      hexbins: showHexbins,
+    };
+  }, [showHumedales, showSuelos, showVegetacional, showPropiedadesRurales, showHexbins]);
+  usePointQuery({
+    mapRef,
+    flagsRef: pointQueryFlagsRef,
+    ndviModeRef,
+    layers: { protectedRef, urbanLimitRef, comunasRef, catastroFruticolaRef, hexbinSamplesRef },
+  });
+
+  usePropiedadesRuralesLayer({ mapRef, propiedadesRuralesRef, showPropiedadesRurales, opacityRef, onPropiedadesRuralesStatusRef, reorderOverlays });
 
   // Resultado seleccionado por ROL: una única geometría vectorial sobre el
   // raster CIREN. No escucha moveend ni vive en estado Leaflet de React; al

@@ -3,17 +3,13 @@
 import { useEffect, type RefObject } from 'react';
 import L from 'leaflet';
 import {
-  SUELOS_ATTRIBUTION,
   SUELOS_EXPORT_URL,
-  SUELOS_IDENTIFY_URL,
   SUELOS_MIN_ZOOM,
   SUELOS_SERVICE_NAME,
-  suelosClassColor,
   TRANSPARENT_PIXEL,
   type SuelosStatus,
 } from '@/lib/suelos';
 import type { LayerOpacity } from '@/lib/layer-opacity';
-import { esc } from '@/lib/map-popups';
 import { suelosFailureDetails, waitForImage } from '@/components/map/raster-overlay';
 
 /**
@@ -26,11 +22,10 @@ import { suelosFailureDetails, waitForImage } from '@/components/map/raster-over
  * llegue la nueva): si CIREN cae, la leyenda dice «error» y no debe quedar
  * en pantalla un raster viejo que parezca vigente. La nueva se pre-carga
  * completa antes de mostrarse, y un contador de secuencia descarta
- * respuestas fuera de orden. Al hacer
- * clic se consulta la clase vía identify; ambas operaciones pasan por el
- * proxy same-origin del SIG, que valida CIREN y devuelve errores seguros con
- * el identificador exacto del servicio. Si el clic abrió el popup de otra
- * capa (comuna, camino, pin), se aborta para no pisarlo.
+ * respuestas fuera de orden. El export pasa por el proxy same-origin del
+ * SIG, que valida CIREN y devuelve errores seguros con el identificador
+ * exacto del servicio. La clase de un punto la consulta la consulta
+ * integrada (`usePointQuery`) junto con las demás capas activas.
  */
 export function useSuelosLayer({
   mapRef,
@@ -38,14 +33,12 @@ export function useSuelosLayer({
   showSuelos,
   opacityRef,
   onSuelosStatusRef,
-  ndviModeRef,
 }: {
   mapRef: RefObject<L.Map | null>;
   suelosRef: RefObject<L.ImageOverlay | null>;
   showSuelos: boolean;
   opacityRef: RefObject<LayerOpacity>;
   onSuelosStatusRef: RefObject<((status: SuelosStatus) => void) | undefined>;
-  ndviModeRef: RefObject<boolean>;
 }): void {
   useEffect(() => {
     const map = mapRef.current;
@@ -70,8 +63,6 @@ export function useSuelosLayer({
 
     let exportSequence = 0;
     let exportController: AbortController | null = null;
-    let identifySequence = 0;
-    let identifyController: AbortController | null = null;
     let activeBlobUrl: string | null = null;
 
     const clearRaster = (bounds: L.LatLngBounds) => {
@@ -145,118 +136,13 @@ export function useSuelosLayer({
     map.on('moveend', onMoveEnd);
     void refresh();
 
-    let popupGeneration = 0;
-    let popupOpenedThisTurn = false;
-    const onPopupOpen = () => {
-      popupGeneration++;
-      popupOpenedThisTurn = true;
-      queueMicrotask(() => {
-        popupOpenedThisTurn = false;
-      });
-    };
 
-    const onClick = async (e: L.LeafletMouseEvent) => {
-      // Un feature vectorial puede abrir su popup durante el mismo evento. No
-      // disparamos identify en ese caso ni reemplazamos popups abiertos después.
-      if (popupOpenedThisTurn) return;
-      // Herramienta NDVI armada: el clic no es una consulta de suelo.
-      if (ndviModeRef.current) return;
-      const expectedPopupGeneration = popupGeneration;
-      // Bajo el zoom mínimo la capa no está visible: no consultar identify.
-      if (map.getZoom() < SUELOS_MIN_ZOOM) return;
-      const id = ++identifySequence;
-      identifyController?.abort();
-      const controller = new AbortController();
-      identifyController = controller;
-      const { lat, lng } = e.latlng;
-      const bounds = map.getBounds();
-      const size = map.getSize();
-      const params = new URLSearchParams({
-        geometry: `${lng},${lat}`,
-        tolerance: '2',
-        mapExtent: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`,
-        imageDisplay: `${size.x},${size.y},96`,
-      });
-      try {
-        const response = await fetch(`${SUELOS_IDENTIFY_URL}?${params}`, {
-          signal: controller.signal,
-        });
-        if (!response.ok) {
-          const failure = await suelosFailureDetails(response, 'identify');
-          if (
-            id !== identifySequence || controller.signal.aborted ||
-            popupGeneration !== expectedPopupGeneration ||
-            !mapRef.current || !suelosRef.current
-          ) return;
-          L.popup({ maxWidth: 300 })
-            .setLatLng(e.latlng)
-            .setContent(
-              `<div style="font-size:0.8rem;line-height:1.45;min-width:220px">` +
-              `<div style="font-weight:600;font-size:0.92rem;color:#b91c1c">No se pudo consultar el suelo</div>` +
-              `<div style="margin-top:.25rem;opacity:.75">El servicio no respondió: ${esc(failure.service)} ` +
-              `(operación ${esc(failure.operation)}). Intenta nuevamente en unos segundos.</div>` +
-              `</div>`,
-            )
-            .openOn(mapRef.current);
-          return;
-        }
-        const data = (await response.json()) as {
-          results?: { layerName?: string; soilClass?: string | null }[];
-        };
-        if (
-          id !== identifySequence || controller.signal.aborted ||
-          popupGeneration !== expectedPopupGeneration ||
-          !mapRef.current || !suelosRef.current
-        ) return;
-        const result = data.results?.find((item) => item.soilClass) ?? data.results?.[0];
-        const clase = result?.soilClass ?? null;
-        const region = result?.layerName ?? '';
-        const body = clase
-          ? `<div style="font-weight:600;font-size:0.92rem">Capacidad de uso: Clase ${esc(clase)}</div>` +
-            `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
-            `font-size:0.68rem;font-weight:600;color:#1e293b;background:${suelosClassColor(clase)};` +
-            `border:1px solid rgba(0,0,0,.15)">Suelos agrológicos CIREN</div>` +
-            (region ? `<div style="opacity:.7">${esc(region)}</div>` : '')
-          : `<div style="font-weight:600;font-size:0.92rem">Sin clase CIREN registrada en este punto</div>` +
-            `<div style="opacity:.7;margin-top:.2rem">El servicio respondió correctamente, pero el punto puede estar fuera del área estudiada o no tener clasificación disponible.</div>`;
-        L.popup({ maxWidth: 300 })
-          .setLatLng(e.latlng)
-          .setContent(
-            `<div style="font-size:0.8rem;line-height:1.45;min-width:220px">${body}` +
-              `<div style="margin-top:.35rem;font-size:0.62rem;opacity:.5">${SUELOS_ATTRIBUTION}</div></div>`,
-          )
-          .openOn(mapRef.current);
-      } catch (error) {
-        if (controller.signal.aborted || id !== identifySequence) return;
-        console.error('No se pudo consultar la clase de suelo CIREN.', error);
-        if (
-          popupGeneration !== expectedPopupGeneration ||
-          !mapRef.current || !suelosRef.current
-        ) return;
-        L.popup({ maxWidth: 300 })
-          .setLatLng(e.latlng)
-          .setContent(
-            `<div style="font-size:0.8rem;line-height:1.45;min-width:220px">` +
-              `<div style="font-weight:600;font-size:0.92rem;color:#b91c1c">No se pudo consultar el suelo</div>` +
-              `<div style="margin-top:.25rem;opacity:.75">El servicio no respondió: ${esc(SUELOS_SERVICE_NAME)} ` +
-              `(operación identify). Intenta nuevamente en unos segundos.</div></div>`,
-          )
-          .openOn(mapRef.current);
-      }
-    };
-
-    map.on('popupopen', onPopupOpen);
-    map.on('click', onClick);
 
     return () => {
       exportSequence++;
-      identifySequence++;
       exportController?.abort();
-      identifyController?.abort();
       if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
       map.off('moveend', onMoveEnd);
-      map.off('popupopen', onPopupOpen);
-      map.off('click', onClick);
       // El mapa VIGENTE: al desmontar, MapView ya lo destruyó y dejó la ref en null.
       if (suelosRef.current && mapRef.current) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -264,5 +150,5 @@ export function useSuelosLayer({
         suelosRef.current = null;
       }
     };
-  }, [showSuelos, mapRef, ndviModeRef, onSuelosStatusRef, opacityRef, suelosRef]);
+  }, [showSuelos, mapRef, onSuelosStatusRef, opacityRef, suelosRef]);
 }
