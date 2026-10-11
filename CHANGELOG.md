@@ -21,7 +21,18 @@ versionado.
 
 ## No publicado
 
-_Nada todavía._
+### Añadido
+
+- **Permalink: la URL describe la vista del SIG.** Encuadre, capas
+  encendidas, mapa base, filtros (con los mismos nombres de la API: `comuna`,
+  `anio_min`, `monto_min`…), variable de bioclima y opciones del mapa de calor
+  se escriben solos en la dirección mientras se usa el mapa, sin llenar el
+  historial. Abrir ese enlace reconstruye la vista. Botón **«Compartir
+  vista»** en la cabecera: copia el enlace en escritorio y abre la hoja de
+  compartir del sistema en el celular. Cada valor del enlace se valida y lo
+  inválido cae al valor por defecto. No viajan en el enlace las opacidades,
+  la consulta NDVI ni las capas KML propias (no salen del navegador). Un
+  enlace con `fondo=` no cambia el fondo guardado de quien lo abre.
 
 ---
 
