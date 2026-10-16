@@ -14,6 +14,7 @@ import {
   type PropiedadesRuralesStatus,
 } from '@/lib/propiedades-rurales';
 import { type HexbinStatus } from '@/lib/hexbins';
+import type { ConservadoresStatus } from '@/lib/conservadores';
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
 import { DEFAULT_LAYER_OPACITY } from '@/lib/layer-opacity';
@@ -298,6 +299,8 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   useEffect(() => {
     showPointsRef.current = showPoints;
   }, [showPoints]);
+  const [showConservadores, setShowConservadores] = useState(on('conservadores'));
+  const [conservadoresStatus, setConservadoresStatus] = useState<ConservadoresStatus>({ kind: 'idle' });
   const [showProtected, setShowProtected] = useState(on('areas_protegidas'));
   const [showUrbanLimit, setShowUrbanLimit] = useState(on('limite_urbano'));
   const [showComunas, setShowComunas] = useState(on('comunas'));
@@ -351,6 +354,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   // (los puntos CBR vienen encendidos por defecto).
   const layerFlags = useMemo(() => ({
     puntos: showPoints,
+    conservadores: showConservadores,
     mapa_calor: showHexbins,
     areas_protegidas: showProtected,
     limite_urbano: showUrbanLimit,
@@ -367,7 +371,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     ndvi_visual: showNdviVisual,
     relieve: showRelieve,
   }) satisfies Record<PermalinkLayer, boolean>, [
-    showPoints, showHexbins, showProtected, showUrbanLimit, showComunas,
+    showPoints, showConservadores, showHexbins, showProtected, showUrbanLimit, showComunas,
     showRedVial, showRedDrenaje, showLineasTransmision, showSuelos, showBioclima,
     showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showNdviVisual, showRelieve,
   ]);
@@ -684,6 +688,9 @@ function SigApp({ initial }: { initial: PermalinkState }) {
           onActivate={togglePanel}
           showPoints={showPoints}
           onTogglePoints={setShowPoints}
+          showConservadores={showConservadores}
+          onToggleConservadores={setShowConservadores}
+          conservadoresStatus={conservadoresStatus}
           showHexbins={showHexbins}
           onToggleHexbins={setShowHexbins}
           hexbinStatus={hexbinStatus}
@@ -760,6 +767,8 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               layerOpacity={layerOpacity}
               points={points}
               showPoints={showPoints}
+              showConservadores={showConservadores}
+              onConservadoresStatus={setConservadoresStatus}
               showProtected={showProtected}
               showUrbanLimit={showUrbanLimit}
               showComunas={showComunas}

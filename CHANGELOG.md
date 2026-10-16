@@ -21,6 +21,14 @@ versionado.
 
 ## No publicado
 
+### Añadido
+
+- **Capa «Conservadores de Bienes Raíces».** Un punto por oficina en su
+  dirección real (95 de 100 ya ubicadas), con dirección, contacto, sitio web y
+  «Cómo llegar». Al hacer clic se resaltan las comunas de su jurisdicción,
+  aunque la capa de límites comunales esté apagada. Va en el permalink
+  (`capas=conservadores`).
+
 ### Cambiado
 
 - **Sin el botón «Consulta NDVI» en la barra superior.** Ocupaba espacio en

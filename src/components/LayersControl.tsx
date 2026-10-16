@@ -45,6 +45,7 @@ import {
   CATASTRO_FRUTICOLA_SOURCE_URL,
 } from '@/lib/catastro-fruticola';
 import { CBR_POINT_COLOR } from '@/lib/cbr-points';
+import { CONSERVADORES_ATTRIBUTION, conservadorIconSvg, type ConservadoresStatus } from '@/lib/conservadores';
 import {
   DESTINO_OPTIONS,
   HEXBINS_ATTRIBUTION,
@@ -649,6 +650,9 @@ export function LayersControl({
   onActivate,
   showPoints,
   onTogglePoints,
+  showConservadores,
+  onToggleConservadores,
+  conservadoresStatus,
   showHexbins,
   onToggleHexbins,
   hexbinStatus,
@@ -710,6 +714,9 @@ export function LayersControl({
   onActivate: (id: PanelId) => void;
   showPoints: boolean;
   onTogglePoints: (v: boolean) => void;
+  showConservadores: boolean;
+  onToggleConservadores: (v: boolean) => void;
+  conservadoresStatus: ConservadoresStatus;
   showHexbins: boolean;
   onToggleHexbins: (v: boolean) => void;
   hexbinStatus: HexbinStatus;
@@ -840,10 +847,10 @@ export function LayersControl({
       </label>
     </>
   );
-  const hasActiveLegend = showHexbins || showProtected || showUrbanLimit || showComunas ||
+  const hasActiveLegend = showConservadores || showHexbins || showProtected || showUrbanLimit || showComunas ||
     showRedVial || showRedDrenaje || showLineasTransmision || showSuelos || showBioclima ||
     showCatastroFruticola || showVegetacional || showHumedales || showPropiedadesRurales || showNdviVisual || showRelieve;
-  const activeLayerCount = [showHexbins, showProtected, showUrbanLimit, showComunas,
+  const activeLayerCount = [showConservadores, showHexbins, showProtected, showUrbanLimit, showComunas,
     showRedVial, showRedDrenaje, showLineasTransmision, showSuelos, showBioclima,
     showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showNdviVisual, showRelieve].filter(Boolean).length;
   const catalogue = (
@@ -858,6 +865,46 @@ export function LayersControl({
             <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CBR_POINT_COLOR }} />
           }
         />
+
+        <LayerRow
+          checked={showConservadores}
+          onChange={onToggleConservadores}
+          layerId="conservadores"
+          label="Conservadores de Bienes Raíces"
+          swatch={
+            <span
+              className="inline-block h-3.5 w-3.5 shrink-0"
+              aria-hidden="true"
+              // SVG propio, sin datos: es el mismo ícono del mapa.
+              dangerouslySetInnerHTML={{ __html: conservadorIconSvg().replace('width="26" height="26"', 'width="14" height="14"') }}
+            />
+          }
+        >
+          <div className="space-y-1.5 text-xs">
+            <p className="leading-snug">
+              Una oficina por Conservador, en su dirección. Haz clic en una para ver su
+              contacto y resaltar las comunas de su jurisdicción.
+            </p>
+            {conservadoresStatus.kind === 'loading' && (
+              <p className="opacity-60" role="status">Cargando oficinas…</p>
+            )}
+            {conservadoresStatus.kind === 'ready' && (
+              <p className="opacity-60" role="status">
+                {conservadoresStatus.count.toLocaleString('es-CL')} oficinas ubicadas; las que aún no
+                tienen dirección georreferenciada no se dibujan.
+              </p>
+            )}
+            {conservadoresStatus.kind === 'error' && (
+              <p className="text-red-700 dark:text-red-300" role="alert">
+                No se pudieron cargar las oficinas de los Conservadores.
+              </p>
+            )}
+            <p className="text-[0.6rem] leading-snug opacity-50">
+              {CONSERVADORES_ATTRIBUTION}. Jurisdicción referencial: la competencia territorial
+              la fija el Código Orgánico de Tribunales y los decretos respectivos.
+            </p>
+          </div>
+        </LayerRow>
 
         <LayerRow
           checked={showHexbins}

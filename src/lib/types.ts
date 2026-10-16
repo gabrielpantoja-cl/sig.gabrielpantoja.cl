@@ -27,6 +27,28 @@ export interface MapPoint {
 }
 
 /**
+ * Oficina de un Conservador de Bienes Raíces, tal como la entrega
+ * /api/conservadores: solo las ubicadas (lat/lng no nulos), con `''`
+ * normalizado a null. `jurisdiccion_cut` son los CUT de 5 dígitos (DPA 2023)
+ * de las comunas que atiende — el match con `CUT_COM` de los límites
+ * comunales; `jurisdiccion` son sus nombres, para mostrar.
+ */
+export interface Conservador {
+  id: string;
+  nombre: string;
+  direccion: string | null;
+  comuna: string | null;
+  region: string | null;
+  telefono: string | null;
+  email: string | null;
+  sitioWeb: string | null;
+  jurisdiccion: string[];
+  jurisdiccion_cut: string[];
+  lat: number;
+  lng: number;
+}
+
+/**
  * Estadísticas descriptivas de /api/stats. Cada métrica declara su propio
  * denominador: `avg`/`mediana`/`min`/`max` se calculan sobre `count_monto` y
  * los $/m² sobre `count_precio_m2`, ambos ≤ `count`. Ver docs/estadisticas.md.

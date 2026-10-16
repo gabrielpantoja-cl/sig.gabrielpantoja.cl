@@ -54,6 +54,11 @@ export const LAYER_CATALOG = [
         description: 'Escrituras del Conservador de Bienes Raíces: predio, rol, monto, destino SII, comuna',
       },
       {
+        id: 'conservadores',
+        label: 'Conservadores de Bienes Raíces',
+        description: 'Oficina de cada conservador con dirección y contacto; al hacer clic resalta su jurisdicción, las comunas que atiende',
+      },
+      {
         id: 'hexbins',
         label: 'Mapa de calor de valor ($/m²)',
         description: 'Mediana de valor por celda hexagonal, interpolada; escalonado por destino y cobertura de dato',
