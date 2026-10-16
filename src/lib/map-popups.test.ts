@@ -8,7 +8,9 @@ import {
   formatDateCL,
   safeHref,
   buildRelieveResult,
+  buildConservadorPopup,
 } from '@/lib/map-popups';
+import type { Conservador } from '@/lib/types';
 import type { MapPoint } from '@/lib/types';
 import type { KmlLayer } from '@/lib/kml';
 import type { ProtectedAreaProps } from '@/lib/protected-areas';
@@ -119,5 +121,58 @@ describe('buildRelieveResult', () => {
   it('flags the 45 % native-forest threshold', () => {
     expect(buildRelieveResult({ cota: 300, pendientePct: 52, pendienteGrados: 27.5, exposicion: 0 }))
       .toContain('Ley 20.283');
+  });
+});
+
+describe('buildConservadorPopup', () => {
+  const office: Conservador = {
+    id: 'cbr-14101', nombre: 'Valdivia', direccion: 'Independencia 455', comuna: 'Valdivia', region: 'Los Ríos',
+    telefono: '+56 63 221 2345', email: 'contacto@cbrvaldivia.cl', sitioWeb: 'https://www.cbrvaldivia.cl',
+    jurisdiccion: ['Valdivia', 'Corral'], jurisdiccion_cut: ['14101', '14102'], lat: -39.8142, lng: -73.2459,
+  };
+
+  it('escapes every data value', () => {
+    const html = buildConservadorPopup({
+      ...office, nombre: XSS, direccion: XSS, comuna: XSS, region: XSS, telefono: XSS,
+      email: XSS, sitioWeb: XSS, jurisdiccion: [XSS, `"><script>alert(1)</script>`],
+    });
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('<script');
+    expect(html).toContain('&lt;img');
+  });
+
+  it('never links a script URL or an injected mailto', () => {
+    const html = buildConservadorPopup({
+      ...office, sitioWeb: 'javascript:alert(1)', email: 'x" onclick="alert(1)@a.cl',
+    });
+    expect(html).not.toContain('href="javascript:');
+    expect(html).not.toContain('href="mailto:x');
+    expect(html).not.toContain('onclick="');
+  });
+
+  it('shows contact, jurisdiction and the directions link', () => {
+    const html = buildConservadorPopup(office);
+    expect(html).toContain('Conservador de Bienes Raíces de Valdivia');
+    expect(html).toContain('href="mailto:contacto@cbrvaldivia.cl"');
+    expect(html).toContain('href="tel:+56632212345"');
+    expect(buildConservadorPopup({ ...office, telefono: '632 213219, 632 213723' }))
+      .toMatch(/href="tel:632213219"[^]*href="tel:632213723"/);
+    expect(html).toContain('href="https://www.cbrvaldivia.cl/" target="_blank" rel="noopener noreferrer"');
+    expect(html).toContain('Valdivia, Corral');
+    expect(html).toContain('href="https://www.google.com/maps/dir/?api=1&amp;destination=-39.8142,-73.2459"');
+  });
+
+  it('omits empty fields and flags a jurisdiction without CUTs', () => {
+    const html = buildConservadorPopup({
+      ...office, direccion: null, telefono: null, email: null, sitioWeb: null, jurisdiccion_cut: [],
+    });
+    expect(html).not.toContain('Dirección');
+    expect(html).not.toContain('mailto:');
+    expect(html).toContain('no se resalta en el mapa');
+  });
+
+  it('links a site stored without scheme as https', () => {
+    expect(buildConservadorPopup({ ...office, sitioWeb: 'www.cbrvaldivia.cl' }))
+      .toContain('href="https://www.cbrvaldivia.cl/"');
   });
 });

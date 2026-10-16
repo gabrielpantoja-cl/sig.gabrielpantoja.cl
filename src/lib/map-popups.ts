@@ -1,4 +1,5 @@
-import type { MapPoint } from '@/lib/types';
+import type { Conservador, MapPoint } from '@/lib/types';
+import { CONSERVADORES_ATTRIBUTION, CONSERVADORES_COLOR, comoLlegarUrl } from '@/lib/conservadores';
 import { categoryColor, type ProtectedAreaProps } from '@/lib/protected-areas';
 import { URBAN_LIMIT_ATTRIBUTION, URBAN_LIMIT_COLOR, type UrbanLimitProps } from '@/lib/urban-limit';
 import { kmlDisplayName, kmlPropText, type KmlFeatureProps, type KmlLayer } from '@/lib/kml';
@@ -152,6 +153,71 @@ export function buildPopup(p: MapPoint): string {
       : `<div style="margin-bottom:.35rem"></div>`) +
     `<div style="font-weight:600;font-size:1rem;color:hsl(153 28% 30%);margin-bottom:.4rem">${formatCLP(p.monto)}</div>` +
     `<table style="border-collapse:collapse">${body}</table>` +
+    `</div>`
+  );
+}
+
+/** Correo con forma plausible: se enlaza con `mailto:`; si no, solo texto. */
+const EMAIL_RE = /^[^\s@<>"'()]+@[^\s@<>"'()]+\.[^\s@<>"'()]+$/;
+
+/** Sitio web de la tabla: puede venir sin esquema; solo se enlaza http(s). */
+function siteHref(url: string): string | null {
+  return safeHref(/^[a-z][a-z0-9+.-]*:/i.test(url) ? url : `https://${url}`);
+}
+
+const LINK_STYLE = `color:${CONSERVADORES_COLOR};text-decoration:underline`;
+
+/**
+ * Popup de una oficina de Conservador de Bienes Raíces: cómo ubicarla y
+ * contactarla, qué comunas atiende y un enlace «Cómo llegar». El sitio web se
+ * enlaza tal cual viene de la tabla (algunos están caídos; no se verifican en
+ * runtime), siempre en pestaña nueva y sin `opener`.
+ */
+export function buildConservadorPopup(c: Conservador): string {
+  const rows: [string, string][] = [];
+  if (c.direccion) rows.push(['Dirección', esc(c.direccion)]);
+  const lugar = [c.comuna, c.region].filter(Boolean).map((v) => esc(v)).join(' · ');
+  if (lugar) rows.push(['Comuna', lugar]);
+  if (c.telefono) {
+    // La tabla puede traer varios números en un campo («632 213219, 632 213723»):
+    // un enlace `tel:` por número, nunca los dígitos de todos fundidos.
+    const phones = c.telefono.split(/\s*[,;/]\s*|\s+y\s+/).filter(Boolean).map((phone) => {
+      const tel = phone.replace(/[^\d+]/g, '');
+      return tel.length >= 6 ? `<a href="tel:${esc(tel)}" style="${LINK_STYLE}">${esc(phone)}</a>` : esc(phone);
+    });
+    rows.push(['Teléfono', phones.join(', ')]);
+  }
+  if (c.email) {
+    rows.push(['Email', EMAIL_RE.test(c.email)
+      ? `<a href="mailto:${esc(c.email)}" style="${LINK_STYLE}">${esc(c.email)}</a>`
+      : esc(c.email)]);
+  }
+  if (c.sitioWeb) {
+    const href = siteHref(c.sitioWeb);
+    rows.push(['Sitio web', href
+      ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer" style="${LINK_STYLE};word-break:break-all">${esc(c.sitioWeb)}</a>`
+      : esc(c.sitioWeb)]);
+  }
+
+  const comunas = c.jurisdiccion.length
+    ? `<div style="margin-top:.45rem"><div style="opacity:.55">Jurisdicción (${c.jurisdiccion.length} ${c.jurisdiccion.length === 1 ? 'comuna' : 'comunas'})</div>` +
+      `<div>${c.jurisdiccion.map((n) => esc(n)).join(', ')}</div>` +
+      (c.jurisdiccion_cut.length === 0
+        ? `<div style="font-size:.66rem;opacity:.55">Sin códigos CUT asociados: no se resalta en el mapa.</div>`
+        : '') +
+      `</div>`
+    : '';
+
+  return (
+    `<div style="font-size:0.8rem;line-height:1.45;min-width:220px;max-width:300px">` +
+    `<div style="font-weight:600;font-size:0.92rem">Conservador de Bienes Raíces de ${esc(c.nombre)}</div>` +
+    `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
+    `font-size:0.68rem;font-weight:600;color:#fff;background:${CONSERVADORES_COLOR}">CBR ${esc(c.nombre)}</div>` +
+    `<table style="border-collapse:collapse">${popupRows(rows)}</table>` +
+    comunas +
+    `<div style="margin-top:.5rem"><a href="${esc(comoLlegarUrl(c.lat, c.lng))}" target="_blank" rel="noopener noreferrer" ` +
+    `style="${LINK_STYLE};font-weight:600;font-size:0.75rem">Cómo llegar →</a></div>` +
+    `<div style="margin-top:.35rem;font-size:0.62rem;opacity:.5">${CONSERVADORES_ATTRIBUTION} · jurisdicción referencial</div>` +
     `</div>`
   );
 }

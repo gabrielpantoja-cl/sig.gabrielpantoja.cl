@@ -37,6 +37,8 @@ import { useStaticGeoJsonLayer } from '@/components/map/useStaticGeoJsonLayer';
 import { useHexbinLayer, type HexbinSamples } from '@/components/map/useHexbinLayer';
 import { useNdviVisualLayer } from '@/components/map/useNdviVisualLayer';
 import { useBioclimaLayer } from '@/components/map/useBioclimaLayer';
+import { useConservadoresLayer } from '@/components/map/useConservadoresLayer';
+import type { ConservadoresStatus } from '@/lib/conservadores';
 import { useLocateControl } from '@/components/map/useLocateControl';
 import {
   RELIEVE_DEFAULT_MODO,
@@ -120,6 +122,8 @@ export default function MapView({
   layerOpacity = DEFAULT_LAYER_OPACITY,
   points,
   showPoints = true,
+  showConservadores = false,
+  onConservadoresStatus,
   showProtected = false,
   showUrbanLimit = false,
   showComunas = false,
@@ -165,6 +169,9 @@ export default function MapView({
   /** Capa principal (~74k transacciones CBR). Apagarla deja el mapa limpio para
    * componer una vista sin transacciones (p.ej. antes de exportar a PNG). */
   showPoints?: boolean;
+  /** Oficinas de los Conservadores; clic → jurisdicción resaltada. */
+  showConservadores?: boolean;
+  onConservadoresStatus?: (status: ConservadoresStatus) => void;
   showProtected?: boolean;
   showUrbanLimit?: boolean;
   showComunas?: boolean;
@@ -249,6 +256,7 @@ export default function MapView({
   const protectedRef = useRef<L.GeoJSON | null>(null);
   const urbanLimitRef = useRef<L.GeoJSON | null>(null);
   const comunasRef = useRef<L.GeoJSON | null>(null);
+  const jurisdiccionRef = useRef<L.GeoJSON | null>(null);
   const redVialRef = useRef<L.GeoJSON | null>(null);
   const redDrenajeRef = useRef<L.GeoJSON | null>(null);
   const lineasTransmisionRef = useRef<L.GeoJSON | null>(null);
@@ -320,6 +328,7 @@ export default function MapView({
   const onNdviVisualStatusRef = useRef(onNdviVisualStatus);
   const onRelieveStatusRef = useRef(onRelieveStatus);
   const onHexbinStatusRef = useRef(onHexbinStatus);
+  const onConservadoresStatusRef = useRef(onConservadoresStatus);
   // Modo NDVI en ref: los handlers de clic de otras capas (declarados en
   // effects con deps estables) deben poder consultar el estado vigente del
   // modo sin re-registrarse en cada toggle.
@@ -335,9 +344,10 @@ export default function MapView({
     onNdviVisualStatusRef.current = onNdviVisualStatus;
     onRelieveStatusRef.current = onRelieveStatus;
     onHexbinStatusRef.current = onHexbinStatus;
+    onConservadoresStatusRef.current = onConservadoresStatus;
     ndviModeRef.current = ndviMode;
     onNdviPointRef.current = onNdviPoint;
-  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onViewChange, onHumedalesStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onRelieveStatus, onHexbinStatus, ndviMode, onNdviPoint]);
+  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onViewChange, onHumedalesStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onRelieveStatus, onHexbinStatus, onConservadoresStatus, ndviMode, onNdviPoint]);
 
   // Publica el método de export en el ref entregado por la página. La closure
   // se re-bindea en cada cambio de flags para que la captura refleje siempre
@@ -506,6 +516,9 @@ export default function MapView({
     // principal cuando está encendido) pero debajo del KML del perito y de los
     // puntos CBR, que deben seguir siendo clicables.
     hexbinsRef.current?.bringToFront();
+    // Jurisdicción del Conservador seleccionado: sobre el contexto y el mapa
+    // de calor (es la respuesta a un clic deliberado), bajo el KML del perito.
+    jurisdiccionRef.current?.bringToFront();
     for (const layer of kmlRef.current.values()) layer.bringToFront();
     clusterRef.current?.bringToFront();
   }, []);
@@ -614,6 +627,7 @@ export default function MapView({
       protectedRef.current = null;
       urbanLimitRef.current = null;
       comunasRef.current = null;
+      jurisdiccionRef.current = null;
       redVialRef.current = null;
       redDrenajeRef.current = null;
       lineasTransmisionRef.current = null;
@@ -864,6 +878,8 @@ export default function MapView({
     layerRef: comunasRef,
     show: showComunas,
     url: '/data/limites-comunales.geojson',
+    // Compartido con la jurisdicción de los Conservadores: un solo parseo.
+    cached: true,
     onAdd: reorderOverlays,
     options: () => ({
       // Relleno pastel translúcido distinto por comuna (mapa político),
@@ -1014,6 +1030,11 @@ export default function MapView({
       },
       // Sin popup propio: el clic lo responde la consulta integrada del punto.
     }),
+  });
+
+  useConservadoresLayer({
+    mapRef, show: showConservadores, highlightRef: jurisdiccionRef,
+    onStatusRef: onConservadoresStatusRef, reorderOverlays,
   });
 
   useHexbinLayer({ mapRef, hexbinsRef, hexbinSamplesRef, showHexbins, hexbinDestino, hexbinMinN, hexbinFiltersQs, hexbinRamp, onHexbinStatusRef, reorderOverlays });

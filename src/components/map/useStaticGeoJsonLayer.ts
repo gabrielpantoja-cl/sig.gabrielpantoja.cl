@@ -3,6 +3,7 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import L from 'leaflet';
 import type { FeatureCollection, Geometry } from 'geojson';
+import { loadGeoJsonCached } from '@/components/map/geojson-cache';
 
 /**
  * Capa temática servida como GeoJSON estático desde `public/data/` (generada
@@ -19,6 +20,9 @@ import type { FeatureCollection, Geometry } from 'geojson';
  * `options` se lee al momento de construir la capa (no es dependencia del
  * efecto): una función nueva en cada render no vuelve a descargar el
  * catastro frutícola (30 MB).
+ *
+ * `cached` hace pasar la descarga por `loadGeoJsonCached`, para archivos que
+ * otra capa también lee (límites comunales ↔ jurisdicción de Conservadores).
  */
 export function useStaticGeoJsonLayer<P>({
   mapRef,
@@ -27,6 +31,7 @@ export function useStaticGeoJsonLayer<P>({
   url,
   options,
   onAdd,
+  cached = false,
 }: {
   mapRef: RefObject<L.Map | null>;
   layerRef: RefObject<L.GeoJSON | null>;
@@ -35,6 +40,7 @@ export function useStaticGeoJsonLayer<P>({
   options: () => L.GeoJSONOptions<P, Geometry>;
   /** Se llama tras montar la capa; MapView re-impone ahí el orden de apilado. */
   onAdd: () => void;
+  cached?: boolean;
 }): void {
   const optionsRef = useRef(options);
   useEffect(() => {
@@ -46,8 +52,11 @@ export function useStaticGeoJsonLayer<P>({
 
     const controller = new AbortController();
     let layer: L.GeoJSON | null = null;
-    fetch(url, { signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error(`${url}: ${response.status}`))))
+    const load: Promise<FeatureCollection<Geometry, P>> = cached
+      ? loadGeoJsonCached<P>(url)
+      : fetch(url, { signal: controller.signal })
+          .then((response) => (response.ok ? response.json() : Promise.reject(new Error(`${url}: ${response.status}`))));
+    load
       .then((geojson: FeatureCollection<Geometry, P>) => {
         const map = mapRef.current;
         if (controller.signal.aborted || !map) return;
@@ -67,5 +76,5 @@ export function useStaticGeoJsonLayer<P>({
       if (layer && mapRef.current?.hasLayer(layer)) mapRef.current.removeLayer(layer);
       if (layerRef.current === layer) layerRef.current = null;
     };
-  }, [show, url, mapRef, layerRef, onAdd]);
+  }, [show, url, cached, mapRef, layerRef, onAdd]);
 }

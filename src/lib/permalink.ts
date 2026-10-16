@@ -30,6 +30,7 @@ import { esRelieveModo, type RelieveModo } from '@/lib/relieve';
 /** Capas que viajan en el enlace. Mismos nombres que `layer_on`. */
 export const PERMALINK_LAYERS = [
   'puntos',
+  'conservadores',
   'mapa_calor',
   'areas_protegidas',
   'limite_urbano',
