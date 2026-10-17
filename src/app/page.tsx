@@ -584,12 +584,15 @@ function SigApp({ initial }: { initial: PermalinkState }) {
         <h1 className="text-[0.65rem] uppercase tracking-[0.18em] opacity-60 md:text-xs">
           SIG de suelo · Datos abiertos
         </h1>
-        <div className="relative flex items-center gap-3">
+        {/* Tres acciones de la misma altura (h-8): una con texto y dos íconos
+            circulares de ancho fijo. Ningún hover cambia el ancho de un botón,
+            así el grupo nunca se desplaza. */}
+        <div className="relative flex items-center gap-2">
           <button
             type="button"
             onClick={handleShare}
             title="Copia un enlace a esta vista: encuadre, capas, mapa base y filtros. Las capas KML propias no se incluyen."
-            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-black/15 px-2.5 text-xs transition-colors hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(153_28%_35%)] dark:border-white/20 dark:hover:bg-white/10"
+            className="inline-flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-full border border-black/15 px-2.5 text-xs transition-colors hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(153_28%_35%)] dark:border-white/20 dark:hover:bg-white/10"
           >
             {ShareIcon}
             <span className="hidden sm:inline">Compartir vista</span>
@@ -607,20 +610,18 @@ function SigApp({ initial }: { initial: PermalinkState }) {
             href="https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Ver el código fuente en GitHub"
-            className="group inline-flex h-8 items-center gap-1.5 overflow-hidden rounded-full border border-black/15 px-2 text-xs transition-colors hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(153_28%_35%)] dark:border-white/20 dark:hover:bg-white/10"
+            aria-label="Código abierto: ver el código fuente en GitHub"
+            title="Código abierto · ver en GitHub"
+            className="group inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/15 transition-colors hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(153_28%_35%)] dark:border-white/20 dark:hover:bg-white/10"
           >
             <svg
               aria-hidden="true"
               viewBox="0 0 24 24"
-              className="h-5 w-5 shrink-0 motion-safe:transition-all motion-safe:duration-300 motion-safe:group-hover:scale-110 motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:rotate-6 motion-safe:group-focus-visible:scale-110 motion-safe:group-focus-visible:-translate-y-0.5 motion-safe:group-focus-visible:rotate-6"
+              className="h-[18px] w-[18px] shrink-0 motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-out motion-safe:group-hover:rotate-[360deg] motion-safe:group-focus-visible:rotate-[360deg]"
               fill="currentColor"
             >
               <path d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.55.1.76-.24.76-.53v-2.08c-3.1.68-3.76-1.32-3.76-1.32-.5-1.3-1.23-1.65-1.23-1.65-1.01-.7.08-.69.08-.69 1.12.08 1.71 1.15 1.71 1.15 1 .1.78 2.4 3.77 1.7.1-.72.4-1.21.72-1.49-2.48-.28-5.09-1.24-5.09-5.52 0-1.22.44-2.22 1.15-3-.12-.28-.5-1.42.11-2.96 0 0 .94-.3 3.05 1.15a10.6 10.6 0 0 1 5.55 0c2.11-1.45 3.05-1.15 3.05-1.15.61 1.54.23 2.68.11 2.96.72.78 1.15 1.78 1.15 3 0 4.29-2.61 5.24-5.1 5.51.4.35.76 1.03.76 2.08V22c0 .29.2.63.76.53A11.1 11.1 0 0 0 12 .9Z" />
             </svg>
-            <span className="hidden max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover:max-w-xs group-hover:opacity-100 group-focus-visible:max-w-xs group-focus-visible:opacity-100 md:inline">
-              Código abierto
-            </span>
           </a>
           <InfoPanel />
         </div>
