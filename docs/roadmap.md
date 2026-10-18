@@ -110,6 +110,8 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | 11 | ~~🟢 Relieve: pendiente y exposición desde Copernicus GLO-30~~ ✅ 2026-10-11 (por viewport, no PNG estático: a 30 m un PNG nacional sería inmanejable) | La aptitud del suelo es el confusor central de la tesis | [§ 1.4](#14-carta-topográfica-igm-150000-vía-mop-rest-sit---aprobada-en-cola) |
 | 12 | 🟢 NDVI antes / después (dos fechas y su diferencia) | Leer incendios, cosechas, humedales que se secan | [§ 5.2](#52-ndvi-sentinel-2--en-producción-2026-09-17--2026-09-27) |
 | 13 | 🟢 Riqueza de especies GBIF con esfuerzo de muestreo | Biodiversidad sin confundir «sin muestreo» con «sin especies» | [Investigación › Eje 3](#eje-3--coberturas-humedales-bosque-nativo-y-agua) |
+| 14 | 🟡 Derechos de agua DGA (76k puntos, sin nombre del solicitante, datum convertido) | Endpoint masivo hallado el 2026-10-18; el agua pesa tanto como el suelo en la tasación | [§ 2.2](#22-derechos-de-aprovechamiento-de-aguas-dga---investigación) |
+| 15 | 🟢 Eventos históricos de remoción en masa (Sernageomin) | Fuente oficial hallada el 2026-10-18; contexto, no zonificación | [§ 2.3](#23-sernageomin--peligros-geológicos-remociones-en-masa-volcanismo) |
 
 **Pospuestas por decisión del autor (2026-10-10)** — no encabezan la cola;
 se retoman solo si él lo pide: la auditoría de reidentificación de la API
@@ -350,6 +352,22 @@ decidirlas juntas:
 > tramos) ya está en producción. Sigue en investigación el resto del contexto
 > hídrico (glaciares SNIA, cuencas como polígono); `scripts/build-derechos-agua.mjs`
 > es todavía un stub. Los derechos individuales quedan como link-outs.
+>
+> **Hallazgo 2026-10-18** (revisión del segundo informe Gemini): SÍ hay canal
+> masivo de derechos. `rest-sit.mop.gob.cl/arcgis/rest/services/SNIA/SNIA_DerechoAprovechamiento/MapServer/0`
+> responde con **76.488 puntos** (consuntivo/no consuntivo, permanente/eventual,
+> superficial/subterránea, caudal en l/s, cuenca, resolución, «Resuelta /
+> En trámite»; `maxRecordCount` 60.000). Tres trampas verificadas:
+> (1) trae **`NombreSolicitante`** (es su campo de despliegue): es PII y va
+> fuera por allowlist, como en `humedales-proxy.ts`; (2) la `FechaResolucion`
+> más reciente es **2021-10-30** y el último ingreso 2021-10-05, pese a que
+> el servicio dice actualizarse a diario: **no contiene derechos posteriores a
+> la Ley 21.435**, así que no sirve para distinguir derechos antiguos de
+> concesiones temporales de 30 años; (3) las coordenadas vienen en **tres
+> datums** (`DatumLalo` 1956 / 1969 / 1984): hay que convertir PSAD56 y SAD69
+> a WGS84 antes de dibujar (ver Eje 1 «Conversión de datum»). Licencia no
+> declarada («para alimentar el visor de la página WEB de DGA»): servirla
+> como capa remota por proxy, no redistribuirla como archivo.
 
 - **Fuente**: Catastro Público de Aguas, 12 registros públicos
   disponibles en <https://dga.mop.gob.cl/servicios-de-informacion/catastro-publico-de-aguas/>,
@@ -388,6 +406,19 @@ decidirlas juntas:
   remota** si solo se accede vía servicio.
 - **Esfuerzo**: **L** — el endpoint directo está intermitente; hay
   que identificar el canal estable de descarga.
+- **Hallazgo 2026-10-18**: la organización ArcGIS Online oficial
+  «Sernageomin - SDNG» (`services1.arcgis.com/OyjvVdFTl5hfSdX3`, 208
+  servicios) publica `Catálogo_de_eventos_de_RM_nacional`: **18.406 puntos** de
+  remociones en masa 1762-2021 con tipo, detonante, fecha, precisión de la
+  coordenada y enlace al informe. Son **eventos ocurridos, no zonas de
+  peligro**: no hay una zonificación nacional de peligro, solo mapas
+  regionales sueltos (`Mapa_de_Peligro_Geológico_de_Coquimbo_500_WFL1`,
+  `Peligros_Geológicos_de_Flujos_Cuencas_Alta_Cordillera_WFL1`). Primera
+  entrega posible: «eventos históricos de remoción en masa» como contexto,
+  con la advertencia de que la ausencia de puntos no significa ausencia de
+  peligro. No usar el ítem «Catastro de remociones en masa Sernageomin» de
+  ArcGIS Online que cita el informe: es una copia subida por una cuenta
+  universitaria, no la fuente oficial.
 - **Riesgo**: si SERNAGEOMIN no ofrece canal masivo público, evaluar
   el **espejo SMA** (ya documentado) o posponer.
 
@@ -1262,6 +1293,67 @@ descargable (no al mapa).
 - [ ] Bases y fechas de FONDEF IDeA I+D y Ciencia Pública del ciclo 2027.
 - [ ] Peso real de DuckDB-WASM en el arranque frente al JSON actual de
       `/api/points` (21 MB), antes de considerarlo para la vista.
+
+## Revisión externa: segundo informe Gemini Deep Research (2026-10-18)
+
+> Informe «Mejora SIG Territorial Web Chile» (Drive del autor), encargado con
+> un prompt que listaba lo que el SIG ya tiene. Mismo método que la revisión
+> del 2026-10-10: cada afirmación se contrastó con el código y, cuando citaba
+> un endpoint, con el endpoint (consultas del 2026-10-18).
+
+**Balance**: el núcleo (PMTiles, GeoParquet + DuckDB-WASM, MGWR, validación
+por bloques, MapBiomas, LISA, InVEST, anonimización) **repite el informe
+anterior** y ya está adoptado o descartado en la sección de arriba. El valor
+nuevo está en dos fuentes concretas que destraban la Fase 2 (derechos de agua
+y Sernageomin), y ambas traen trampas que el informe no vio.
+
+### Lo que se corrige
+
+- **«El SIG consume WMS clásico» / «convertir las transacciones de WMS a
+  PMTiles»**: el SIG no usa WMS en ninguna capa (las remotas son un PNG por
+  vista vía `export` de ArcGIS, a propósito). Las transacciones salen de la
+  API en JSON; un PMTiles de los ~85k puntos sería una descarga masiva del
+  registro y perdería los filtros en vivo (ya descartado el 2026-10-10).
+- **«Distinguir derechos de agua perpetuos de concesiones temporales de 30
+  años con el CPA»**: imposible con el servicio que cita. Su dato más reciente
+  es de octubre de 2021, antes de la Ley 21.435 (ver § 2.2). Además trae el
+  nombre del solicitante, que el informe no menciona.
+- **Sernageomin**: el `Visor_Estudios_RM_WFL1` que cita son **78 puntos** con
+  la ubicación de *estudios*, no zonas de peligro; el «catastro» de ArcGIS
+  Online es una copia de terceros. La fuente oficial útil es otra (§ 2.3).
+- **Censo 2024 «verificado»**: el ítem `MANZANAS 2024` que cita lo publicó
+  una cuenta municipal de Puerto Montt, no el INE; y la manzana es una unidad
+  urbana (en lo rural son entidades). Usar las descargas del INE.
+- **MapBiomas «Colección 2.0 (1985-2024)»**: la página de descargas muestra
+  la Colección 1; la licencia **CC BY 4.0** sí se confirma.
+- **Privacidad**: su referencia del *medoid masking* es un artículo sobre
+  cómo **revertir** el enmascaramiento (un ataque), no sobre cómo aplicarlo.
+  Y recomienda «no mostrar roles tributarios», contra la decisión documentada
+  de que el ROL es público (AGENTS.md). La auditoría sigue pospuesta por
+  decisión del autor.
+- **OGUC art. 2.1.17 aplicado a cualquier predio rural** y **CR2met «CC
+  BY-NC-SA»**: sin fuente primaria; quedan en «Por verificar».
+- Fuentes débiles para afirmaciones fuertes: blogs comerciales, un video de
+  YouTube, un catálogo municipal en chino. El marco «Región de Los Ríos»
+  tampoco es el del SIG, que es nacional.
+
+### Lo que se adopta
+
+| Recomendación | Decisión | Dónde |
+|---|---|---|
+| **Derechos de aprovechamiento DGA** como capa | Adoptada con las tres trampas resueltas: allowlist sin `NombreSolicitante`, conversión de datum, rótulo «inscritos en el CPA hasta oct-2021». Capa remota por proxy, mínimo zoom alto | § 2.2 (cola #14) |
+| **Peligros geológicos Sernageomin** | Adoptada como «eventos históricos de remoción en masa» (18.406 puntos oficiales), nunca como zonificación | § 2.3 (cola #15) |
+| **Modelos espaciales SEM / Durbin** junto a MGWR | Se suman a la línea de modelos offline del Eje 2 | Eje 2, H5 |
+| **Exportar la consulta como cuaderno reproducible** (Python/R con los filtros y las fuentes) | Idea nueva; barata sobre el permalink | Banco de ideas |
+
+### Por verificar (de este informe)
+
+- [ ] Texto del art. 2.1.17 OGUC: ¿qué exige a un predio rural fuera de un
+      plan regulador?
+- [ ] Licencia de CR2met y si permite redistribuir un derivado en COG.
+- [ ] MapBiomas Chile: colección vigente real y años que cubre.
+- [ ] Si la DGA publica en otro servicio los derechos constituidos después
+      del 2021 (el SNIA documenta actualización diaria y no la cumple).
 
 ## Ruta GIS de largo plazo (horizontes H1–H5)
 
