@@ -683,6 +683,7 @@ export function LayersControl({
   onToggleCatastroFruticola,
   showVegetacional,
   onToggleVegetacional,
+  vegetacionalStatus,
   showHumedales,
   onToggleHumedales,
   humedalesStatus,
@@ -747,6 +748,7 @@ export function LayersControl({
   onToggleCatastroFruticola: (v: boolean) => void;
   showVegetacional: boolean;
   onToggleVegetacional: (v: boolean) => void;
+  vegetacionalStatus: RemoteRasterStatus;
   showHumedales: boolean;
   onToggleHumedales: (v: boolean) => void;
   humedalesStatus: HumedalesStatus;
@@ -1220,6 +1222,7 @@ export function LayersControl({
               Ver fuente oficial →
             </a>
           </p>
+          {showVegetacional && <RemoteStatusNotice status={vegetacionalStatus} provider="CONAF" />}
         </LayerRow>
 
         <div>

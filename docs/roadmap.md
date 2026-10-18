@@ -98,7 +98,7 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | 2 | ~~🔴 Node 22 en CI + Vercel, `engines`~~ ✅ 2026-10-10 | Node 20 está fuera de soporte desde abril 2026 | [Deuda › Plataforma](#plataforma-y-release) |
 | 3 | ~~🔴 Fijar el runner de CI y añadir `npm run build` al workflow~~ ✅ 2026-10-10 | `ubuntu-latest` cambia el 2026-10-19; hoy CI no compila | [Deuda › Plataforma](#plataforma-y-release) |
 | 4 | ~~🟡 Etiquetar `v0.2.0`~~ ✅ 2026-10-10 | Cambio incompatible + KMZ + coordenadas sin release | [Deuda › Plataforma](#plataforma-y-release) |
-| 5 | 🟡 CONAF informa su estado a la leyenda ~~+ popups inline a `map-popups.ts`~~ (popups ✅ con la consulta integrada) | Falla silenciosa del export CONAF | [Deuda › Frontend](#arquitectura-del-frontend) |
+| 5 | ~~🟡 CONAF informa su estado a la leyenda + popups inline a `map-popups.ts`~~ ✅ 2026-10-18 | Falla silenciosa del export CONAF | [Deuda › Frontend](#arquitectura-del-frontend) |
 | 5b | ~~🟢 Consulta integrada del punto («¿Qué hay aquí?»)~~ ✅ 2026-10-10 | Los popups de cada capa se pisaban | [Producto](#producto-y-mercado) |
 | 5c | 🟡 Límite de consultas — *parte 1+2 ✅ 2026-10-10*: grilla + debounce (≈ 2,3× menos peticiones) y 429 honesto con reintento. Falta la parte 3: cupos separados por costo (datos / imágenes / consultas) y tope global por organismo | Con varias capas remotas el cupo único de 60/min se agotaba | [Deuda › Seguridad](#seguridad-y-operación) |
 | 6 | ~~🟢 Permalink con estado completo~~ ✅ 2026-10-10 | Habilita compartir hallazgos; barato | [Producto](#producto-y-mercado) |
@@ -907,7 +907,8 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
       propósito: lo compone nuestro servidor y su redondeo de caja no sirve
       para ArcGIS (ver `remote-raster.ts`). La carta IGM (§ 1.4) ya no sería
       una quinta copia: es una llamada más a `useViewportRaster`.
-- [ ] 🟡 **CONAF no informa su estado a la leyenda.** A diferencia de suelos,
+- [x] **CONAF no informa su estado a la leyenda** — resuelto el 2026-10-18:
+      `onVegetacionalStatus` → `RemoteStatusNotice` (proveedor «CONAF»). Texto original: A diferencia de suelos,
       propiedades rurales y NDVI, `useVegetacionalLayer` no emite
       `loading`/`error`/`zoom-required`: si el servicio cae, la capa queda
       vacía sin explicación. (Verificado 2026-10-10: sigue igual.)

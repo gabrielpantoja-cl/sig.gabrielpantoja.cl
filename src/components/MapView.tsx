@@ -141,6 +141,7 @@ export default function MapView({
   showRelieve = false,
   relieveModo = RELIEVE_DEFAULT_MODO,
   onRelieveStatus,
+  onVegetacionalStatus,
   showHexbins = false,
   hexbinDestino,
   hexbinMinN,
@@ -194,6 +195,8 @@ export default function MapView({
   showRelieve?: boolean;
   relieveModo?: RelieveModo;
   onRelieveStatus?: (status: RemoteRasterStatus) => void;
+  /** Disponibilidad operacional de la capa remota CONAF para la leyenda. */
+  onVegetacionalStatus?: (status: RemoteRasterStatus) => void;
   /** Mapa de calor de valor: hexbins de $/m² agregados en Neon por viewport. */
   showHexbins?: boolean;
   /** Código de destino SII sobre el que se agrega. Obligatorio: la mediana de
@@ -327,6 +330,7 @@ export default function MapView({
   const onPropiedadesRuralesStatusRef = useRef(onPropiedadesRuralesStatus);
   const onNdviVisualStatusRef = useRef(onNdviVisualStatus);
   const onRelieveStatusRef = useRef(onRelieveStatus);
+  const onVegetacionalStatusRef = useRef(onVegetacionalStatus);
   const onHexbinStatusRef = useRef(onHexbinStatus);
   const onConservadoresStatusRef = useRef(onConservadoresStatus);
   // Modo NDVI en ref: los handlers de clic de otras capas (declarados en
@@ -343,11 +347,12 @@ export default function MapView({
     onPropiedadesRuralesStatusRef.current = onPropiedadesRuralesStatus;
     onNdviVisualStatusRef.current = onNdviVisualStatus;
     onRelieveStatusRef.current = onRelieveStatus;
+    onVegetacionalStatusRef.current = onVegetacionalStatus;
     onHexbinStatusRef.current = onHexbinStatus;
     onConservadoresStatusRef.current = onConservadoresStatus;
     ndviModeRef.current = ndviMode;
     onNdviPointRef.current = onNdviPoint;
-  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onViewChange, onHumedalesStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onRelieveStatus, onHexbinStatus, onConservadoresStatus, ndviMode, onNdviPoint]);
+  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onViewChange, onHumedalesStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onRelieveStatus, onVegetacionalStatus, onHexbinStatus, onConservadoresStatus, ndviMode, onNdviPoint]);
 
   // Publica el método de export en el ref entregado por la página. La closure
   // se re-bindea en cada cambio de flags para que la captura refleje siempre
@@ -1045,7 +1050,8 @@ export default function MapView({
   useViewportRaster({
     mapRef, overlayRef: vegetacionalRef, show: showVegetacional,
     exportUrl: VEGETACIONAL_EXPORT_URL, minZoom: VEGETACIONAL_MIN_ZOOM, serviceName: VEGETACIONAL_SERVICE_NAME,
-    attribution: 'CONAF · Recursos vegetacionales', opacity: () => opacityRef.current.vegetacional, reorderOverlays,
+    attribution: 'CONAF · Recursos vegetacionales', opacity: () => opacityRef.current.vegetacional,
+    onStatusRef: onVegetacionalStatusRef, reorderOverlays,
   });
 
   useNdviVisualLayer({ mapRef, ndviVisualRef, showNdviVisual, opacityRef, onNdviVisualStatusRef, reorderOverlays });

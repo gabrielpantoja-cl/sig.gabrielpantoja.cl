@@ -314,6 +314,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   const [layerOpacity, setLayerOpacity] = useState(DEFAULT_LAYER_OPACITY);
   const [showCatastroFruticola, setShowCatastroFruticola] = useState(on('catastro_fruticola'));
   const [showVegetacional, setShowVegetacional] = useState(on('vegetacional'));
+  const [vegetacionalStatus, setVegetacionalStatus] = useState<RemoteRasterStatus>({ kind: 'idle' });
   const [showHumedales, setShowHumedales] = useState(on('humedales'));
   const [humedalesStatus, setHumedalesStatus] = useState<HumedalesStatus>({ kind: 'idle' });
   const [showNdviVisual, setShowNdviVisual] = useState(on('ndvi_visual'));
@@ -722,6 +723,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
           onToggleCatastroFruticola={setShowCatastroFruticola}
           showVegetacional={showVegetacional}
           onToggleVegetacional={setShowVegetacional}
+          vegetacionalStatus={vegetacionalStatus}
           showHumedales={showHumedales}
           onToggleHumedales={setShowHumedales}
           humedalesStatus={humedalesStatus}
@@ -790,6 +792,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               showRelieve={showRelieve}
               relieveModo={relieveModo}
               onRelieveStatus={setRelieveStatus}
+              onVegetacionalStatus={setVegetacionalStatus}
               onPropiedadesRuralesStatus={setPropiedadesRuralesStatus}
               selectedRuralFeature={selectedRuralFeature}
               showHexbins={showHexbins}

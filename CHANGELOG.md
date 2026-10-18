@@ -59,6 +59,10 @@ versionado.
 
 ### Corregido
 
+- **La capa CONAF informa su estado en la leyenda.** Era la única capa remota
+  que callaba: si el servicio caía o faltaba zoom, quedaba vacía sin
+  explicación. Ahora muestra «acerca el mapa», «consultando», «listo»,
+  «pausa breve» o el error con servicio y operación, como suelos y humedales.
 - **El cajetín del PNG parte las líneas largas.** Los descargos extensos
   (propiedades rurales, licencias) se salían del recuadro blanco.
 
