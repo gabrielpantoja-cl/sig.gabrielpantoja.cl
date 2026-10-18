@@ -1,18 +1,20 @@
 # Arquitectura de capas del SIG: catálogo y receta para agregar una capa nueva
 
-> Documento vivo. Última actualización: 2026-10-10.
+> Documento vivo. Última actualización: 2026-10-18.
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
 > públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
 > Cualquier persona puede abrir un PR siguiendo la receta documentada aquí;
 > el ruleset `Protect main` exige pasar el check `ESLint + TypeScript`.
 
-Este SIG tiene tres familias de capas: los **puntos CBR** (dinámicos, desde Neon
-vía `/api/points`), las **capas derivadas de los propios puntos CBR** (agregadas
-en Neon por viewport — hoy solo el mapa de calor de valor, `/api/hexbins`) y las
-**capas temáticas estáticas** (GeoJSON pre-construido
-en `public/data/`, generado por scripts ETL reproducibles desde fuentes
-oficiales del Estado de Chile). Este documento cataloga las capas existentes y
+Este SIG tiene cuatro familias de capas: las **capas desde Neon** (puntos CBR
+vía `/api/points` y oficinas de Conservadores vía `/api/conservadores`), las
+**capas derivadas de los propios puntos CBR** (agregadas en Neon por viewport —
+hoy solo el mapa de calor de valor, `/api/hexbins`), las **capas temáticas
+estáticas** (GeoJSON o PNG pre-construidos en `public/data/`, generados por
+scripts ETL reproducibles desde fuentes oficiales) y las **capas dinámicas
+remotas** (un PNG por viewport desde el servicio del organismo, o compuesto por
+nuestro servidor desde COG públicos). Este documento cataloga las capas existentes y
 fija la receta para agregar la próxima, de modo que cada capa nueva salga con
 el mismo estándar: fuente oficial verificable, manifiesto de procedencia,
 atribución visible y cita en el popup.
@@ -23,17 +25,19 @@ atribución visible y cita en el popup.
 |---|---|---|---|---|---|
 | Áreas protegidas (RNAP) | MMA · Registro Nacional de Áreas Protegidas (CC0) | — | ~12 categorías legales | 6,0 MB | `scripts/build-protected-areas.mjs` |
 | Límite urbano (PRC) | MINVU · IPT · geoide.minvu.cl (ArcGIS REST) | — | 601 polígonos | 0,9 MB | `scripts/build-urban-limit.mjs` |
-| Límites comunales (DPA) | SUBDERE · DPA 2023 · geoportal.cl (Grupo DPA: SUBDERE/IGM/DIFROL/INE, 1:50.000) | 2023 | 345 comunas | 2,7 MB | `scripts/build-comunas.mjs` |
-| Red caminera (MOP) | Dirección de Vialidad · mapasvialidad.mop.gob.cl (UGIT-DV, shapefile oficial) | 2026-06-30 | 14.085 tramos (5 grupos de clasificación) | 5,9 MB | `scripts/build-red-vial.mjs` |
-| Red de drenaje (DGA) | DGA · Banco Nacional de Aguas · ArcGIS REST (`Ríos` + `Esteros` FeatureServer, paginado 1.000/request) | 2022-08 | ~35.500 tramos (ríos + esteros, BNA COD_CUEN/COD_SUBC/COD_SSUBC) | ~25–35 MB | `scripts/build-red-drenaje.mjs` |
-| Líneas de transmisión eléctrica | Ministerio de Energía · IDE Energía · geometría CEN (ArcGIS REST MapServer/10) | 2026-03-01 | 1.127 tramos dibujables (1 de 1.128 registros fuente sin coordenadas) | 3,0 MB | `scripts/build-lineas-transmision.mjs` |
+| Límites comunales (DPA) | SUBDERE · DPA 2023 · geoportal.cl (Grupo DPA: SUBDERE/IGM/DIFROL/INE, 1:50.000) | 2023 | 345 comunas | 2,8 MB | `scripts/build-comunas.mjs` |
+| Red caminera (MOP) | Dirección de Vialidad · mapasvialidad.mop.gob.cl (UGIT-DV, shapefile oficial) | 2026-06-30 | 14.085 tramos (5 grupos de clasificación) | 6,2 MB | `scripts/build-red-vial.mjs` |
+| Red de drenaje (DGA) | DGA · Banco Nacional de Aguas · ArcGIS REST (`Ríos` + `Esteros` FeatureServer, paginado 1.000/request) | 2022-08 | ~35.500 tramos (ríos + esteros, BNA COD_CUEN/COD_SUBC/COD_SSUBC) | 13,9 MB | `scripts/build-red-drenaje.mjs` |
+| Líneas de transmisión eléctrica | Ministerio de Energía · IDE Energía · geometría CEN (ArcGIS REST MapServer/10) | 2026-03-01 | 1.127 tramos dibujables (1 de 1.128 registros fuente sin coordenadas) | 3,1 MB | `scripts/build-lineas-transmision.mjs` |
+| Bioclima (WorldClim 2.1) | WorldClim 2.1 · BIO1 y BIO12 (CC BY 4.0) | climatología 1970–2000 | Dos PNG reproyectados a Web Mercator (temperatura, precipitación) | 75 KB | `scripts/build-bioclima.mjs` |
 | Suelos agrológicos (CIREN) | CIREN · Estudios Agrológicos · esri.ciren.cl (MapServer, 12 regiones) | 2010–2024 según región | Clases I–VIII + N.C. | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
-| Catastro frutícola (CIREN) | CIREN · IDE Minagri · esri.ciren.cl (MapServer `IDEMINAGRI/CATASTRO_FRUTICOLA`, 14 sublayers) | 2019–2025 según región | ~95k productores (especie_01 + ROL + códigos SUBDERE) | **~30 MB** ⚠ | `scripts/build-catastro-fruticola.mjs` |
+| Catastro frutícola (CIREN) | CIREN · IDE Minagri · esri.ciren.cl (MapServer `IDEMINAGRI/CATASTRO_FRUTICOLA`, 14 sublayers) | 2019–2025 según región | ~95k productores (especie_01 + ROL + códigos SUBDERE) | **31,4 MB** ⚠ | `scripts/build-catastro-fruticola.mjs` |
 | Recursos vegetacionales (CONAF) | CONAF · IDE Minagri · ArcGIS MapServer | 2014–2024 según región | Render oficial + consulta puntual de uso, subuso, estructura, cobertura y especies dominantes | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
 | Humedales (MMA) | Ministerio del Medio Ambiente · SIMBIO · `SIMBIO/SIMBIO_HUMEDALES` MapServer (arcgis.mma.gob.cl), CC0 | inventario sin fecha de corte declarada; urbanos declarados con su resolución (2021→) | ~118k polígonos del Inventario Nacional + 137 humedales urbanos (Ley 21.202) | **0 MB (capa dinámica remota)** | — (sin ETL; `/api/humedales/*`) |
 | Propiedades rurales (CIREN) | CIREN · IDE Minagri · `IDEMINAGRI/PROPIEDADES_RURALES` (14 sublayers regionales) | 2004–2023 según región | Polígonos prediales referenciales + ROL SII publicado por la fuente | **0 MB (capa dinámica remota)** | — (sin ETL; ver sección siguiente) |
 | NDVI Visual (Sentinel-2) | Copernicus Sentinel-2 L2A · Element 84 Earth Search / AWS Open Data (COG) | escenas de los últimos 45 días, seleccionadas por grilla MGRS | Raster continuo de NDVI por viewport, enmascarado con SCL; rampa compartida leyenda↔pintor | **0 MB (capa dinámica remota)** | — (sin ETL; `/api/ndvi/export` + `lib/ndvi-raster.ts`) |
 | Relieve (Copernicus GLO-30) | Copernicus DEM GLO-30 Public · AWS Open Data (`s3://copernicus-dem-30m`, COG 1° × 1°, licencia libre con aviso obligatorio) | TanDEM-X 2011–2015 (release 2021) | Sombreado, pendiente (clases SAG A–I) y exposición por viewport; cota/pendiente/exposición por punto a 30 m | **0 MB (capa dinámica remota, calculada por nosotros)** | — (sin ETL; `/api/relieve/{export,punto}` + `lib/relieve-raster.ts`) |
+| Conservadores de Bienes Raíces | Tabla en Neon (oficinas ubicadas) + jurisdicción desde los polígonos DPA por `CUT_COM` | — | Un marcador por oficina; resalta su jurisdicción al abrir el popup | **0 MB (Neon, `/api/conservadores`)** | — |
 | Mapa de calor de valor ($/m²) | Elaboración propia sobre inscripciones de los Conservadores de Bienes Raíces | igual que los puntos CBR (97 % de 2025) | Raster continuo interpolado desde centroides `ST_HexagonGrid` de 60 m–4 km según zoom (máx. 4.000 muestras por respuesta) | **0 MB (agregada en Neon + rasterizada en el cliente)** | — (sin ETL; `/api/hexbins` + `lib/heat-surface.ts`) |
 
 Cada GeoJSON va acompañado de un `*.meta.json` (manifiesto de procedencia:
@@ -48,7 +52,7 @@ nacional de fajas legales. Nunca se deben inferir servidumbres aplicando buffers
 por tensión; su geometría y vigencia dependen de los planos especiales, títulos
 y antecedentes de cada concesión o proyecto.
 
-### Capas dinámicas remotas (tercera familia)
+### Capas dinámicas remotas
 
 El catastro CONAF se consume como **capa dinámica remota**. `MapView` solicita
 un PNG por viewport mediante el proxy validado `/api/vegetacional/export` y
@@ -58,13 +62,16 @@ no representa vigencia legal ni fecha de observación de cada polígono. La
 fuente y los campos deben revisarse nuevamente cuando CONAF publique una
 actualización; IDE Minagri no garantiza un vintage nacional homogéneo.
 
-La capa de suelos CIREN inaugura una tercera familia: cuando el dataset
-oficial es demasiado pesado para GeoJSON estático (el de CIREN supera los
-500 MB; una sola región pesa ~40 MB), se consume el servicio del organismo en
-vivo. Patrón implementado en `MapView.tsx` (efecto de suelos) +
-`src/lib/suelos.ts`:
+La capa de suelos CIREN inauguró esta familia: cuando el dataset oficial es
+demasiado pesado para GeoJSON estático (el de CIREN supera los 500 MB; una sola
+región pesa ~40 MB), se consume el servicio del organismo en vivo. Las cuatro
+capas ArcGIS (suelos, CONAF, humedales, propiedades rurales) comparten un solo
+ciclo de vida, `src/components/map/useViewportRaster.ts`:
 
-- **Un `L.ImageOverlay` refrescado en `moveend`** contra `/api/suelos/export`,
+- **Un `L.ImageOverlay` refrescado en `moveend`** (debounce de 250 ms y
+  petición ajustada a una grilla de 128 px en Web Mercator, así un paneo
+  pequeño no pide nada y dos usuarios en la misma celda comparten la caché de
+  la CDN) contra `/api/suelos/export`,
   proxy validado del endpoint `export` del MapServer (UN PNG por viewport).
   El proxy fija el servicio, limita parámetros y tamaño, aplica timeout y
   normaliza respuestas HTTP/HTML de ArcGIS. **No usar el WMS teselado**: Leaflet
@@ -106,9 +113,9 @@ con una lista cerrada de alias, de modo que un campo nuevo del servicio no
 llega a la UI sin revisión, y devuelve primero la declaración (es la que tiene
 efecto legal). Verificado el 2026-10-10 sobre el humedal Angachilla (Valdivia):
 el raster calza con la costa de Corral e Isla del Rey, y el clic devuelve la
-resolución RE N° 1337/2021 junto al polígono del inventario. A diferencia de
-CONAF, el hook informa su estado a la leyenda y sus popups viven en
-`map-popups.ts`.
+resolución RE N° 1337/2021 junto al polígono del inventario. Como las demás
+capas remotas, informa su estado a la leyenda; su sección de «¿Qué hay aquí?»
+vive en `map-popups.ts`.
 
 La capa de **propiedades rurales CIREN** usa el mismo patrón, mediante
 `/api/propiedades-rurales/export` e `/api/propiedades-rurales/identify`. Se
@@ -136,8 +143,7 @@ presupuesto máximo de 50.000 coordenadas. `MapView` la mantiene como un
 `L.GeoJSON` independiente del raster para poder resaltarla y limpiarla sin
 reconstruir la cobertura remota.
 
-El **NDVI Visual (Sentinel-2)** es la capa más reciente de la familia: un
-raster continuo de vigor vegetal que el servidor compone desde cero por
+El **NDVI Visual (Sentinel-2)** es un raster continuo de vigor vegetal que el servidor compone desde cero por
 viewport (`/api/ndvi/export` + `src/lib/ndvi-raster.ts`, server-only). El
 cliente solo manda `bbox` y `size`; el servidor busca escenas en Element 84
 Earth Search (45 días, una por cuadrícula MGRS: primero las despejadas ≤ 15 %
@@ -166,6 +172,12 @@ implementación:
 - La atribución Copernicus entra al PNG de export por la bandera
   `showNdviVisual`; los píxeles entran solos (es un `<img>` del
   `overlayPane` que `drawOverlayPaneToCanvas` compositea con su opacidad).
+
+El **Relieve (Copernicus GLO-30)** sigue el patrón de NDVI (lo calcula nuestro
+servidor desde COG públicos) pero entra por `useViewportRaster`. Su diseño
+(mosaico en la grilla de Copernicus, gradiente de Horn antes de remuestrear,
+clases de pendiente SAG, PNG indexado, aviso de licencia obligatorio) está en
+`AGENTS.md` y en `src/lib/relieve-raster.ts`.
 
 Además existen las **capas KML del usuario** (subidas en el panel Capas,
 parseadas 100 % en el navegador — `src/lib/kml.ts` — nunca suben a un
@@ -241,11 +253,11 @@ el ejemplo más reciente y completo de cada paso.
    carmesí = puntos CBR, verdes/azules = RNAP, ámbar = límite urbano, gris
    pizarra discontinuo = comunas.
 
-5. **Agregar el efecto de capa en `MapView.tsx`**: prop `show<Capa>`, ref
-   propia, `useEffect` estructuralmente idéntico a los existentes
-   (`fetch('/data/<capa>.geojson')` → `L.geoJSON` → popup con
-   `build<Capa>Popup` usando el escape HTML manual `esc()`), y registrar la
-   ref en `reorderOverlays()` en la posición correcta del apilado (contexto al
+5. **Agregar la capa en `MapView.tsx`**: prop `show<Capa>`, ref propia y una
+   llamada a `useStaticGeoJsonLayer` (aborta la descarga si la capa se apaga a
+   medio camino; para una capa remota, `useViewportRaster`), con el popup
+   armado en `src/lib/map-popups.ts` (`esc()` para el texto, `safeHref()` para
+   enlaces, con tests), y registrar la ref en `reorderOverlays()` en la posición correcta del apilado (contexto al
    fondo, puntos CBR siempre al frente). El popup **siempre cierra citando la
    fuente** y, si el límite es referencial, diciéndolo.
    **Desde 2026-10-10, según la geometría:** una capa de **líneas o puntos**
@@ -265,7 +277,9 @@ el ejemplo más reciente y completo de cada paso.
    peso), probar en `localhost:3000` (activar la capa junto a las demás,
    popups clicables, orden de apilado, modo claro y oscuro), `npm run lint`,
    y actualizar la tabla de este documento + AGENTS.md (comandos, key files,
-   bullet de arquitectura).
+   bullet de arquitectura). Si la capa debe ir en el enlace compartido,
+   agregarla a `src/lib/permalink.ts` (el tipo `layerFlags` de `page.tsx`
+   obliga a hacerlo).
 
 ## Reglas de datos que ninguna capa puede romper
 

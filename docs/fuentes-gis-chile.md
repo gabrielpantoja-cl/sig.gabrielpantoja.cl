@@ -1,6 +1,6 @@
 # Fuentes GIS oficiales de Chile para este proyecto
 
-> Documento vivo. Última actualización: 2026-10-05.
+> Documento vivo. Última actualización: 2026-10-18.
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
 > públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
@@ -31,6 +31,7 @@ siempre el **organismo productor** del dato (regla 1 de la receta en
 | **CIREN-ODEPA** vía IDE Minagri | Catastro frutícola: polígonos de productores por especie, ROL y códigos SUBDERE (sin variedad, superficie ni riego: eso es producto comercial de CIREN) | ArcGIS REST `IDEMINAGRI/CATASTRO_FRUTICOLA`, 14 sublayers regionales | Capa catastro frutícola |
 | **CIREN** vía IDE Minagri | Propiedades rurales: polígonos prediales por región, campo `rol` («Rol SII del predio») y `desccomu` | `esri.ciren.cl/server/rest/services/IDEMINAGRI/PROPIEDADES_RURALES/MapServer` — export por viewport + `identify`/`query` acotados. Público sin autenticación, pero eso no autoriza republicar un GeoJSON completo | Capa propiedades rurales (dinámica) |
 | **CONAF** vía IDE Minagri / SIT CONAF | Catastro de recursos vegetacionales: uso, subuso, estructura, cobertura, especies dominantes (vintages regionales 2014–2024) | ArcGIS MapServer, export por viewport + `identify` | Capa recursos vegetacionales (dinámica) |
+| **MMA** — SIMBIO (arcgis.mma.gob.cl) | Inventario Nacional de Humedales (~118k polígonos) y humedales urbanos declarados por la Ley 21.202 (137, con su resolución), CC0 | `SIMBIO/SIMBIO_HUMEDALES` MapServer, export por viewport + `identify` (atributos por alias, números en formato chileno) | Capa humedales (dinámica) |
 | **WorldClim 2.1** | Climatología 1970–2000 a 2,5′ (BIO1 temperatura media, BIO12 precipitación anual), CC BY 4.0 | Paquete oficial `wc2.1_2.5m_bio.zip` (628 MiB), recortado en el ETL | Capa bioclima (PNG estático) |
 | **Copernicus DEM GLO-30 Public** vía AWS Open Data | Modelo de elevación de SUPERFICIE (DSM, incluye árboles y edificios), 1″ (~30 m), cota EGM2008, error vertical < 4 m (90 %), TanDEM-X 2011–2015 | COG por baldosa de 1° (`copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S40_00_W074_00_DEM/…tif`), 3600 px de ancho hasta 50° S y 2400 px más al sur, overviews ×2/×4/×8, sin baldosa en el mar (`tileList.txt`). Licencia (PDF «Licence for the use of the Copernicus WorldDEM-30»): reproducción, distribución, comunicación pública y adaptación gratuitas; exige el aviso «produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018…» y el descargo de responsabilidad del art. 6 c | Capa relieve (por viewport + consulta del punto) |
 | **Copernicus Sentinel-2 L2A** vía Element 84 Earth Search / AWS Open Data | Reflectancia de superficie 10 m como COG, catálogo STAC `sentinel-2-l2a` | Range requests HTTP a `sentinel-cogs`, solo la ventana consultada | NDVI Visual (por viewport) y serie mensual NDVI (`/api/ndvi/serie`) |
@@ -91,9 +92,9 @@ El MOP publica el mismo dato vial por varios canales; en orden de utilidad:
 | **CIREN** (otros productos) | Catastro frutícola, propiedades rurales, erosión actual/potencial | Complementos de tasación rural en el mismo esri.ciren.cl; shapefiles descargables en ide.minagri.gob.cl/geoweb |
 | **IGM** — Instituto Geográfico Militar (servido por MOP-IDEMOP) | Carta regular 1:50.000: curvas de nivel, puntos acotados, fisiografía, toponimia oficial, hidrografía | Relieve y **nombres de sector rural**, que es como las escrituras del CBR describen el predio. Obra protegida (Ley 17.336, se vende): solo visualización vía el MapServer oficial, nunca ETL |
 | **CONAF** | Catastro de uso de suelo y vegetación, bosque nativo, plantaciones | Complementa destino/uso de predios rurales. IDE en sit.conaf.cl |
-| **DGA** (MOP) — Dirección General de Aguas | Cauces integrados (ríos/esteros, ver sección anterior). Quedan pendientes: derechos de aprovechamiento (DAA), cuencas BNA como polígono de contexto, glaciares, acuíferos SHAC, estaciones fluviométricas | Complementarios para valorización rural |
-| **SERNAGEOMIN** | Geología, peligros geológicos (remoción en masa, volcanismo), concesiones mineras | Restricciones de uso y riesgo en tasaciones. Portal geología: portalgeo.sernageomin.cl |
-| **INE** | Manzanas censales, entidades pobladas, microdatos Censo 2024 | Densidad/contexto demográfico. geoine-ine-chile.opendata.arcgis.com |
+| **DGA** (MOP) — Dirección General de Aguas | Cauces integrados (ríos/esteros, ver sección anterior). Derechos de aprovechamiento: `rest-sit.mop.gob.cl/arcgis/rest/services/SNIA/SNIA_DerechoAprovechamiento/MapServer/0`, 76.488 puntos (verificado 2026-10-18); trae el nombre del solicitante (PII, excluir), su dato más reciente es de 2021 y mezcla tres datums. Pendientes: cuencas BNA como polígono, glaciares, acuíferos SHAC, estaciones fluviométricas | Complementarios para valorización rural. Roadmap § 2.2 |
+| **SERNAGEOMIN** | Geología, peligros geológicos (remoción en masa, volcanismo), concesiones mineras | Restricciones de uso y riesgo en tasaciones. Organización ArcGIS Online oficial «Sernageomin - SDNG» (`services1.arcgis.com/OyjvVdFTl5hfSdX3`): `Catálogo_de_eventos_de_RM_nacional` (18.406 eventos 1762–2021, verificado 2026-10-18) y mapas de peligro regionales sueltos; no hay zonificación nacional. Roadmap § 2.3 |
+| **INE** | Manzanas censales, entidades pobladas, microdatos Censo 2024 | Densidad/contexto demográfico. geoine-ine-chile.opendata.arcgis.com. Ojo: en ArcGIS Online circulan copias de la cartografía censal subidas por municipios; usar la del INE |
 | **SMA** — ideserver.sma.gob.cl | Espejos de capas de otros organismos (incl. Red Vial MOP, layer 10) + fiscalización ambiental | Espejo útil si el productor está caído (documentar el porqué si se usa) |
 | **SHOA** | Línea de costa oficial, cartas náuticas, áreas de inundación por tsunami | Borde costero para predios con orilla de mar/lago |
 | **plataformadedatos.cl** (MINCIENCIA/CEDEUS) | Agregador académico-estatal de datasets georreferenciados | Alternativa de descarga cuando geoportal.cl falla |
@@ -101,7 +102,7 @@ El MOP publica el mismo dato vial por varios canales; en orden de utilidad:
 | **CIREN** — Inventario Nacional de Erosión | GeoNode `inventarioerosion.ciren.cl`, erosión actual y potencial | Cobertura O'Higgins → Los Lagos, WFS público. Roadmap § 2.1 |
 | **CIREN** — Hub Catastro Frutícola | `catastro-fruticola-inicio-esri-ciren.hub.arcgis.com` | Visor público; el shapefile empaquetado es de pago |
 | **SIMEF** (Minagri-INFOR-CONAF) | Monitoreo de ecosistemas forestales nativos, uso y cambio de uso, incendios | `simef.minagri.gob.cl`; datos al 31/12/2025 |
-| **DGA / SNIA** | Catastro Público de Aguas (12 registros) y observatorio de glaciares | Glaciares como vector; derechos de agua solo por expediente. Roadmap § 2.2 |
+| **DGA / SNIA** | Catastro Público de Aguas (12 registros) y observatorio de glaciares | Glaciares como vector; el expediente de cada derecho se consulta en el CPA. Roadmap § 2.2 |
 | **ODEPA** | Biblioteca Digital (infraestructura frutícola 1999–2025, agroindustria 2017–2019, XLSX) y reportes interactivos | Tablas de enriquecimiento, no capas |
 | **MMA — ARClim** | Atlas de riesgos climáticos | `arclim.mma.gob.cl` |
 | **SUBPESCA** | Concesiones acuícolas y áreas de manejo | Predios con borde costero o lacustre |
@@ -109,6 +110,7 @@ El MOP publica el mismo dato vial por varios canales; en orden de utilidad:
 | **NASA FIRMS** | Focos de incendio casi en tiempo real (VIIRS/MODIS) | Roadmap § 5.3a |
 | **Ministerio de las Culturas** | Patrimonio cultural y territorial | IDE Patrimonio, `idepat.patrimoniocultural.gob.cl` |
 | **BCN** | Límites administrativos y datos territoriales | Alternativa a DPA para series históricas |
+| **MapBiomas Chile** | Cobertura y uso del suelo anual desde 1985 (Landsat, 30 m), CC BY 4.0 | Descarga GeoTIFF o Google Earth Engine; sin WMS/STAC propio. Cambio de uso para ecoinformática |
 | **GBIF** | Registros abiertos de biodiversidad (`api.gbif.org/v1`) | Roadmap Fase 6 |
 
 ## Hallazgo transversal: los servidores GIS estatales son frágiles bajo ráfagas

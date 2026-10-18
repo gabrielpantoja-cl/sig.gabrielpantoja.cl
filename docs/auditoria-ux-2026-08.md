@@ -6,14 +6,16 @@
 > comuna, apilar capas de contexto, bajar a escala predial y sacar el anexo
 > gráfico del informe.
 >
-> Commit auditado: `3a79851` · versión `0.5.0` · Next.js 16.2.9 (dev).
+> Commit auditado: `3a79851` (anterior al primer release, `v0.1.0`) · Next.js 16.2.9 (dev).
 > Recorrido: carga inicial → panel de capas → geocodificación de Paillaco →
 > apilado de 5 capas → zoom z7→z18 → mapa de calor → export PNG → mobile 390 px.
 
 Los hallazgos se ordenan por severidad, no por esfuerzo. Cada uno lleva
 **evidencia** (lo que se observó) y **por qué importa** desde el oficio, no
-desde el gusto. Los ítems accionables están además listados como casillas en
-[`roadmap.md` § Mejoras no-capa](./roadmap.md#mejoras-no-capa-ux-y-producto--independiente-de-las-fases).
+desde el gusto. Este documento es el registro de la evidencia; el
+**seguimiento** de cada ítem vive en
+[`roadmap.md` § Mejoras no-capa](./roadmap.md#mejoras-no-capa-ux-y-producto--independiente-de-las-fases),
+y las casillas de abajo reflejan su estado al 2026-10-18.
 
 ## Nota metodológica
 
@@ -102,8 +104,8 @@ chileno esto no es un adorno: el perito trabaja con **UTM huso 19S**
 Conservador, y necesita poder leer y copiar un par de coordenadas de
 cualquier punto. Hoy no hay forma de saber dónde se está parado.
 
-- [ ] Barra de estado con lat/lon y UTM 19S del cursor, con copiar al
-      portapapeles. (Se cruza con «Búsqueda por coordenadas», ya en el
+- [~] Barra de estado con lat/lon y UTM 19S del cursor, con copiar al
+      portapapeles. *Hecho 2026-10-06, salvo copiar al portapapeles.* (Se cruza con «Búsqueda por coordenadas», ya en el
       roadmap: son las dos mitades de la misma función.)
 
 ### 1.2 Sin escala numérica
@@ -112,15 +114,17 @@ La barra gráfica dice «50 km» o «30 m», pero no hay razón de escala
 (`1:25.000`). Un informe de tasación **cita la escala numérica**; sin ella el
 PNG exportado no cumple la convención cartográfica que espera el destinatario.
 
-- [ ] Mostrar escala numérica junto a la gráfica, en pantalla y en el PNG.
+- [x] Mostrar escala numérica junto a la gráfica, en pantalla y en el PNG.
+      *Hecho 2026-10-11.*
 
 ### 1.3 Sin medición de distancias ni superficies
 
 No existe herramienta de medida. Medir un deslinde o estimar la superficie de
 un retazo es, literalmente, el trabajo. Hoy hay que exportar e irse a QGIS.
 
-- [ ] Herramienta de medir (polilínea y polígono), con resultado en m/km y
+- [x] Herramienta de medir (polilínea y polígono), con resultado en m/km y
       m²/ha, y opción de fijar la medición para que salga en el PNG.
+      *Hecho 2026-10-11.*
 
 ### 1.4 Sin control de opacidad por capa
 
@@ -130,7 +134,7 @@ Con «Suelos agrológicos» + «Límites comunales» encendidos (raster al 0,6 f
 nombres de localidad y los caminos justo cuando se los necesita para ubicarse.
 Cualquier visor serio resuelve esto con un deslizador por capa.
 
-- [ ] Deslizador de opacidad por capa en `LayersControl` (mínimo para las
+- [x] Deslizador de opacidad por capa en `LayersControl` (mínimo para las
       capas de relleno: suelos, vegetacional, comunas, frutícola).
 
 ### 1.5 Sin reordenar capas
@@ -168,9 +172,9 @@ explicación de que la opacidad codifica cobertura, recuento de celdas y de
 transacciones agregadas, y el descargo «señal de mercado, no tasación». Todo
 ese trabajo está escondido detrás de un chevron.
 
-- [ ] Leyenda flotante en el mapa (colapsable) que muestre **solo las capas
-      encendidas**, y que se apague junto con su capa.
-- [ ] La leyenda del mapa de calor debe ser visible por defecto mientras la
+- [x] Leyenda que muestre **solo las capas encendidas** y que se apague junto
+      con su capa. *Hecho 2026-09-07 como inspector «Capas activas».*
+- [x] La leyenda del mapa de calor debe ser visible por defecto mientras la
       capa esté activa.
 
 ### 2.4 La superficie de calor no comunica cuán poco dato la sostiene
@@ -281,9 +285,9 @@ resueltas mejor que en la mayoría de los visores públicos chilenos:
 | # | Hallazgo | Severidad | Costo |
 |---|---|---|---|
 | 1 | ~~Export PNG roto (`getAllChildMarkers`), sin aviso al usuario~~ **Corregido** — eran tres bugs encadenados | **P0** | S |
-| 2 | Sin lectura de coordenadas (lat/lon + UTM 19S) | P1 | S |
-| 3 | Sin escala numérica (`1:25.000`) | P1 | S |
-| 4 | Sin herramienta de medición | P1 | M |
+| 2 | ~~Sin lectura de coordenadas (lat/lon + UTM 19S)~~ **Hecho 2026-10-06** (falta copiar al portapapeles) | P1 | S |
+| 3 | ~~Sin escala numérica (`1:25.000`)~~ **Hecho 2026-10-11** | P1 | S |
+| 4 | ~~Sin herramienta de medición~~ **Hecho 2026-10-11** | P1 | M |
 | 5 | ~~Sin opacidad por capa~~ **Hecho 2026-09-07** | P1 | S |
 | 6 | Sin reordenar capas | P1 | M |
 | 7 | ~~Leyendas atrapadas en el panel; leyenda de capa apagada persiste~~ **Hecho 2026-09-07** (inspector «Capas activas») | P2 | M |
@@ -296,7 +300,6 @@ resueltas mejor que en la mayoría de los visores públicos chilenos:
 | 14 | `/api/points` de 21 MB sin carga por viewport | P5 | L |
 | 15 | Burbujas de clúster del PNG en azul plano, no por conteo como en pantalla | P2 | S |
 
-**Estado al 2026-10-05:** hechos 1, 5, 7, 8 y 12. Lo siguiente es **2 + 3**
-(coordenadas y escala numérica: dos cambios chicos que cambian la categoría del
-visor), luego **10 + 11 + 13** (accesibilidad y borde inferior en mobile), y
-**14** cuando toque la migración de almacenamiento.
+**Estado al 2026-10-18:** hechos 1, 2, 3, 4, 5, 7, 8 y 12. Quedan **10 + 11 +
+13** (accesibilidad y borde inferior en mobile), **6, 9 y 15**, y **14** junto
+con la migración de almacenamiento.
