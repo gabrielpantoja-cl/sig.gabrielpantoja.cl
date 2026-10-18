@@ -23,7 +23,7 @@
  * 3. Época TanDEM-X 2011–2015, cota ortométrica EGM2008, error vertical
  *    absoluto < 4 m (90 %).
  *
- * @see docs/roadmap.md § 1.4 (alternativa DEM libre) y cola #11
+ * @see docs/roadmap.md § 1.4
  */
 
 /** Modos de la capa. El sombreado es el default: es el que se lee de un vistazo. */

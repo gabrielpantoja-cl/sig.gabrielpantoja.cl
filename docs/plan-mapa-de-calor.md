@@ -1,9 +1,9 @@
-# Plan: mapa de calor de valores y cartografía para difusión
+# Plan: mapa de calor de valores
 
-> Redactado 2026-08-27. **Fases 1 y 1.5 implementadas el 2026-08-27** (ver §6).
-> Fases 2–4: pendientes.
-> Alcance: capa de superficie de valor (`$/m²`) sobre los puntos CBR, escala de
-> color, y un modo de exportación pensado para publicar en RRSS.
+> Redactado 2026-08-27. **Fases 1 y 1.5 implementadas el 2026-08-27** (ver §5);
+> Fase 2 parcial; Fase 3 pendiente.
+> Alcance: capa de superficie de valor (`$/m²`) sobre los puntos CBR y su
+> escala de color.
 >
 > Lee antes: [`estadisticas.md`](./estadisticas.md) (los tres denominadores y
 > las dos lecturas del `$/m²`) y [`arquitectura-capas.md`](./arquitectura-capas.md).
@@ -170,9 +170,9 @@ Interacciones mínimas:
 | Opción | Veredicto |
 |---|---|
 | `Leaflet.heat` como capa analítica | **No.** Mide densidad. Sirve solo como capa decorativa explícitamente rotulada «densidad de inscripciones». |
-| `deck.gl` + `deck.gl-leaflet` | **Todavía no.** `deck.gl-leaflet` está deprecado en favor de `@deck.gl-community/leaflet`; agrega ~300–500 kB a un bundle que hoy no tiene WebGL. Se justifica solo si llegamos al modo 3D (§5). |
+| `deck.gl` + `deck.gl-leaflet` | **Todavía no.** `deck.gl-leaflet` está deprecado en favor de `@deck.gl-community/leaflet`; agrega ~300–500 kB a un bundle que hoy no tiene WebGL. Se justifica solo para una vista 3D aparte. |
 | Instalar la extensión `h3` | **Después.** H3 es mejor que `ST_HexagonGrid` (grid global, jerárquico, celdas estables entre zooms), pero requiere `CREATE EXTENSION` con rol owner y no aporta nada que `ST_HexagonGrid` no dé hoy. Migración natural en fase 3. |
-| Interpolación IDW / KDE continua (superficie suave) | **No para el dato duro.** Inventa valor donde no hay transacciones. Reservado para el modo póster (§5), rotulado como interpolación. |
+| Interpolación IDW / KDE continua (superficie suave) | **No sobre los puntos crudos.** Inventa valor donde no hay transacciones. La Fase 1.5 (§5) interpola las *medianas* por celda y lleva la cobertura al alfa. |
 
 ---
 
@@ -183,7 +183,7 @@ el eje rojo↔verde):
 
 | Rampa | Uso | Colores |
 |---|---|---|
-| **Plasma** (morado→magenta→naranjo→amarillo) | default sobre base oscura; es la que se ve «cara» en RRSS | `#0d0887 #6a00a8 #b12a90 #e16462 #fca636 #f0f921` |
+| **Plasma** (morado→magenta→naranjo→amarillo) | default sobre base oscura; es la de mejor lectura sobre fondo oscuro | `#0d0887 #6a00a8 #b12a90 #e16462 #fca636 #f0f921` |
 | **Viridis** (azul→verde→amarillo) | default sobre base clara, perceptualmente uniforme | `#440154 #414487 #2a788e #22a884 #7ad151 #fde725` |
 | **Divergente sobre la mediana comunal** | «¿está caro o barato *para esta comuna*?» — azul bajo la mediana, rojo sobre | `#2166ac … #f7f7f7 … #b2182b` |
 
@@ -225,33 +225,7 @@ igual que la pantalla.
 
 ---
 
-## 5. Modo póster: contenido para LinkedIn / Instagram
-
-Ya existe `src/lib/map-export.ts` (920 líneas) que rasteriza tiles + vectores +
-pines + brújula + escala + atribución a PNG. **La base está hecha.** Lo que falta
-es un preset:
-
-1. **Formatos de salida.** Hoy exporta el viewport tal cual. Agregar
-   1080×1350 (IG retrato), 1080×1080 (IG feed), 1200×627 (LinkedIn), además de
-   «viewport actual». Implica recalcular el encuadre, no solo recortar.
-2. **Chrome de póster.** Título grande, bajada de una línea, leyenda de cuantiles
-   con valores en CLP, `N_min` y cobertura declarados, marca
-   `sig.gabrielpantoja.cl`, y la atribución legal abajo en cuerpo pequeño.
-   Tipografía: la Geist que ya carga `layout.tsx`.
-3. **Base sin etiquetas + hexágonos.** `invert` + plasma = la estética que
-   funciona en feed. El texto lo pone el chrome, no el tile.
-4. **Un dato que sea titular.** El póster debe llevar una cifra grande, no solo
-   un mapa lindo. Ej.: *«El m² habitacional en el hexágono más caro de Temuco
-   vale 14× el del más barato»* — se calcula gratis desde el mismo endpoint
-   (`max(mediana_ppm2) / min(mediana_ppm2)` sobre el viewport).
-
-Un modo 3D (columnas extruidas: altura = `n`, color = `$/m²`, estilo kepler.gl)
-es la versión que más circula en RRSS, pero exige deck.gl + WebGL. Va a fase 4,
-como vista aparte, no como reemplazo del mapa 2D.
-
----
-
-## 6. Fases
+## 5. Fases
 
 ### Fase 1 — La capa (el 80% del valor) — ✅ implementada 2026-08-27
 
@@ -359,10 +333,11 @@ $224k / $440k / $776k, popup con la celda real al hacer clic.
 - [ ] Selector de rampa manual (hoy la rampa la elige el tema: plasma en
       oscuro, tasación en claro; falta poder forzarla y añadir la divergente
       contra la mediana comunal).
-- [ ] `N_min` ajustable en la UI con el efecto visible en el mapa.
+- [x] `N_min` ajustable en la UI con el efecto visible en el mapa (control
+      «Mínimo por celda», también en el permalink como `min_n`).
 - [ ] Leyenda que declara: destino, año, `N_min`, cobertura (`count_precio_m2`
       del viewport / total) — el mismo criterio de §2 de `estadisticas.md`.
-- [ ] Nota fija: *«mediana de $/m² de terreno por hexágono; no es tasación»*.
+- [x] Nota fija de que es señal de mercado y no tasación (`hexbins.ts`).
 
 ### Fase 3 — Rendimiento y dato
 
@@ -374,16 +349,9 @@ $224k / $440k / $776k, popup con la celda real al hacer clic.
       jerárquico, celdas estables al hacer zoom → cacheables por celda).
 - [ ] Cache por tile de hexbins en el borde de Vercel.
 
-### Fase 4 — Difusión
-
-- [ ] Presets de exportación 1080×1350 / 1080×1080 / 1200×627.
-- [ ] Chrome de póster (título, leyenda, marca, atribución).
-- [ ] Cifra-titular automática desde el viewport.
-- [ ] (Opcional) vista 3D con deck.gl como ruta separada.
-
 ---
 
-## 7. Riesgos y límites que hay que escribir en la UI
+## 6. Riesgos y límites que hay que escribir en la UI
 
 - **No es una tasación.** Una mediana de 5 transacciones en 250 m no es un valor
   de mercado; es una señal. Debe decirlo la leyenda, no el pie de página.
@@ -402,7 +370,7 @@ $224k / $440k / $776k, popup con la celda real al hacer clic.
 
 ---
 
-## 8. Fuentes consultadas
+## 7. Fuentes consultadas
 
 - [PostGIS · ST_HexagonGrid](https://postgis.net/docs/ST_HexagonGrid.html)
 - [deck.gl · HeatmapLayer](https://deck.gl/docs/api-reference/aggregation-layers/heatmap-layer) — `aggregation: SUM|MEAN`, `getWeight`, `colorDomain`

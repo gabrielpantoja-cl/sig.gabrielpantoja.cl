@@ -1,13 +1,13 @@
 # Estructura del Detalle Catastral — SII
 
-> **Documento oficial del Servicio de Impuestos Internos.**
-> 
-> Especificación completa de la estructura de archivos del **Catastro de Bienes Raíces** (CBR Catastral)
-> por comuna e histórico nacional. Fuente: `estructura_detalle_catastral.pdf` (raíz del proyecto).
+> Transcripción de la especificación oficial del Servicio de Impuestos Internos
+> (`estructura_detalle_catastral.pdf`, publicada por el SII junto a los archivos
+> de Detalle Catastral; no se versiona en este repo) para los archivos del
+> **catastro de bienes raíces** por comuna e histórico nacional.
 >
-> **⚠ Distinción importante:** Esto es DIFERENTE del **Conservador de Bienes Raíces** (CBR Conservador).
-> El Conservador es donde viven nuestras **85k transacciones** (inscripciones de compraventa).
-> Este documento describe la estructura catastral para CRUZAR y ENRIQUECER esos datos de transacciones.
+> **⚠ No confundir con el Conservador de Bienes Raíces.** Las ~85k
+> transacciones del SIG son inscripciones del Conservador; el catastro del SII
+> sirve para cruzarlas y enriquecerlas (destino, avalúo, suelos).
 
 ## Resumen ejecutivo
 
@@ -20,7 +20,7 @@ El SII publica cuatro archivos de Detalle Catastral por comuna:
 | **Roles no agrícolas** | 1 por rol de avalúo | Información básica de predios urbanos/comerciales |
 | **Terrenos/construcciones no agrícolas** | N por rol | Desglose de terrenos y construcciones |
 
-Todos los archivos son **sin encabezados**, campos separados por tabulador `|`, codificados en UTF-8.
+Todos los archivos son **sin encabezados**, con campos separados por `|` y codificados en UTF-8.
 
 ## 1. Serie Agrícola
 
@@ -236,11 +236,11 @@ La estructura de líneas de construcción permite:
 
 ## 5. Referencias
 
-- **Formato:** Tab-separated values (TSV), sin encabezados
+- **Formato:** texto delimitado por `|`, sin encabezados
 - **Enumeración:** Uno o más registros por rol según serie y tipo
 - **Ubicación oficial:** Descargables por comuna desde el sitio del SII
 - **Actualización:** Cambios catastrales se reflejan periódicamente (frecuencia depende del SII)
 
 ---
 
-**Nota de mantenimiento:** Este documento traduce la especificación oficial `estructura_detalle_catastral.pdf`. Mantenlo sincronizado si el SII publica una nueva versión del documento.
+**Nota de mantenimiento:** mantener esta transcripción sincronizada si el SII publica una nueva versión de la especificación.
