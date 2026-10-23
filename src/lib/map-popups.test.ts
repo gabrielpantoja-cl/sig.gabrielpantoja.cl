@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildKmlPopup,
   buildPopup,
+  formatMontoInformado,
   buildProtectedPopup,
   buildRedVialPopup,
   esc,
@@ -51,10 +52,34 @@ describe('formatDateCL', () => {
   });
 });
 
+describe('formatMontoInformado', () => {
+  it('shows pesos when monto is informed, with UF as secondary line', () => {
+    const r = formatMontoInformado(18000000, 779.12);
+    expect(r.principal).toMatch(/18\.000\.000/);
+    expect(r.secundario).toBe('UF 779,12');
+  });
+  it('shows UF when only montoUf is informed, never pesos', () => {
+    expect(formatMontoInformado(null, 2009.9502587)).toEqual({ principal: 'UF 2.009,95', secundario: null });
+  });
+  it('falls back to «Monto no informado»', () => {
+    expect(formatMontoInformado(null, null).principal).toBe('Monto no informado');
+    expect(formatMontoInformado(null, undefined).principal).toBe('Monto no informado');
+  });
+  it('transaction popup renders the UF amount', () => {
+    const html = buildPopup({
+      lat: -45.57, lng: -72.07, monto: null, montoUf: 779, anio: 2018, comuna: 'Coyhaique',
+      predio: null, superficie: null, rol: null, destino: null, fechaEscritura: null,
+      fechaInscripcion: null, fojas: null, numero: null, conservador: null,
+    });
+    expect(html).toContain('UF 779');
+    expect(html).not.toContain('Monto no informado');
+  });
+});
+
 describe('popups escape data values', () => {
   it('transaction popup', () => {
     const point = {
-      lat: -39.8, lng: -73.2, monto: 1000, anio: 2024, comuna: 'Valdivia', predio: XSS,
+      lat: -39.8, lng: -73.2, monto: 1000, montoUf: null, anio: 2024, comuna: 'Valdivia', predio: XSS,
       superficie: 500, rol: XSS, destino: 'A', fechaEscritura: null, fechaInscripcion: null,
       fojas: XSS, numero: 12, conservador: XSS,
     } as MapPoint;

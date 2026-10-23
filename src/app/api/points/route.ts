@@ -5,7 +5,7 @@ import { getSql } from '@/lib/neon';
 /**
  * GET /api/points — geolocated CBR transactions for the map, filtered server-side.
  *
- * Returns ONLY the privacy-safe slice (lat, lng, monto, anio, comuna, predio,
+ * Returns ONLY the privacy-safe slice (lat, lng, monto, montoUf, anio, comuna, predio,
  * superficie, rol). PII columns (comprador, vendedor, rut, user_id,
  * observaciones) are never selected.
  */
@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     // never applies a timezone conversion to a calendar date.
     const rows = (await sql.query(
       `WITH r AS (
-         SELECT lat, lng, monto, anio, comuna, predio,
+         SELECT lat, lng, monto, "montoUf", anio, comuna, predio,
                 "superficieTerreno" AS superficie, rol, destino,
                 fechaescritura::text AS "fechaEscritura",
                 "fechaInscripcion"::text AS "fechaInscripcion",
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
                   anio DESC NULLS LAST
          LIMIT ${MAX_POINTS}
        )
-       SELECT r.lat, r.lng, r.monto, r.anio, r.comuna, r.predio, r.superficie,
+       SELECT r.lat, r.lng, r.monto, r."montoUf", r.anio, r.comuna, r.predio, r.superficie,
               r.rol, r.destino, r."fechaEscritura", r."fechaInscripcion", r.fojas, r.numero,
               c.nombre AS conservador
        FROM r
@@ -58,6 +58,7 @@ export async function GET(req: Request) {
       lat: Number(r.lat),
       lng: Number(r.lng),
       monto: r.monto != null ? Number(r.monto) : null,
+      montoUf: r.montoUf != null ? Number(r.montoUf) : null,
       anio: r.anio != null ? Number(r.anio) : null,
       comuna: r.comuna,
       predio: r.predio,
