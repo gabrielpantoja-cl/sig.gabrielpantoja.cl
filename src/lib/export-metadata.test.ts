@@ -22,6 +22,7 @@ const base: BuildMetadataInput = {
   hexbinStatus: { kind: 'idle' },
   comuna: 'todas',
   anioFrom: null,
+  anioTo: null,
   fechaDesde: '',
   fechaHasta: '',
   montoMin: '',
@@ -56,6 +57,7 @@ describe('buildExportMetadata', () => {
       showPoints: true,
       comuna: 'Valdivia',
       anioFrom: 2020,
+      anioTo: 2024,
       montoMin: '10000000',
       supMax: '5000',
       rol: ' 123-4 ',
@@ -64,7 +66,7 @@ describe('buildExportMetadata', () => {
     expect(cbr.title).toBe('Transacciones CBR');
     expect(cbr.details).toContain('1.234 inscripciones');
     expect(cbr.details).toContain('Comuna: Valdivia');
-    expect(cbr.details).toContain('Año desde (fecha disponible): 2020');
+    expect(cbr.details).toContain('Años (fecha disponible): 2020–2024');
     expect(cbr.details).toMatch(/Monto: ≥ \$\s?10\.000\.000 – sin máximo/);
     expect(cbr.details).toContain('Superficie terreno ≤ 5.000 m²');
     expect(cbr.details).toContain('ROL SII contiene: «123-4»');

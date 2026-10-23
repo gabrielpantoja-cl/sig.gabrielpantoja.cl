@@ -1,4 +1,5 @@
 import type { Stats } from '@/lib/types';
+import { etiquetaAnios } from '@/lib/anios';
 import { kmlDisplayName, type KmlLayer } from '@/lib/kml';
 import type { LayerMetadataEntry } from '@/lib/map-export';
 import { LINEAS_TRANSMISION_COLOR } from '@/lib/lineas-transmision';
@@ -55,6 +56,7 @@ export type BuildMetadataInput = {
   hexbinStatus: HexbinStatus;
   comuna: string;
   anioFrom: number | null;
+  anioTo: number | null;
   fechaDesde: string;
   fechaHasta: string;
   montoMin: string;
@@ -90,7 +92,8 @@ export function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEnt
   if (input.showPoints) {
     const filtrosLineas: string[] = [];
     if (input.comuna !== 'todas') filtrosLineas.push(`Comuna: ${input.comuna}`);
-    if (input.anioFrom != null) filtrosLineas.push(`Año desde (fecha disponible): ${input.anioFrom}`);
+    const anios = etiquetaAnios({ desde: input.anioFrom, hasta: input.anioTo });
+    if (anios) filtrosLineas.push(`Años (fecha disponible): ${anios}`);
     if (input.fechaDesde || input.fechaHasta) {
       filtrosLineas.push(`Fecha disponible: ${input.fechaDesde || 'sin mínimo'} – ${input.fechaHasta || 'sin máximo'}`);
     }

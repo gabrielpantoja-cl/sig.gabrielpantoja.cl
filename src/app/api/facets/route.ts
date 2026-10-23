@@ -3,7 +3,8 @@ import { getSql } from '@/lib/neon';
 
 /**
  * GET /api/facets — values needed to populate the filter UI: the list of
- * comunas and the available ranges for year and monto. Fetched once on load;
+ * comunas, the available ranges for year and monto, and the transaction count
+ * per comuna and year (~7 KB) that feeds the year filter. Fetched once on load;
  * cached aggressively at the edge since it changes at most daily.
  */
 
@@ -35,11 +36,30 @@ export async function GET(req: Request) {
        WHERE lat IS NOT NULL AND lng IS NOT NULL`,
     )) as Record<string, unknown>[];
 
+    // Same year expression and same row set as `buildFilters`, so a bar of
+    // the histogram and the filtered count agree.
+    const yearRows = (await sql.query(
+      `SELECT comuna,
+         EXTRACT(YEAR FROM COALESCE(fechaescritura, "fechaInscripcion"))::int AS anio,
+         count(*)::int AS n
+       FROM referenciales
+       WHERE lat IS NOT NULL AND lng IS NOT NULL
+         AND comuna IS NOT NULL AND comuna <> ''
+         AND COALESCE(fechaescritura, "fechaInscripcion") IS NOT NULL
+       GROUP BY 1, 2`,
+    )) as Record<string, unknown>[];
+    const anios: Record<string, Record<string, number>> = {};
+    for (const row of yearRows) {
+      const comuna = String(row.comuna);
+      (anios[comuna] ??= {})[String(row.anio)] = Number(row.n);
+    }
+
     const r = rangeRows[0] ?? {};
     const facets = {
       comunas: comunaRows.map((c) => String(c.comuna)),
       minAnio: Number(r.min_anio ?? 2015),
       maxAnio: Number(r.max_anio ?? new Date().getFullYear()),
+      anios,
       minMonto: Number(r.min_monto ?? 0),
       maxMonto: Number(r.max_monto ?? 0),
     };

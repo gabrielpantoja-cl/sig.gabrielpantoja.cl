@@ -38,6 +38,7 @@ import { useNdviQuery } from '@/hooks/useNdviQuery';
 import { useRuralRolSearch } from '@/hooks/useRuralRolSearch';
 import { PERMALINK_DEFAULTS, usePermalinkSync } from '@/hooks/usePermalink';
 import { parsePermalink, type PermalinkLayer, type PermalinkState } from '@/lib/permalink';
+import type { RangoAnios } from '@/lib/anios';
 
 // El RetroLoader de page.tsx cubre también la carga del módulo, así que el
 // dynamic no necesita fallback propio (evita dos loaders superpuestos).
@@ -130,6 +131,12 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   const on = (layer: PermalinkLayer) => initial.layers.includes(layer);
   const [comuna, setComuna] = useState(initial.filters.comuna);
   const [anioFrom, setAnioFrom] = useState<number | null>(initial.filters.anioMin);
+  const [anioTo, setAnioTo] = useState<number | null>(initial.filters.anioMax);
+  const rangoAnios = useMemo<RangoAnios>(() => ({ desde: anioFrom, hasta: anioTo }), [anioFrom, anioTo]);
+  const setRangoAnios = useCallback((r: RangoAnios) => {
+    setAnioFrom(r.desde);
+    setAnioTo(r.hasta);
+  }, []);
   const [fechaDesde, setFechaDesde] = useState(initial.filters.fechaDesde);
   const [fechaHasta, setFechaHasta] = useState(initial.filters.fechaHasta);
   const [montoMin, setMontoMin] = useState(initial.filters.montoMin);
@@ -201,6 +208,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     const p = new URLSearchParams();
     if (comuna !== 'todas') p.set('comuna', comuna);
     if (anioFrom != null) p.set('anio_min', String(anioFrom));
+    if (anioTo != null) p.set('anio_max', String(anioTo));
     if (fechaDesde) p.set('fecha_desde', fechaDesde);
     if (fechaHasta) p.set('fecha_hasta', fechaHasta);
     if (montoMin) p.set('monto_min', montoMin);
@@ -210,11 +218,11 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     if (predio.trim()) p.set('predio', predio.trim());
     if (rol.trim()) p.set('rol', rol.trim());
     return p.toString();
-  }, [comuna, anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol]);
+  }, [comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol]);
 
   const activeFilters = [
     comuna !== 'todas',
-    anioFrom != null,
+    anioFrom != null || anioTo != null,
     fechaDesde,
     fechaHasta,
     montoMin,
@@ -245,7 +253,6 @@ function SigApp({ initial }: { initial: PermalinkState }) {
       setBootDone(true);
     },
   });
-  const effectiveAnioFrom = anioFrom ?? facets?.minAnio ?? 2015;
 
   // Mobile: consolidated drawer (search + filters + stats), closed by default
   // so the map owns the screen.
@@ -386,10 +393,10 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     relieve: relieveModo,
     destino: hexbinDestino,
     minN: hexbinMinN,
-    filters: { comuna, anioMin: anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol },
+    filters: { comuna, anioMin: anioFrom, anioMax: anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol },
   }), [
     layerFlags, basemap, bioclimaVariable, relieveModo, hexbinDestino, hexbinMinN,
-    comuna, anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol,
+    comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol,
   ]);
   const { onViewChange, flush: flushPermalink } = usePermalinkSync(permalinkState, initial.view);
 
@@ -474,6 +481,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
         hexbinStatus,
         comuna,
         anioFrom,
+        anioTo,
         fechaDesde,
         fechaHasta,
         montoMin,
@@ -502,7 +510,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     showRedDrenaje, showLineasTransmision, showSuelos, showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales,
     showNdviVisual, showRelieve, relieveModo,
     showHexbins, hexbinStatus,
-    comuna, anioFrom, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol,
+    comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol,
     stats, kmlLayers,
   ]);
 
@@ -537,8 +545,8 @@ function SigApp({ initial }: { initial: PermalinkState }) {
       comuna={comuna}
       setComuna={setComuna}
       facets={facets}
-      setAnioFrom={setAnioFrom}
-      effectiveAnioFrom={effectiveAnioFrom}
+      rangoAnios={rangoAnios}
+      setRangoAnios={setRangoAnios}
       fechaDesde={fechaDesde}
       setFechaDesde={setFechaDesde}
       fechaHasta={fechaHasta}

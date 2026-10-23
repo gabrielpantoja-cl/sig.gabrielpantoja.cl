@@ -23,6 +23,19 @@ versionado.
 
 ### Añadido
 
+- **Filtro de años «desde–hasta» con histograma.** El panel de filtros
+  muestra cuántas transacciones hay cada año en la comuna elegida.
+  - Clic en una barra deja solo ese año; otro clic lo quita, y Mayús+clic
+    extiende el rango.
+  - Dos selectores (desde y hasta), con el conteo de cada año, hacen lo mismo
+    con el teclado.
+  - El rango que se ofrece es el de la comuna: Coyhaique, por ejemplo, parte
+    en 2012 y no en 1994.
+  - Volver a «todos» quita el filtro del enlace. Antes quedaba `anio_min=1994`
+    activo.
+  - El permalink lleva `anio_max`, y las fechas exactas pasan a un
+    desplegable.
+
 - **Capa «Conservadores de Bienes Raíces».** Un punto por oficina en su
   dirección real (95 de 100 ya ubicadas), con dirección, contacto, sitio web y
   «Cómo llegar». Al hacer clic se resaltan las comunas de su jurisdicción,

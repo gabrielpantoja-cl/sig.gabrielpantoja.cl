@@ -87,6 +87,9 @@ export interface Facets {
   comunas: string[];
   minAnio: number;
   maxAnio: number;
+  /** Transacciones por comuna y año (`{ Coyhaique: { "2016": 1151 } }`):
+   *  rango e histograma del filtro de años. Ver `src/lib/anios.ts`. */
+  anios: Record<string, Record<string, number>>;
   minMonto: number;
   maxMonto: number;
 }

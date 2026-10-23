@@ -64,6 +64,7 @@ export interface PermalinkView {
 export interface PermalinkFilters {
   comuna: string;
   anioMin: number | null;
+  anioMax: number | null;
   fechaDesde: string;
   fechaHasta: string;
   montoMin: string;
@@ -89,6 +90,7 @@ export interface PermalinkState {
 export const DEFAULT_FILTERS: PermalinkFilters = {
   comuna: 'todas',
   anioMin: null,
+  anioMax: null,
   fechaDesde: '',
   fechaHasta: '',
   montoMin: '',
@@ -135,6 +137,12 @@ function pattern(params: URLSearchParams, key: string, re: RegExp): string {
   return re.test(value) ? value : '';
 }
 
+function year(params: URLSearchParams, key: string): number | null {
+  if (!params.has(key)) return null;
+  const value = Number(params.get(key));
+  return Number.isInteger(value) && value >= 1900 && value <= 2100 ? value : null;
+}
+
 export function parseView(raw: string | null): PermalinkView | null {
   if (!raw) return null;
   const parts = raw.split(',').map(Number);
@@ -173,8 +181,10 @@ export function parsePermalink(search: string, defaults: PermalinkDefaults): Per
   const minNRaw = Number(params.get('min_n'));
   const minN = Number.isInteger(minNRaw) && minNRaw >= 1 && minNRaw <= 50 ? minNRaw : defaults.minN;
 
-  const anio = Number(params.get('anio_min'));
-  const anioMin = params.has('anio_min') && Number.isInteger(anio) && anio >= 1900 && anio <= 2100 ? anio : null;
+  const anioMin = year(params, 'anio_min');
+  let anioMax = year(params, 'anio_max');
+  // Un rango invertido no describe ninguna selección: se descarta el tope.
+  if (anioMin != null && anioMax != null && anioMax < anioMin) anioMax = null;
 
   return {
     view: parseView(params.get('v')),
@@ -187,6 +197,7 @@ export function parsePermalink(search: string, defaults: PermalinkDefaults): Per
     filters: {
       comuna: text(params, 'comuna') || 'todas',
       anioMin,
+      anioMax,
       fechaDesde: pattern(params, 'fecha_desde', DATE_RE),
       fechaHasta: pattern(params, 'fecha_hasta', DATE_RE),
       montoMin: pattern(params, 'monto_min', AMOUNT_RE),
@@ -238,6 +249,7 @@ export function serializePermalink(state: PermalinkState, defaults: PermalinkDef
   const f = state.filters;
   if (f.comuna && f.comuna !== 'todas') params.set('comuna', f.comuna);
   if (f.anioMin != null) params.set('anio_min', String(f.anioMin));
+  if (f.anioMax != null) params.set('anio_max', String(f.anioMax));
   if (f.fechaDesde) params.set('fecha_desde', f.fechaDesde);
   if (f.fechaHasta) params.set('fecha_hasta', f.fechaHasta);
   if (f.montoMin) params.set('monto_min', f.montoMin);
