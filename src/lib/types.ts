@@ -10,6 +10,11 @@ export interface MapPoint {
   lat: number;
   lng: number;
   monto: number | null;
+  /**
+   * Precio en UF tal como se registró. Muchas filas (p. ej. Aysén) solo traen
+   * UF: el popup lo muestra en UF y NUNCA se deriva un monto en pesos.
+   */
+  montoUf: number | null;
   /** Campo histórico de año; puede no estar informado. */
   anio: number | null;
   comuna: string;

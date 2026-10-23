@@ -68,6 +68,25 @@ export const formatCLP = (value: number | null): string =>
         maximumFractionDigits: 0,
       }).format(value);
 
+const formatUF = (value: number): string =>
+  `UF ${new Intl.NumberFormat('es-CL', { maximumFractionDigits: 2 }).format(value)}`;
+
+/**
+ * Monto del popup en la unidad en que se informó: pesos si hay `monto`, UF si
+ * solo hay `montoUf`. Nunca convierte UF a pesos (la UF guardada puede venir
+ * redondeada y daría una cifra precisa pero falsa). Con ambos, la UF va como
+ * línea secundaria porque la base no registra cuál fue el precio original.
+ */
+export function formatMontoInformado(
+  monto: number | null,
+  montoUf: number | null | undefined,
+): { principal: string; secundario: string | null } {
+  const uf = montoUf != null && Number.isFinite(montoUf) ? montoUf : null;
+  if (monto != null) return { principal: formatCLP(monto), secundario: uf != null ? formatUF(uf) : null };
+  if (uf != null) return { principal: formatUF(uf), secundario: null };
+  return { principal: formatCLP(null), secundario: null };
+}
+
 /**
  * Formatea una fecha calendario ISO sin crear un `Date`, para no desplazarla
  * por zona horaria.
@@ -144,6 +163,7 @@ export function buildPopup(p: MapPoint): string {
   if (fechaEsc) rows.push(['Fecha de escritura', fechaEsc]);
 
   const body = popupRows(rows);
+  const monto = formatMontoInformado(p.monto, p.montoUf);
 
   return (
     `<div style="font-size:0.8rem;line-height:1.45;min-width:210px">` +
@@ -151,7 +171,10 @@ export function buildPopup(p: MapPoint): string {
     (p.predio
       ? `<div style="opacity:.6;margin-bottom:.35rem">${esc(p.comuna)}</div>`
       : `<div style="margin-bottom:.35rem"></div>`) +
-    `<div style="font-weight:600;font-size:1rem;color:hsl(153 28% 30%);margin-bottom:.4rem">${formatCLP(p.monto)}</div>` +
+    `<div style="font-weight:600;font-size:1rem;color:hsl(153 28% 30%);margin-bottom:${monto.secundario ? '0' : '.4rem'}">${monto.principal}</div>` +
+    (monto.secundario
+      ? `<div style="opacity:.6;margin-bottom:.4rem">${monto.secundario}</div>`
+      : '') +
     `<table style="border-collapse:collapse">${body}</table>` +
     `</div>`
   );
