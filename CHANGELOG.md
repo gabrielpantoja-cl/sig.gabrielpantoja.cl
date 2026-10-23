@@ -35,6 +35,9 @@ versionado.
     activo.
   - El permalink lleva `anio_max`, y las fechas exactas pasan a un
     desplegable.
+- **«Limpiar filtros».** Aparece arriba del panel cuando hay algún filtro
+  activo, dice cuántos son y vuelve comuna, años, fechas, monto y superficie a
+  su valor por defecto. La búsqueda por predio o ROL no se toca.
 
 - **Capa «Conservadores de Bienes Raíces».** Un punto por oficina en su
   dirección real (95 de 100 ya ubicadas), con dirección, contacto, sitio web y
