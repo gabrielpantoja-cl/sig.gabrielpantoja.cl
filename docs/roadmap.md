@@ -96,14 +96,15 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | # | Qué | Por qué ahora | Sección |
 |---|---|---|---|
 | 1 | 🟡 Etiquetar `v0.3.0` | «No publicado» acumula Relieve, Medir, Conservadores, «¿Qué hay aquí?» y permalink | [Deuda › Plataforma](#plataforma-y-release) |
-| 2 | 🟡 Límite de consultas, parte 3: cupos separados por costo (datos / imágenes / consultas) y tope global por organismo | Las partes 1 y 2 (grilla + debounce, 429 honesto) ya están; con varias capas remotas el cupo único de 60/min se sigue agotando | [Deuda › Seguridad](#seguridad-y-operación) |
-| 3 | 🟡 Dividir `LayersControl.tsx`, `MapView.tsx` y `page.tsx` | Siguen creciendo (1.666, 1.275 y 1.006 líneas) | [Deuda › Frontend](#arquitectura-del-frontend) |
-| 4 | 🟡 Derechos de agua DGA (76k puntos, sin nombre del solicitante, datum convertido) | Endpoint masivo verificado el 2026-10-18; el agua pesa tanto como el suelo en la tasación | [§ 2.2](#22-derechos-de-aprovechamiento-de-aguas-dga---investigación) |
-| 5 | 🟢 Humo E2E con Playwright | Protege el export PNG y las capas remotas | [Deuda › Tests](#tests) |
-| 6 | 🟢 Carta IGM 1:50.000 | El relieve ya está (Copernicus); falta la toponimia rural oficial | [§ 1.4](#14-carta-topográfica-igm-150000-vía-mop-rest-sit---aprobada-en-cola) |
-| 7 | 🟢 Eventos históricos de remoción en masa (Sernageomin) | Fuente oficial verificada el 2026-10-18; contexto, no zonificación | [§ 2.3](#23-sernageomin--peligros-geológicos-remociones-en-masa-volcanismo) |
-| 8 | 🟢 NDVI antes / después (dos fechas y su diferencia) | Leer incendios, cosechas, humedales que se secan | [§ 5.2](#52-ndvi-sentinel-2---en-producción-2026-09-17--2026-09-27) |
-| 9 | 🟢 Riqueza de especies GBIF con esfuerzo de muestreo | Biodiversidad sin confundir «sin muestreo» con «sin especies» | [Investigación](#investigación-y-datos-abiertos) |
+| 2 | 🟡 Filtro de transacciones: monto en UF, filtro por destino y rango de años «desde–hasta» | Diagnóstico en Coyhaique (2026-10-23): 14,4 mil de 15,8 mil transacciones solo tienen `montoUf` y el SIG las muestra sin precio | [Filtro de transacciones](#filtro-de-transacciones-diagnóstico-2026-10-23) |
+| 3 | 🟡 Límite de consultas, parte 3: cupos separados por costo (datos / imágenes / consultas) y tope global por organismo | Las partes 1 y 2 (grilla + debounce, 429 honesto) ya están; con varias capas remotas el cupo único de 60/min se sigue agotando | [Deuda › Seguridad](#seguridad-y-operación) |
+| 4 | 🟡 Dividir `LayersControl.tsx`, `MapView.tsx` y `page.tsx` | Siguen creciendo (1.666, 1.275 y 1.006 líneas) | [Deuda › Frontend](#arquitectura-del-frontend) |
+| 5 | 🟡 Derechos de agua DGA (76k puntos, sin nombre del solicitante, datum convertido) | Endpoint masivo verificado el 2026-10-18; el agua pesa tanto como el suelo en la tasación | [§ 2.2](#22-derechos-de-aprovechamiento-de-aguas-dga---investigación) |
+| 6 | 🟢 Humo E2E con Playwright | Protege el export PNG y las capas remotas | [Deuda › Tests](#tests) |
+| 7 | 🟢 Carta IGM 1:50.000 | El relieve ya está (Copernicus); falta la toponimia rural oficial | [§ 1.4](#14-carta-topográfica-igm-150000-vía-mop-rest-sit---aprobada-en-cola) |
+| 8 | 🟢 Eventos históricos de remoción en masa (Sernageomin) | Fuente oficial verificada el 2026-10-18; contexto, no zonificación | [§ 2.3](#23-sernageomin--peligros-geológicos-remociones-en-masa-volcanismo) |
+| 9 | 🟢 NDVI antes / después (dos fechas y su diferencia) | Leer incendios, cosechas, humedales que se secan | [§ 5.2](#52-ndvi-sentinel-2---en-producción-2026-09-17--2026-09-27) |
+| 10 | 🟢 Riqueza de especies GBIF con esfuerzo de muestreo | Biodiversidad sin confundir «sin muestreo» con «sin especies» | [Investigación](#investigación-y-datos-abiertos) |
 
 ## Criterios de priorización
 
@@ -756,6 +757,63 @@ que amplían el uso diario del perito:
       mobile, con buscador y grupos).
 - [ ] **Repartir el borde inferior en mobile**: atribución, escala, chip de
       mapa base y FAB se superponen.
+
+### Filtro de transacciones *(diagnóstico 2026-10-23)*
+
+Revisado con Playwright sobre producción, comuna de **Coyhaique** y los años
+2012–2026, contrastando la base. En orden de prioridad:
+
+- [ ] 🟡 **Usar `montoUf`.** De las 15.824 transacciones de Coyhaique solo 804
+      tienen `monto` en pesos (casi todas de 2025), pero 15.768 tienen
+      `montoUf`. Entre 2012 y 2024 hay entre 0 y 24 transacciones por año con
+      `monto` y entre 600 y 1.800 con `montoUf`. Las estadísticas, el mapa de
+      calor y el popup leen solo `monto`, así que esos 13 años aparecen sin
+      precio. En todo el país hay 22.027 filas con UF y sin pesos. Propuesta:
+      exponer `montoUf` en `/api/points` y `/api/stats` y hacer de la UF la
+      unidad principal, que además es la correcta para comparar años (ya lo
+      anotaba `plan-mapa-de-calor.md`). Los pesos quedan como referencia.
+- [ ] 🟡 **Filtro por destino SII.** `buildFilters` no lo admite y el panel
+      no lo ofrece. Coyhaique tiene 6.716 W (sitio eriazo), 6.465 H (habitacional)
+      y 2.066 A (agrícola), y la mediana los mezcla. El mapa de calor ya filtra por
+      un único destino; los puntos y las estadísticas, no. Propuesta: un
+      selector múltiple con los códigos de `estructura-catastral.md`, en el
+      permalink con el nombre `destino`.
+- [ ] 🟡 **Rango de años «desde–hasta».** Hoy hay un deslizador que solo
+      fija «desde» y además dos campos de fecha que se superponen con él.
+      Para ver un solo año (por ejemplo 2016) hay que usar las fechas, y al
+      devolver el deslizador al mínimo queda `anio_min=1994` activo: cuenta
+      como filtro y ensucia el enlace. Propuesta: un control doble
+      desde–hasta (`anio_max` ya existe en la API), con las fechas exactas
+      bajo «avanzado» y el valor mínimo tratado como «sin filtro».
+- [ ] 🟡 **Caché desfasada después de cargar datos.** `points`, `stats`,
+      `facets` y `hexbins` responden con `s-maxage=3600,
+      stale-while-revalidate=86400`. Ejemplo: `anio_min=2026` en Coyhaique
+      devolvió 26 transacciones desde la caché (HIT, `age` 688 s); la misma
+      consulta con un parámetro extra devolvió 374, que es lo que hay en la
+      base. Los puntos y las estadísticas se cachean por separado y pueden
+      contradecirse. Propuesta: agregar a la clave una versión de los datos
+      (por ejemplo `max("updatedAt")` servido por `facets`) o purgar la CDN al
+      terminar cada carga.
+- [ ] 🟢 **Años y comunas por selección.** El rango del deslizador es el
+      global (1994–2026), pero Coyhaique empieza en 2012. Propuesta: rango por
+      comuna, con un histograma de transacciones por año (con y sin monto)
+      dentro del control. En la lista de comunas aparece «Puerto Aysén»
+      (374 filas, todas con monto) separada de «Aysén» (3.668 filas): es una
+      localidad cargada como comuna; normalizar contra el CUT de la DPA.
+- [ ] 🟢 **Encuadrar la comuna elegida.** Al elegir Coyhaique el mapa queda
+      en la vista de Chile y los puntos quedan fuera de la pantalla. Propuesta:
+      `fitBounds` a la extensión de la selección o al polígono DPA, sin
+      encuadrar cuando la vista llega desde un permalink.
+- [ ] 🟢 **Descarga por cambio de filtro.** Cada cambio vuelve a bajar los
+      puntos completos: 4,1 MB para Coyhaique sin años y 3,5 MB «desde 2015».
+      Si la nueva selección es un subconjunto de la cargada (subir «desde»,
+      acotar monto), filtrar en el navegador.
+
+Ya están en otras secciones: los filtros activos espejados en el panel de
+estadísticas ([Producto y mercado](#producto-y-mercado)) y los montos atípicos
+([Investigación](#investigación-y-datos-abiertos)). Un ejemplo de atípico: el
+máximo de Coyhaique es $196.300.700.000 (5.000.000 UF por 24,5 ha agrícolas),
+y por eso el promedio de 2025 es 9,9 veces la mediana.
 
 ### Producto y mercado
 
