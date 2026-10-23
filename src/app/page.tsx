@@ -231,6 +231,19 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     supMax,
   ].filter(Boolean).length;
 
+  const clearFilters = useCallback(() => {
+    setComuna('todas');
+    setAnioFrom(null);
+    setAnioTo(null);
+    setFechaDesde('');
+    setFechaHasta('');
+    setMontoMin('');
+    setMontoMax('');
+    setSupMin('');
+    setSupMax('');
+    track('filter_clear');
+  }, []);
+
   const activeSearch = [predio.trim(), rol.trim()].filter(Boolean).length;
 
   const debouncedQs = useDebounced(queryString, 400);
@@ -560,6 +573,8 @@ function SigApp({ initial }: { initial: PermalinkState }) {
       supMax={supMax}
       setSupMax={setSupMax}
       exportHref={exportHref}
+      activeCount={activeFilters}
+      onClear={clearFilters}
     />
   );
 

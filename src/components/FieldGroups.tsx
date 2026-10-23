@@ -158,6 +158,8 @@ export function FilterFields({
   supMax,
   setSupMax,
   exportHref,
+  activeCount,
+  onClear,
 }: {
   comuna: string;
   setComuna: (v: string) => void;
@@ -177,9 +179,27 @@ export function FilterFields({
   supMax: string;
   setSupMax: (v: string) => void;
   exportHref: (format: 'csv' | 'geojson') => string;
+  /** Filtros activos (mismo conteo que el distintivo del botón «Filtros»). */
+  activeCount: number;
+  /** Vuelve todos los filtros a su valor por defecto; no toca predio ni ROL. */
+  onClear: () => void;
 }) {
   return (
     <div className="flex flex-col gap-3">
+      {activeCount > 0 && (
+        <div className="-mb-1 flex items-center justify-between gap-2 text-xs">
+          <span className="opacity-60">
+            {activeCount === 1 ? '1 filtro activo' : `${activeCount} filtros activos`}
+          </span>
+          <button
+            type="button"
+            onClick={onClear}
+            className="rounded-md border border-black/15 px-2 py-1 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+          >
+            Limpiar filtros
+          </button>
+        </div>
+      )}
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Comuna</span>
         <select

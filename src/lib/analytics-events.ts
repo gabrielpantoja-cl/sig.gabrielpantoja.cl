@@ -26,6 +26,7 @@ export const ANALYTICS_EVENTS = [
   'leave', // la pestaña se ocultó: segundos de uso activo acumulados
   'layer_on', // se encendió una capa temática (prop `layer`)
   'filter', // cambió el conjunto de filtros activos (solo NOMBRES de campos)
+  'filter_clear', // «Limpiar filtros»: vuelve todos los filtros al valor por defecto
   'geocode', // se eligió un resultado del buscador de direcciones
   'rol_search', // búsqueda de ROL rural en CIREN
   'basemap', // cambio de mapa base (prop `basemap`)
