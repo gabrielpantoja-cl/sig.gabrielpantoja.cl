@@ -778,13 +778,14 @@ Revisado con Playwright sobre producción, comuna de **Coyhaique** y los años
       un único destino; los puntos y las estadísticas, no. Propuesta: un
       selector múltiple con los códigos de `estructura-catastral.md`, en el
       permalink con el nombre `destino`.
-- [ ] 🟡 **Rango de años «desde–hasta».** Hoy hay un deslizador que solo
-      fija «desde» y además dos campos de fecha que se superponen con él.
-      Para ver un solo año (por ejemplo 2016) hay que usar las fechas, y al
-      devolver el deslizador al mínimo queda `anio_min=1994` activo: cuenta
-      como filtro y ensucia el enlace. Propuesta: un control doble
-      desde–hasta (`anio_max` ya existe en la API), con las fechas exactas
-      bajo «avanzado» y el valor mínimo tratado como «sin filtro».
+- [x] 🟡 **Rango de años «desde–hasta»** — hecho el 2026-10-23. El
+      deslizador que solo fijaba «desde» (y dejaba `anio_min=1994` activo al
+      volver al tope) es ahora un histograma de la comuna elegida más dos
+      selectores desde–hasta con el conteo de cada año. Clic en una barra
+      filtra ese año, Mayús+clic extiende el rango y «Todos» en un extremo
+      significa sin límite. Las fechas exactas quedan en un desplegable. Los
+      conteos vienen de `facets.anios`, unos 7 KB. El permalink lleva
+      `anio_max` (`src/lib/anios.ts`, con tests).
 - [ ] 🟡 **Caché desfasada después de cargar datos.** `points`, `stats`,
       `facets` y `hexbins` responden con `s-maxage=3600,
       stale-while-revalidate=86400`. Ejemplo: `anio_min=2026` en Coyhaique
@@ -794,10 +795,10 @@ Revisado con Playwright sobre producción, comuna de **Coyhaique** y los años
       contradecirse. Propuesta: agregar a la clave una versión de los datos
       (por ejemplo `max("updatedAt")` servido por `facets`) o purgar la CDN al
       terminar cada carga.
-- [ ] 🟢 **Años y comunas por selección.** El rango del deslizador es el
-      global (1994–2026), pero Coyhaique empieza en 2012. Propuesta: rango por
-      comuna, con un histograma de transacciones por año (con y sin monto)
-      dentro del control. En la lista de comunas aparece «Puerto Aysén»
+- [~] 🟢 **Años y comunas por selección.** *Hecho (2026-10-23)*: el rango
+      y el histograma de años son los de la comuna elegida. *Pendiente*:
+      separar en cada barra las transacciones con monto de las que no lo
+      tienen. En la lista de comunas aparece «Puerto Aysén»
       (374 filas, todas con monto) separada de «Aysén» (3.668 filas): es una
       localidad cargada como comuna; normalizar contra el CUT de la DPA.
 - [ ] 🟢 **Encuadrar la comuna elegida.** Al elegir Coyhaique el mapa queda

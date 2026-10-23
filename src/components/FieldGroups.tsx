@@ -3,6 +3,17 @@
 import type { Facets, Stats } from '@/lib/types';
 import { normalizePropiedadRuralRol, type PropiedadRuralSearchMatch } from '@/lib/propiedades-rurales';
 import { track } from '@/lib/analytics';
+import {
+  alternarAnio,
+  anioEnRango,
+  aniosDisponibles,
+  cambiarExtremo,
+  etiquetaAnios,
+  hayFiltroAnios,
+  totalEnRango,
+  type AnioConteo,
+  type RangoAnios,
+} from '@/lib/anios';
 
 /**
  * Grupos de campos presentacionales, sin estado propio. El estado vive en
@@ -132,8 +143,8 @@ export function FilterFields({
   comuna,
   setComuna,
   facets,
-  setAnioFrom,
-  effectiveAnioFrom,
+  rangoAnios,
+  setRangoAnios,
   fechaDesde,
   setFechaDesde,
   fechaHasta,
@@ -151,8 +162,8 @@ export function FilterFields({
   comuna: string;
   setComuna: (v: string) => void;
   facets: Facets | null;
-  setAnioFrom: (v: number) => void;
-  effectiveAnioFrom: number;
+  rangoAnios: RangoAnios;
+  setRangoAnios: (r: RangoAnios) => void;
   fechaDesde: string;
   setFechaDesde: (v: string) => void;
   fechaHasta: string;
@@ -185,42 +196,39 @@ export function FilterFields({
         </select>
       </label>
 
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">
-          Desde el año de la fecha disponible: <span className="opacity-70">{effectiveAnioFrom}</span>
-        </span>
-        <input
-          type="range"
-          min={facets?.minAnio ?? 2015}
-          max={facets?.maxAnio ?? 2025}
-          value={effectiveAnioFrom}
-          onChange={(e) => setAnioFrom(Number(e.target.value))}
-          className="w-full"
-          disabled={!facets}
-        />
-      </label>
+      <YearRangeField
+        comuna={comuna}
+        anios={aniosDisponibles(facets?.anios, comuna)}
+        loading={!facets}
+        rango={rangoAnios}
+        onChange={setRangoAnios}
+      />
 
-      <fieldset className="flex flex-col gap-1 text-sm">
-        <legend className="font-medium">Fecha disponible</legend>
-        <p className="text-xs opacity-60">Escritura; si falta, inscripción.</p>
-        <div className="flex items-center gap-1">
-          <input
-            type="date"
-            aria-label="Fecha disponible desde"
-            value={fechaDesde}
-            onChange={(e) => setFechaDesde(e.target.value)}
-            className={`${inputClass} min-w-0 flex-1`}
-          />
-          <span className="opacity-50">–</span>
-          <input
-            type="date"
-            aria-label="Fecha disponible hasta"
-            value={fechaHasta}
-            onChange={(e) => setFechaHasta(e.target.value)}
-            className={`${inputClass} min-w-0 flex-1`}
-          />
+      <details className="group text-sm" open={Boolean(fechaDesde || fechaHasta) || undefined}>
+        <summary className="cursor-pointer select-none text-xs opacity-70 hover:opacity-100">
+          Fechas exactas{fechaDesde || fechaHasta ? ' · activas' : ''}
+        </summary>
+        <div className="mt-2 flex flex-col gap-1">
+          <p className="text-xs opacity-60">Escritura; si falta, inscripción. Se combinan con los años.</p>
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              aria-label="Fecha disponible desde"
+              value={fechaDesde}
+              onChange={(e) => setFechaDesde(e.target.value)}
+              className={`${inputClass} min-w-0 flex-1`}
+            />
+            <span className="opacity-50">–</span>
+            <input
+              type="date"
+              aria-label="Fecha disponible hasta"
+              value={fechaHasta}
+              onChange={(e) => setFechaHasta(e.target.value)}
+              className={`${inputClass} min-w-0 flex-1`}
+            />
+          </div>
         </div>
-      </fieldset>
+      </details>
 
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Monto (CLP)</span>
@@ -286,6 +294,139 @@ export function FilterFields({
         </a>
       </div>
     </div>
+  );
+}
+
+const fmtN = (v: number): string => v.toLocaleString('es-CL');
+
+/**
+ * Años de la fecha disponible como rango «desde–hasta». El histograma es el de
+ * la comuna elegida (conteos de `facets.anios`): clic en una barra deja ese
+ * único año, otro clic lo quita y Mayús+clic extiende el rango. Los selectores
+ * hacen lo mismo con teclado y lector de pantalla. «Todos» en un extremo es
+ * «sin límite», nunca el año mínimo de la base.
+ */
+function YearRangeField({
+  comuna,
+  anios,
+  loading,
+  rango,
+  onChange,
+}: {
+  comuna: string;
+  anios: AnioConteo[];
+  loading: boolean;
+  rango: RangoAnios;
+  onChange: (r: RangoAnios) => void;
+}) {
+  // Un año del enlace que la comuna no tiene sigue siendo elegible: si no
+  // estuviera entre las opciones, el selector mostraría otro valor.
+  const opciones = [...new Set([...anios.map((a) => a.anio), rango.desde, rango.hasta])]
+    .filter((a): a is number => a != null)
+    .sort((a, b) => a - b);
+  const conteo = new Map(anios.map((a) => [a.anio, a.n]));
+  // Raíz cuadrada: en el país 2025 tiene 40× más filas que cualquier otro año
+  // y en escala lineal el resto de las barras desaparecía.
+  const maxRaiz = Math.sqrt(Math.max(1, ...anios.map((a) => a.n)));
+  const activo = hayFiltroAnios(rango);
+  const enRango = totalEnRango(anios, rango);
+  const lugar = comuna === 'todas' ? 'en el país' : `en ${comuna}`;
+  const etiqueta = (a: number) => (conteo.has(a) ? `${a} (${fmtN(conteo.get(a)!)})` : `${a} (0)`);
+
+  return (
+    <fieldset className="flex flex-col gap-1.5 text-sm">
+      <legend className="font-medium">
+        Años{activo && <span className="font-normal opacity-70">: {etiquetaAnios(rango)}</span>}
+      </legend>
+      <p className="text-xs opacity-60">Año de la escritura; si falta, de la inscripción.</p>
+
+      {anios.length > 0 ? (
+        <div
+          className="flex h-12 items-end gap-px"
+          role="group"
+          aria-label={`Transacciones por año ${lugar}. Clic en un año para filtrarlo; Mayús+clic extiende el rango.`}
+        >
+          {anios.map((a) => {
+            const dentro = anioEnRango(rango, a.anio);
+            return (
+              <button
+                key={a.anio}
+                type="button"
+                onClick={(e) => onChange(alternarAnio(rango, a.anio, e.shiftKey))}
+                aria-pressed={activo && dentro}
+                aria-label={`${a.anio}: ${fmtN(a.n)} transacciones`}
+                title={`${a.anio}: ${fmtN(a.n)} transacciones`}
+                className="group/bar flex h-full min-w-0 flex-1 items-end rounded-sm hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[hsl(153_28%_35%)] dark:hover:bg-white/10"
+              >
+                <span
+                  className={`block w-full rounded-t-sm ${
+                    activo && !dentro
+                      ? 'bg-black/15 dark:bg-white/15'
+                      : 'bg-[hsl(153_28%_35%)] dark:bg-[hsl(153_35%_60%)]'
+                  }`}
+                  style={{ height: `${Math.max(6, (Math.sqrt(a.n) / maxRaiz) * 100)}%` }}
+                />
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-xs opacity-60">{loading ? 'Cargando años…' : `Sin transacciones fechadas ${lugar}.`}</p>
+      )}
+      {anios.length > 0 && (
+        <div className="flex justify-between text-[0.65rem] tabular-nums opacity-60" aria-hidden>
+          <span>{anios[0].anio}</span>
+          <span>{anios[anios.length - 1].anio}</span>
+        </div>
+      )}
+
+      <div className="flex items-center gap-1">
+        <select
+          aria-label="Año desde"
+          value={rango.desde ?? ''}
+          onChange={(e) => onChange(cambiarExtremo(rango, 'desde', e.target.value ? Number(e.target.value) : null))}
+          disabled={loading}
+          className={`${inputClass} min-w-0 flex-1`}
+        >
+          <option value="">Desde: todos</option>
+          {opciones.map((a) => (
+            <option key={a} value={a}>{etiqueta(a)}</option>
+          ))}
+        </select>
+        <span className="opacity-50">–</span>
+        <select
+          aria-label="Año hasta"
+          value={rango.hasta ?? ''}
+          onChange={(e) => onChange(cambiarExtremo(rango, 'hasta', e.target.value ? Number(e.target.value) : null))}
+          disabled={loading}
+          className={`${inputClass} min-w-0 flex-1`}
+        >
+          <option value="">Hasta: todos</option>
+          {opciones.map((a) => (
+            <option key={a} value={a}>{etiqueta(a)}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex min-h-5 items-center justify-between gap-2 text-xs" aria-live="polite">
+        <span className="opacity-60">
+          {anios.length > 0 && activo
+            ? `${fmtN(enRango)} transacciones ${lugar} en ${etiquetaAnios(rango)}`
+            : anios.length > 0
+              ? `${anios[0].anio}–${anios[anios.length - 1].anio}, todos los años`
+              : ''}
+        </span>
+        {activo && (
+          <button
+            type="button"
+            onClick={() => onChange({ desde: null, hasta: null })}
+            className="shrink-0 rounded px-1.5 py-0.5 underline-offset-2 hover:underline"
+          >
+            Todos los años
+          </button>
+        )}
+      </div>
+    </fieldset>
   );
 }
 

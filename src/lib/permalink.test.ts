@@ -85,6 +85,7 @@ describe('parsePermalink', () => {
         ...DEFAULT_FILTERS,
         comuna: 'Río Bueno',
         anioMin: 2020,
+        anioMax: 2024,
         fechaDesde: '2023-01-01',
         montoMin: '1000000',
         rol: '123-45',
@@ -95,6 +96,14 @@ describe('parsePermalink', () => {
 
   it('falls back to defaults with no query', () => {
     expect(parsePermalink('', DEFAULTS)).toEqual({ ...initial, basemap: null });
+  });
+
+  it('reads a year range and drops an inverted upper bound', () => {
+    expect(parsePermalink('?anio_min=2016&anio_max=2016', DEFAULTS).filters)
+      .toMatchObject({ anioMin: 2016, anioMax: 2016 });
+    expect(parsePermalink('?anio_max=2020', DEFAULTS).filters).toMatchObject({ anioMin: null, anioMax: 2020 });
+    expect(parsePermalink('?anio_min=2020&anio_max=2016', DEFAULTS).filters)
+      .toMatchObject({ anioMin: 2020, anioMax: null });
   });
 
   it('ignores unknown layers and invalid values field by field', () => {
