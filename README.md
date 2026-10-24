@@ -2,7 +2,7 @@
 
 An interactive **open-data** map of rural land transactions recorded by Chilean
 Real Estate Registries (*Conservadores de Bienes Raíces*, CBR) across
-south-central Chile. It combines transaction records with official thematic
+most of Chile. It combines transaction records with official thematic
 layers such as protected areas, urban boundaries, administrative boundaries,
 the national road network, fruit-growing cadastres, and agricultural soils.
 
@@ -17,7 +17,7 @@ expropriations.
 - **Next.js 16** (App Router), **React 19**, and **TypeScript**
 - **Tailwind CSS v4**
 - **Leaflet** and **leaflet.markercluster** for imperative clustering of
-  approximately 74,000 points
+  tens of thousands of points
 - **Neon** (`@neondatabase/serverless`) as the source of truth for CBR
   transactions, accessed through a SELECT-only `web_readonly` role
 - **Vercel** deployment at `sig.gabrielpantoja.cl`
