@@ -51,7 +51,7 @@ rango temporal para series).
 
 | # | Capa | Tipo | Peso |
 |---|---|---|---|
-| 1 | Transacciones CBR (~85k puntos) | Dinámica (Neon vía `/api/points`) | 21 MB en el cable |
+| 1 | Transacciones CBR (~108k puntos) | Dinámica (Neon vía `/api/points`, 8 partes cacheables) | 4,7 MB en el cable (31 MB JSON) |
 | 2 | Mapa de calor de valor ($/m²) | Derivada (PostGIS `ST_HexagonGrid` + interpolación) | — |
 | 3 | Propiedades rurales (CIREN) | Dinámica remota (PNG por viewport + `identify`) | — |
 | 4 | Áreas protegidas (RNAP) | Estática | 6,0 MB |
@@ -111,6 +111,8 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | 8 | 🟢 Eventos históricos de remoción en masa (Sernageomin) | Fuente oficial verificada el 2026-10-18; contexto, no zonificación | [§ 2.3](#23-sernageomin--peligros-geológicos-remociones-en-masa-volcanismo) |
 | 9 | 🟢 NDVI antes / después (dos fechas y su diferencia) | Leer incendios, cosechas, humedales que se secan | [§ 5.2](#52-ndvi-sentinel-2---en-producción-2026-09-17--2026-09-27) |
 | 10 | 🟢 Riqueza de especies GBIF con esfuerzo de muestreo | Biodiversidad sin confundir «sin muestreo» con «sin especies» | [Investigación](#investigación-y-datos-abiertos) |
+| 11 | 🟡 `db/web.sql`: `web_readonly` con SELECT por columna, solo lectura y `statement_timeout` | Revisión de seguridad 2026-10-26: los permisos del rol no están en el repo y una credencial filtrada expondría PII. Requiere el rol owner de Neon | [Deuda › Seguridad](#seguridad-y-operación) |
+| 12 | 🟡 PWA instalable y objetivos táctiles de 48 dp | Prueba en Android 2026-10-26: no se puede instalar, y 43 controles miden menos de 40 px | [Accesibilidad y mobile](#accesibilidad-y-mobile-auditoría-2026-08-28) |
 
 ## Criterios de priorización
 
@@ -839,6 +841,22 @@ que amplían el uso diario del perito:
       mobile, con buscador y grupos).
 - [ ] **Repartir el borde inferior en mobile**: atribución, escala, chip de
       mapa base y FAB se superponen.
+- [x] **«Atrás» de Android cierra «Buscar y filtrar»** — 2026-10-26,
+      `useCloseOnBack` (`CloseWatcher`, sin entradas de historial que choquen
+      con el permalink por `replaceState`; Escape como respaldo). Antes,
+      «atrás» sacaba del sitio con el panel abierto.
+- [ ] 🟡 **PWA instalable** *(prueba Android 2026-10-26)*: no hay
+      `manifest`, `theme-color`, íconos ni service worker. Manifest + íconos
+      + service worker que guarde la interfaz y las capas de `public/data/`
+      para usarla sin señal en terreno. Ver la decisión sobre APK más abajo.
+- [ ] 🟡 **Objetivos táctiles de 48 dp**: 43 controles miden menos de 40 px
+      en un Pixel 7 (botones del header 32 px, barras del histograma de años
+      23 px de ancho, «Cerrar» 31×26, «Predio por coordenadas UTM» 20 px de
+      alto).
+- [ ] 🟢 **`og:image`**: un enlace de «Compartir vista» llega sin vista
+      previa a WhatsApp.
+- [ ] 🟢 **Vista inicial ajustada a los datos**: en escritorio, la mitad de
+      la pantalla de entrada es Argentina.
 
 ### Filtro de transacciones *(diagnóstico 2026-10-23)*
 
@@ -904,6 +922,22 @@ máximo de Coyhaique es $196.300.700.000 (5.000.000 UF por 24,5 ha agrícolas),
 y por eso el promedio de 2025 es 9,9 veces la mediana.
 
 ### Producto y mercado
+
+**Decisiones del 2026-10-26 (prueba en vivo en Android):**
+
+- **Sin APK propio descargable desde la web.** Exigiría «fuentes
+  desconocidas» y pasar las advertencias de Play Protect, no se actualiza
+  solo (convivirían versiones viejas contra una `/api/*` aún no congelada) y
+  agrega una firma que custodiar, sin ganar nada que el navegador no dé (GPS,
+  pantalla completa). El camino es la **PWA**; si se quiere estar en Play
+  Store, la misma PWA empaquetada como **TWA** (Bubblewrap): un APK firmado
+  que muestra el sitio y se actualiza con él.
+- **Sin cuentas de usuario mientras el SIG sea de solo lectura.** Datos
+  abiertos, sin datos de cuentas que custodiar bajo la Ley 19.628 y sin
+  sesiones que atacar. Las vistas se guardan en el permalink. Se abre el
+  tema solo si llega una función de escritura (aportes o correcciones de
+  transacciones: login, moderación y rol de base aparte) o si el abuso de
+  `/api/export` lo pide (API keys opcionales para consumo masivo, no login).
 
 - [x] **Consulta integrada del punto («¿Qué hay aquí?»)** — hecho el
       2026-10-10 (`usePointQuery`): un clic abre un solo popup con
@@ -1077,8 +1111,17 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
 
 ### Rendimiento *(nuevo, 2026-10-10)*
 
-- [ ] 🟡 **`/api/points` entrega 21 MB de JSON** (auditoría UX P5) y el clúster pinta ~85k
-      marcadores en el cliente. Ruta incremental: (1) nombres de campo
+- [x] **`/api/points` nunca entraba a la caché de la CDN** — 2026-10-26.
+      Medido con Playwright: la CDN de Vercel cachea hasta ~10 MB (6,6 MB
+      HIT, 12 MB MISS) y la respuesta completa pesa 31 MB, así que cada
+      visita consultaba Neon. El mapa la pide en 8 partes disjuntas
+      (`part`/`parts`, por `md5(id)`, ~3,9 MB cada una, todas HIT) y los
+      popups se arman al abrirse, no 108k a la carga. Primeros puntos en
+      pantalla: escritorio 11,9 → 6,1 s; Pixel 7 13 → 5,9 s; Pixel 7 con 3G
+      y CPU 4× 59 → 45 s (ahí manda el ancho de banda).
+- [ ] 🟡 **`/api/points` entrega 31 MB de JSON** (4,7 MB gzip; auditoría UX P5) y el clúster pinta ~108k
+      marcadores en el cliente. Lo que más rinde en 3G es mandar solo
+      `lat`, `lng` e id, y traer el detalle al tocar el punto. Ruta incremental: (1) nombres de campo
       cortos o arreglo de columnas; (2) carga por viewport + zoom con
       clúster en el servidor (PostGIS `ST_ClusterDBSCAN` o la grilla de
       hexbins); (3) teselas vectoriales (ver H2 de la ruta larga).
@@ -1113,9 +1156,30 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
       lee la analítica) que haga **una** petición liviana por servicio al día
       y registre el estado basta; publicarlo en una página `/estado` sería un
       plus para los usuarios.
+- [x] **Next.js 16.3.8 con avisos críticos** (RCE en Image Optimization con
+      SVG y en `use cache`, DoS en Server Actions) — subido a 16.4.3 el
+      2026-10-26.
+- [ ] 🟡 **Permisos de `web_readonly` versionados en el repo** *(revisión
+      2026-10-26)*. El rol no está definido en `db/`, así que no se puede
+      auditar desde el código; hoy la PII se protege solo porque las rutas no
+      seleccionan esas columnas. Crear `db/web.sql` con `GRANT SELECT` por
+      columna (o una vista sin `comprador`, `vendedor`, `rut`, `user_id`,
+      `observaciones`), `default_transaction_read_only = on`,
+      `statement_timeout` (~10 s) y `CONNECTION LIMIT`. Así una credencial
+      filtrada de Vercel no expone PII ni puede lanzar consultas eternas.
+      Requiere el rol owner de Neon. Revisar también que no haya `GRANT …
+      TO PUBLIC` en `public` (lo verían `etl_writer` y
+      `n8n_analytics_reader`).
+- [ ] 🟡 **`analytics_writer` solo con `INSERT`** *(revisión 2026-10-26)*.
+      Hoy también tiene `SELECT` y `DELETE` porque la purga de retención
+      corre dentro de la web. Moverla a un cron con otro rol.
+- [ ] 🟢 **Previews de Vercel y Neon** *(revisión 2026-10-26)*: confirmar que
+      las previews no usan la base de producción sin Deployment Protection,
+      que el PITR está activo y que la rama principal está protegida.
 - [ ] 🟢 **Cabeceras de seguridad** *(nuevo)*: CSP (con los orígenes de
-      teselas permitidos), `Referrer-Policy`, `Permissions-Policy` en
-      `next.config`. Verificar contra securityheaders.com.
+      teselas permitidos), `Referrer-Policy`, `Permissions-Policy` y
+      `X-Frame-Options` en `next.config`; la página hoy solo envía HSTS
+      (comprobado el 2026-10-26). Verificar contra securityheaders.com.
 - [ ] 🟢 **Documentar el contrato público de `/api/*`** (por ejemplo, OpenAPI):
       es el requisito explícito para `1.0.0` según la política de versiones
       de `AGENTS.md`. Las rutas ya comparten el formato de error
