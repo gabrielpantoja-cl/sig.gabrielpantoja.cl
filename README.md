@@ -34,7 +34,15 @@ Browser → /api/geocode → Nominatim/OSM (Chile-only address search, cached pr
 Browser → /api/suelos/{export,identify} → CIREN (fixed, validated proxy)
 Browser → /api/vegetacional/{export,identify} → CONAF (fixed, validated proxy)
 Browser → /api/propiedades-rurales/{export,identify,feature,search} → SII/CIREN (fixed, validated proxy)
+Browser → POST /api/analisis/predio → Neon PostGIS (capas.* + CBR points) + Copernicus DEM (parcel report)
 ```
+
+The **parcel report** («Ficha del predio») takes a polygon drawn on the map,
+pasted as UTM vertices, loaded from a KML or found by CIREN ROL, and returns
+its comuna, urban limit and protected areas (official geometry loaded
+unsimplified into the `capas` schema by `npm run data:load:postgis`), slope
+by SAG class from Copernicus GLO-30 and nearby CBR comparables per land use.
+The polygon is not stored.
 
 Exports (`/api/export?format=csv|geojson`) are Excel-friendly CSV or GeoJSON
 for QGIS. Filters are parameterised SQL (`src/lib/filters.ts`); full design

@@ -44,7 +44,7 @@ Cuatro direcciones:
 (paneles flotantes, capas estáticas + dinámicas, atribución obligatoria, selectors de
 rango temporal para series).
 
-## Estado actual (al 2026-10-18)
+## Estado actual (al 2026-10-26)
 
 **Diecisiete capas en producción** (detalle técnico en
 [`arquitectura-capas.md`](./arquitectura-capas.md)):
@@ -83,6 +83,11 @@ Además:
   **analítica interna sin cookies**.
 - **Herramientas**: «¿Qué hay aquí?» (consulta integrada), medición de
   distancias y superficies, escala numérica, «Ir a mi ubicación» y permalink.
+- **Ficha del predio** (2026-10-26, primer geoproceso; ver
+  [Geoprocesos](#geoprocesos-ficha-del-predio-2026-10-26)): el polígono entra
+  dibujado, por vértices UTM, desde un KML o por ROL CIREN, y se cruza con
+  comuna, límite urbano, áreas protegidas, relieve y comparables CBR.
+  Descarga GeoJSON y CSV. Las tres capas oficiales esperan su carga en PostGIS.
 
 `public/data/` pesa **62 MB**, la mitad del catastro frutícola: es lo que
 empuja la «Migración de almacenamiento» de más abajo.
@@ -95,6 +100,7 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 
 | # | Qué | Por qué ahora | Sección |
 |---|---|---|---|
+| 0 | 🔴 Cargar las capas oficiales en PostGIS (`db/capas.sql` + `npm run data:load:postgis`) | La ficha del predio ya está en producción, pero comuna, límite urbano y áreas protegidas responden «capa aún no cargada» hasta que se carguen. Requiere el rol owner de Neon | [Geoprocesos](#geoprocesos-ficha-del-predio-2026-10-26) |
 | 1 | 🟡 Etiquetar `v0.3.0` | «No publicado» acumula Relieve, Medir, Conservadores, «¿Qué hay aquí?» y permalink | [Deuda › Plataforma](#plataforma-y-release) |
 | 2 | 🟡 Filtro de transacciones: monto en UF, filtro por destino y rango de años «desde–hasta» | Diagnóstico en Coyhaique (2026-10-23): 14,4 mil de 15,8 mil transacciones solo tienen `montoUf` y el SIG las muestra sin precio | [Filtro de transacciones](#filtro-de-transacciones-diagnóstico-2026-10-23) |
 | 3 | 🟡 Límite de consultas, parte 3: cupos separados por costo (datos / imágenes / consultas) y tope global por organismo | Las partes 1 y 2 (grilla + debounce, 429 honesto) ya están; con varias capas remotas el cupo único de 60/min se sigue agotando | [Deuda › Seguridad](#seguridad-y-operación) |
@@ -667,6 +673,86 @@ para desarrollo offline y para los clones existentes.
 **Esfuerzo**: M. Se hace junto con la siguiente capa estática grande (o la
 próxima actualización del catastro frutícola), no como tarea aislada.
 
+## Geoprocesos: ficha del predio *(2026-10-26)*
+
+El salto de visor a SIG: el usuario entrega SU geometría y recibe una
+respuesta calculada, no solo un mapa. Diseño y decisiones en
+[`design-notes.md`](./design-notes.md) («Ficha del predio»).
+
+**En producción**
+
+- [x] Entradas: polígono dibujado con «Medir», **vértices UTM** pegados desde
+      un plano o escritura (huso 18S/19S), capa **KML** con polígonos y
+      **predio CIREN** ubicado por ROL.
+- [x] `/api/analisis/predio`: superficie y perímetro geodésicos; % y ha por
+      comuna, límite urbano (con instrumento) y área protegida (o la más
+      cercana y su distancia); comparables CBR en un radio de 1–20 km con
+      mediana y P25–P75 **por destino**.
+- [x] Relieve sin base de datos: pendiente media y mediana, % por clase SAG
+      A–I, % ≥ 30 y ≥ 45 % (Ley 20.283), rango de cotas.
+- [x] Descarga de la ficha en GeoJSON (QGIS) y de los comparables en CSV.
+
+**Pendiente de operación (bloquea la mitad de la ficha)**
+
+1. En una **rama** de Neon, como owner: correr `db/capas.sql` (crea `capas`
+   y `etl_writer`, y alinea PostGIS: la librería es 3.3.10 y las funciones
+   de la extensión siguen en 3.3.3).
+2. `ALTER ROLE etl_writer PASSWORD '…'` y `ETL_DATABASE_URL` en `.env.local`
+   de la máquina del ETL. **Nunca en Vercel.**
+3. `nvm use && npm run data:load:postgis` (Node 22: el Pool usa el WebSocket
+   global). La caché del dato crudo ya está llena (comunas, límite urbano y
+   áreas protegidas, 2026-10-26).
+4. Probar la ficha contra la rama y repetir 1 y 3 en la rama principal, que
+   es la que lee producción.
+
+**Dudas abiertas (decidir antes de seguir)**
+
+- **Espacio en Neon.** Hoy la base pesa 87 MB. Comunas, límite urbano y
+  áreas protegidas sin simplificar se estiman en 150–250 MB con índices (sin
+  medir). Humedales MMA (118k polígonos) puede costar varios cientos de MB más.
+  Revisar el límite del plan antes de cargar humedales.
+- **¿Los comparables deben seguir los filtros activos?** Hoy NO: la ficha
+  usa todas las inscripciones del radio, agrupadas por destino. La API ya
+  acepta los mismos filtros que `/api/points` por query string; falta
+  decidir si la interfaz los pasa (y decirlo en el panel).
+- **Datum de planos antiguos.** Los vértices UTM se leen como WGS84/SIRGAS.
+  Un plano en PSAD56 o SAD69 queda corrido 200–400 m; la interfaz lo
+  advierte, pero no convierte. ¿Agregar la transformación (parámetros IGM)?
+- **MCP de Neon.** No está configurado para este repo (solo en otros
+  proyectos), así que un agente no puede crear ramas ni correr SQL como
+  owner. `claude mcp add --transport http neon https://mcp.neon.tech/mcp`
+  en este directorio lo habilita.
+- **Datos regenerados sin commitear.** Llenar la caché reconstruyó
+  `public/data/limite-urbano.geojson` (el MINVU actualizó el dato; siguen
+  siendo 601 límites) y los `.meta.json` de límite urbano y comunas. Es un
+  PARCHE de datos aparte; el cargador toma la fecha de esos manifiestos como
+  procedencia.
+
+**Siguiente**
+
+- [ ] **Suelos CIREN y cobertura CONAF por hectárea.** Diseño: `query` del
+      MapServer con la geometría del predio (`esriGeometryPolygon`,
+      `inSR/outSR=4326`, solo las features que tocan) y la intersección en
+      PostGIS **como motor, sin tablas** (`ST_Intersection` sobre literales),
+      así no se carga a Neon un dato de 500 MB. Bloqueado: el 2026-10-26
+      `esri.ciren.cl` respondía 500 («ArcGIS Web Adaptor — Application
+      Error») y no se pudo verificar que el servicio acepte `query` con
+      geometría ni su `maxRecordCount`.
+- [ ] Cargar a `capas` el resto de lo redistribuible (red vial, drenaje,
+      líneas de transmisión, catastro frutícola) y sumar a la ficha las
+      **distancias** a camino (con su ROL de Vialidad), río/estero y línea
+      eléctrica. Las líneas son ejes referenciales: distancia sí, servidumbre
+      nunca.
+- [ ] Humedales MMA en la ficha (CC0, se puede cargar; ver la duda de espacio).
+- [ ] NDVI histórico del polígono: reutilizar `/api/ndvi/serie` (hoy topa en
+      3 km de lado).
+- [ ] Anexo **PDF** de la ficha (mapa + tablas + fuentes + avisos de
+      licencia) y export **GeoPackage**.
+- [ ] Comparables: rango de superficie, fecha y exclusión de las inscripciones
+      del propio predio.
+- [ ] Editar vértices del polígono arrastrándolos y llevar la ficha al
+      permalink.
+
 ## Mejoras no-capa (UX y producto) — independiente de las fases
 
 Estas se entrelazan con cualquier fase; el orden propuesto prioriza las
@@ -1154,18 +1240,21 @@ dirección del producto. Al retomar, el horizonte activo es el primero con
 
 *Objetivo: que el perito salga con una respuesta, no solo con un mapa.*
 
-- **Ficha del predio**: dibujar o elegir un polígono (KML, ROL CIREN o a
+- [~] **Ficha del predio** (en producción desde 2026-10-26, ver
+  [Geoprocesos](#geoprocesos-ficha-del-predio-2026-10-26)): dibujar o elegir un polígono (KML, ROL CIREN o a
   mano) y obtener en una sola vista lo que el SIG sabe de él: superficie,
   pendiente media, clases de suelo (% por clase CIREN), cobertura CONAF,
   NDVI histórico, distancia a camino/río/línea eléctrica/área protegida,
   si cae en límite urbano y transacciones CBR comparables cercanas.
 - Exportar esa ficha como **anexo PDF** con mapa, leyenda, fuentes y
   vintages (cumple la regla de los tres lugares de atribución).
-- **Comparables**: selección de transacciones por cercanía + destino +
-  superficie, con su estadística (mediana, P25/P75) y su mapa.
+- [~] **Comparables**: selección de transacciones por cercanía + destino +
+  superficie, con su estadística (mediana, P25/P75) y su mapa. *Hecho:*
+  cercanía y destino; *falta:* rango de superficie y filtros de fecha.
 - Herramientas clásicas: buffer, intersección con capas activas, perfil de
   elevación sobre una línea, distancia a la red vial.
-- Export **DXF** y **GeoPackage** del viewport y de la ficha.
+- Export **DXF** y **GeoPackage** del viewport y de la ficha. *Hecho:* la
+  ficha en GeoJSON y los comparables en CSV.
 - Restricciones de la Fase 2 (erosión, peligros geológicos, contexto
   hídrico) entran aquí como insumos de la ficha.
 
@@ -1281,6 +1370,12 @@ analítica o un usuario las justifique.
    un roadmap que repite deuda ya pagada pierde credibilidad.
 
 ## Hitos
+
+- **2026-10-26 — Ficha del predio, primer geoproceso**: polígono dibujado,
+  por vértices UTM, KML o ROL CIREN → comuna, límite urbano y áreas
+  protegidas en PostGIS (geometría sin simplificar, `ST_Subdivide`), relieve
+  Copernicus por barrido de filas y comparables CBR por destino. Descarga
+  GeoJSON y CSV.
 
 - **2026-10-18 — Fuentes de la Fase 2 verificadas**: derechos de agua DGA
   (76k puntos) y eventos de remoción en masa de Sernageomin (18k puntos),
