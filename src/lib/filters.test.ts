@@ -24,6 +24,14 @@ describe('buildFilters', () => {
     expect(where).not.toContain('$7');
   });
 
+  it('filters the UF range over montoUf, apart from pesos', () => {
+    const { where, params } = build('uf_min=500&uf_max=2000');
+    expect(where).toContain('"montoUf" >= $1');
+    expect(where).toContain('"montoUf" <= $2');
+    expect(where).not.toContain('monto >=');
+    expect(params).toEqual([500, 2000]);
+  });
+
   it('binds each destino code as its own placeholder', () => {
     const { where, params } = build('comuna=Coyhaique&destinos=W,A,W,x');
     expect(where).toContain('destino IN ($2, $3)');

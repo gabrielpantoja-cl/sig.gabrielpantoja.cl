@@ -70,6 +70,8 @@ export interface PermalinkFilters {
   fechaHasta: string;
   montoMin: string;
   montoMax: string;
+  /** Unidad del rango de monto: `uf_min`/`uf_max` o `monto_min`/`monto_max`. */
+  montoUnidad: MontoUnidad;
   supMin: string;
   supMax: string;
   /** Destinos SII del filtro (`destinos=H,W`); no es el `destino` del mapa de calor. */
@@ -77,6 +79,9 @@ export interface PermalinkFilters {
   predio: string;
   rol: string;
 }
+
+/** UF por defecto: es la unidad que trae el 92,7 % de la base. */
+export type MontoUnidad = 'uf' | 'clp';
 
 export interface PermalinkState {
   view: PermalinkView | null;
@@ -98,6 +103,7 @@ export const DEFAULT_FILTERS: PermalinkFilters = {
   fechaHasta: '',
   montoMin: '',
   montoMax: '',
+  montoUnidad: 'uf',
   supMin: '',
   supMax: '',
   destinos: [],
@@ -145,6 +151,25 @@ function year(params: URLSearchParams, key: string): number | null {
   if (!params.has(key)) return null;
   const value = Number(params.get(key));
   return Number.isInteger(value) && value >= 1900 && value <= 2100 ? value : null;
+}
+
+/**
+ * Rango de monto y su unidad. Un enlace trae uno u otro par; si trajera los
+ * dos (editado a mano), manda la UF, que es la unidad por defecto.
+ */
+function montoRange(params: URLSearchParams): Pick<PermalinkFilters, 'montoMin' | 'montoMax' | 'montoUnidad'> {
+  const ufMin = pattern(params, 'uf_min', AMOUNT_RE);
+  const ufMax = pattern(params, 'uf_max', AMOUNT_RE);
+  if (ufMin || ufMax) return { montoMin: ufMin, montoMax: ufMax, montoUnidad: 'uf' };
+  const clpMin = pattern(params, 'monto_min', AMOUNT_RE);
+  const clpMax = pattern(params, 'monto_max', AMOUNT_RE);
+  if (clpMin || clpMax) return { montoMin: clpMin, montoMax: clpMax, montoUnidad: 'clp' };
+  return { montoMin: '', montoMax: '', montoUnidad: 'uf' };
+}
+
+/** Nombres de la API para el rango de monto en cada unidad. */
+export function montoParams(unidad: MontoUnidad): readonly [string, string] {
+  return unidad === 'uf' ? ['uf_min', 'uf_max'] : ['monto_min', 'monto_max'];
 }
 
 export function parseView(raw: string | null): PermalinkView | null {
@@ -204,8 +229,7 @@ export function parsePermalink(search: string, defaults: PermalinkDefaults): Per
       anioMax,
       fechaDesde: pattern(params, 'fecha_desde', DATE_RE),
       fechaHasta: pattern(params, 'fecha_hasta', DATE_RE),
-      montoMin: pattern(params, 'monto_min', AMOUNT_RE),
-      montoMax: pattern(params, 'monto_max', AMOUNT_RE),
+      ...montoRange(params),
       supMin: pattern(params, 'sup_min', AMOUNT_RE),
       supMax: pattern(params, 'sup_max', AMOUNT_RE),
       destinos: parseDestinos(params.get('destinos')),
@@ -257,8 +281,9 @@ export function serializePermalink(state: PermalinkState, defaults: PermalinkDef
   if (f.anioMax != null) params.set('anio_max', String(f.anioMax));
   if (f.fechaDesde) params.set('fecha_desde', f.fechaDesde);
   if (f.fechaHasta) params.set('fecha_hasta', f.fechaHasta);
-  if (f.montoMin) params.set('monto_min', f.montoMin);
-  if (f.montoMax) params.set('monto_max', f.montoMax);
+  const [montoMinKey, montoMaxKey] = montoParams(f.montoUnidad);
+  if (f.montoMin) params.set(montoMinKey, f.montoMin);
+  if (f.montoMax) params.set(montoMaxKey, f.montoMax);
   if (f.supMin) params.set('sup_min', f.supMin);
   if (f.supMax) params.set('sup_max', f.supMax);
   if (f.destinos.length > 0) params.set('destinos', serializeDestinos(f.destinos));

@@ -169,8 +169,10 @@ transacciones con precio. La UF es además la unidad que permite comparar años.
 redondeada y la conversión daría una cifra precisa pero falsa (la misma regla
 del popup, `src/lib/map-popups.ts`).
 
-Pendiente: el filtro de monto sigue en pesos (`monto_min`/`monto_max`) y deja
-fuera las filas que solo tienen UF; el mapa de calor también lee solo `monto`.
+El filtro de monto sigue la misma regla: `uf_min`/`uf_max` filtran sobre
+`"montoUf"` y `monto_min`/`monto_max` sobre `monto`; un rango en una unidad
+deja fuera las filas que solo traen la otra. Pendiente: el mapa de calor lee
+solo `monto`.
 
 ## 8. Pendiente
 

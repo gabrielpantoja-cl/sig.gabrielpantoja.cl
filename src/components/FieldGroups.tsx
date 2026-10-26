@@ -168,6 +168,8 @@ export function FilterFields({
   setMontoMin,
   montoMax,
   setMontoMax,
+  montoUnidad,
+  setMontoUnidad,
   supMin,
   setSupMin,
   supMax,
@@ -191,6 +193,8 @@ export function FilterFields({
   setMontoMin: (v: string) => void;
   montoMax: string;
   setMontoMax: (v: string) => void;
+  montoUnidad: 'uf' | 'clp';
+  setMontoUnidad: (v: 'uf' | 'clp') => void;
   supMin: string;
   setSupMin: (v: string) => void;
   supMax: string;
@@ -269,8 +273,24 @@ export function FilterFields({
         </div>
       </details>
 
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Monto (CLP)</span>
+      <div className="flex flex-col gap-1 text-sm">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium">Monto</span>
+          <select
+            aria-label="Unidad del monto"
+            value={montoUnidad}
+            onChange={(e) => {
+              // Un rango escrito en pesos no significa nada en UF: se vacía.
+              setMontoUnidad(e.target.value === 'clp' ? 'clp' : 'uf');
+              setMontoMin('');
+              setMontoMax('');
+            }}
+            className="h-7 rounded-md border border-black/15 bg-[var(--background)] px-1 text-xs dark:border-white/20"
+          >
+            <option value="uf">UF</option>
+            <option value="clp">Pesos</option>
+          </select>
+        </div>
         <div className="flex items-center gap-1">
           <input
             type="number"
@@ -290,7 +310,12 @@ export function FilterFields({
             className={`${inputClass} min-w-0 flex-1`}
           />
         </div>
-      </label>
+        <p className="text-xs opacity-60">
+          {montoUnidad === 'uf'
+            ? 'En UF entra el 93 % de la base; quedan fuera las filas solo en pesos.'
+            : 'En pesos quedan fuera las filas solo en UF (casi todo Aysén antes de 2025).'}
+        </p>
+      </div>
 
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Superficie (m²)</span>

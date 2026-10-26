@@ -8,7 +8,9 @@ import { parseDestinos } from '@/lib/destinos';
  * /api/export so all three filter identically.
  *
  * Supported params: comuna, anio_min, anio_max, fecha_desde, fecha_hasta,
- * monto_min, monto_max, sup_min, sup_max (over superficieTerreno), destinos
+ * monto_min, monto_max (pesos), uf_min, uf_max (over "montoUf"; a row with
+ * only one of the two units never matches the other unit's range), sup_min,
+ * sup_max (over superficieTerreno), destinos
  * (comma-separated SII codes, see `src/lib/destinos.ts`), predio and rol
  * (literal ILIKE "contains"). Date filters and year filters use the
  * escritura date; only when it is absent do they fall back to the inscripción
@@ -84,6 +86,11 @@ export function buildFilters(sp: URLSearchParams): ParsedFilters {
   if (montoMin != null) conds.push(`monto >= ${push(montoMin)}`);
   const montoMax = intParam(sp, 'monto_max');
   if (montoMax != null) conds.push(`monto <= ${push(montoMax)}`);
+
+  const ufMin = intParam(sp, 'uf_min');
+  if (ufMin != null) conds.push(`"montoUf" >= ${push(ufMin)}`);
+  const ufMax = intParam(sp, 'uf_max');
+  if (ufMax != null) conds.push(`"montoUf" <= ${push(ufMax)}`);
 
   const supMin = intParam(sp, 'sup_min');
   if (supMin != null) conds.push(`"superficieTerreno" >= ${push(supMin)}`);
