@@ -10,7 +10,7 @@ import {
 } from '@/lib/permalink';
 
 const DEFAULTS: PermalinkDefaults = {
-  basemap: 'neutro', bioclima: 'precipitation', relieve: 'sombreado', destino: 'H', minN: 2,
+  basemap: 'neutro', bioclima: 'precipitation', relieve: 'sombreado', destino: 'H', minN: 2, unidad: 'uf',
 };
 
 const initial: PermalinkState = {
@@ -21,6 +21,7 @@ const initial: PermalinkState = {
   relieve: 'sombreado',
   destino: 'H',
   minN: 2,
+  unidad: 'uf',
   filters: DEFAULT_FILTERS,
 };
 
@@ -41,6 +42,13 @@ describe('serializePermalink', () => {
       DEFAULTS,
     );
     expect(qs).toBe('v=-39.85067,-73.23874,15&capas=puntos,humedales&fondo=satelital&comuna=Valdivia&anio_min=2022');
+  });
+
+  it('writes the heat-map unit only with the heat map on and not the default', () => {
+    expect(serializePermalink({ ...initial, unidad: 'clp' }, DEFAULTS)).toBe('');
+    expect(serializePermalink({ ...initial, layers: ['puntos', 'mapa_calor'], unidad: 'clp' }, DEFAULTS))
+      .toBe('capas=puntos,mapa_calor&unidad=clp');
+    expect(parsePermalink('?unidad=usd', DEFAULTS).unidad).toBe('uf');
   });
 
   it('writes the monto range under the names of its unit', () => {
@@ -105,6 +113,7 @@ describe('parsePermalink', () => {
       relieve: 'pendiente',
       destino: 'W',
       minN: 4,
+      unidad: 'clp',
       filters: {
         ...DEFAULT_FILTERS,
         comuna: 'Río Bueno',

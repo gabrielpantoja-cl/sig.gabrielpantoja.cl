@@ -6,8 +6,10 @@ import {
   HEXBIN_MAX_CELLS,
   HEXBIN_MIN_N_DEFAULT,
   HEXBIN_MIN_N_MAX,
+  esHexbinUnidad,
   hexEdgeForZoom,
   type HexbinProps,
+  type HexbinUnidad,
 } from '@/lib/hexbins';
 
 /**
@@ -65,6 +67,13 @@ function parseDestino(raw: string | null): string | null {
   return /^[A-Z]$/.test(code) ? code : null;
 }
 
+/** Sin `unidad` la API responde en pesos, como antes: el contrato no cambia
+ *  para quien ya la consume. La UI pide la unidad explícitamente. */
+function parseUnidad(raw: string | null): HexbinUnidad | null {
+  if (!raw) return 'clp';
+  return esHexbinUnidad(raw) ? raw : null;
+}
+
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: corsHeaders(req) });
 }
@@ -77,9 +86,12 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const bbox = parseBbox(searchParams.get('bbox'));
   const destino = parseDestino(searchParams.get('destino'));
-  if (!bbox || !destino) {
-    return Response.json({ error: 'Invalid bbox or destino' }, { status: 400, headers });
+  const unidad = parseUnidad(searchParams.get('unidad'));
+  if (!bbox || !destino || !unidad) {
+    return Response.json({ error: 'Invalid bbox, destino or unidad' }, { status: 400, headers });
   }
+  // Columna fija según la unidad validada; nunca texto del usuario en el SQL.
+  const montoCol = unidad === 'uf' ? '"montoUf"' : 'monto';
 
   const zoom = clampInt(searchParams.get('z'), 12, 0, 22);
   const edgeM = hexEdgeForZoom(zoom);
@@ -107,11 +119,11 @@ export async function GET(req: Request) {
     const rows = (await sql.query(
       `WITH pts AS (
          SELECT ST_Transform(ST_SetSRID(ST_MakePoint(lng, lat), 4326), 3857) AS g,
-                monto::float8 / "superficieTerreno" AS ppm2,
-                monto::float8 AS monto
+                ${montoCol}::float8 / "superficieTerreno" AS ppm2,
+                ${montoCol}::float8 AS monto
          FROM referenciales
          WHERE ${where}
-           AND monto IS NOT NULL
+           AND ${montoCol} IS NOT NULL
            AND "superficieTerreno" > 0
            AND destino = ${pDestino}
            AND lng BETWEEN ${pWest} AND ${pEast}
@@ -165,6 +177,7 @@ export async function GET(req: Request) {
         // resolución y el umbral realmente aplicados por el servidor.
         edge_m: edgeM,
         destino,
+        unidad,
         min_n: minN,
         cells: features.length,
         points,

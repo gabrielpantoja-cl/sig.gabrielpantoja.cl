@@ -13,7 +13,7 @@ import {
   PROPIEDADES_RURALES_SERVICE_NAME,
   type PropiedadesRuralesStatus,
 } from '@/lib/propiedades-rurales';
-import { type HexbinStatus } from '@/lib/hexbins';
+import { type HexbinStatus, type HexbinUnidad } from '@/lib/hexbins';
 import type { ConservadoresStatus } from '@/lib/conservadores';
 import { RetroLoader } from '@/components/RetroLoader';
 import { LayersControl } from '@/components/LayersControl';
@@ -427,6 +427,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   const [showHexbins, setShowHexbins] = useState(on('mapa_calor'));
   const [hexbinDestino, setHexbinDestino] = useState(initial.destino);
   const [hexbinMinN, setHexbinMinN] = useState(initial.minN);
+  const [hexbinUnidad, setHexbinUnidad] = useState<HexbinUnidad>(initial.unidad);
   const [hexbinStatus, setHexbinStatus] = useState<HexbinStatus>({ kind: 'idle' });
 
   // Mapa base. La preferencia vive en localStorage y se lee por
@@ -486,9 +487,10 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     relieve: relieveModo,
     destino: hexbinDestino,
     minN: hexbinMinN,
+    unidad: hexbinUnidad,
     filters: { comuna, anioMin: anioFrom, anioMax: anioTo, fechaDesde, fechaHasta, montoMin, montoMax, montoUnidad, supMin, supMax, destinos, predio, rol },
   }), [
-    layerFlags, basemap, bioclimaVariable, relieveModo, hexbinDestino, hexbinMinN,
+    layerFlags, basemap, bioclimaVariable, relieveModo, hexbinDestino, hexbinMinN, hexbinUnidad,
     comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, montoUnidad, supMin, supMax, destinos, predio, rol,
   ]);
   const { onViewChange, flush: flushPermalink } = usePermalinkSync(permalinkState, initial.view);
@@ -818,6 +820,8 @@ function SigApp({ initial }: { initial: PermalinkState }) {
           onHexbinDestino={setHexbinDestino}
           hexbinMinN={hexbinMinN}
           onHexbinMinN={setHexbinMinN}
+          hexbinUnidad={hexbinUnidad}
+          onHexbinUnidad={setHexbinUnidad}
           showProtected={showProtected}
           onToggleProtected={setShowProtected}
           showUrbanLimit={showUrbanLimit}
@@ -917,6 +921,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               showHexbins={showHexbins}
               hexbinDestino={hexbinDestino}
               hexbinMinN={hexbinMinN}
+              hexbinUnidad={hexbinUnidad}
               hexbinFiltersQs={debouncedQs}
               onHexbinStatus={setHexbinStatus}
               kmlLayers={kmlLayers}

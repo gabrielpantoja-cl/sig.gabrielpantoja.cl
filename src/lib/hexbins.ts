@@ -40,15 +40,53 @@
 /** Ruta same-origin del endpoint de agregación (pasa por security.ts). */
 export const HEXBINS_URL = '/api/hexbins';
 
+/**
+ * Unidad del valor por m²: UF (`montoUf`) o pesos (`monto`). UF por defecto:
+ * la trae el 92,7 % de la base y los pesos solo el 79,5 % — en Aysén casi
+ * nada antes de 2025, así que en pesos la región quedaba en blanco. Nunca se
+ * convierte una en otra; cada unidad agrega sus propias filas.
+ */
+export type HexbinUnidad = 'uf' | 'clp';
+export const HEXBIN_UNIDAD_DEFAULT: HexbinUnidad = 'uf';
+
+export function esHexbinUnidad(value: unknown): value is HexbinUnidad {
+  return value === 'uf' || value === 'clp';
+}
+
+/** «UF/m²» o «$/m²», para rótulos. */
+export function unidadM2Label(unidad: HexbinUnidad): string {
+  return unidad === 'uf' ? 'UF/m²' : '$/m²';
+}
+
+/**
+ * Valor por m² legible. En UF el valor rural ronda 0,005 UF/m², así que los
+ * decimales dependen de la magnitud; en pesos, entero. `compact` es para la
+ * tira de la leyenda, donde no cabe el número completo.
+ */
+export function fmtValorM2(value: number | null, unidad: HexbinUnidad, compact = false): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  if (unidad === 'uf') {
+    const abs = Math.abs(value);
+    const digits = abs >= 100 ? 0 : abs >= 1 ? (compact ? 1 : 2) : abs >= 0.01 ? (compact ? 2 : 3) : 4;
+    return `${compact ? '' : 'UF '}${value.toLocaleString('es-CL', { maximumFractionDigits: digits })}`;
+  }
+  if (compact) {
+    if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1).replace('.', ',')}M`;
+    if (value >= 1_000) return `$${Math.round(value / 1_000)}k`;
+  }
+  return `$${Math.round(value).toLocaleString('es-CL')}`;
+}
+
 /** Propiedades que el endpoint adjunta a cada hexágono. */
 export interface HexbinProps {
   /** Transacciones con monto y superficie válidos dentro de la celda. */
   n: number;
-  /** $/m² típico de la celda: mediana de las razones monto/superficie. */
+  /** Valor por m² típico de la celda (en `HexbinMeta.unidad`): mediana de
+   *  las razones monto/superficie. */
   mediana_ppm2: number;
   p25: number;
   p75: number;
-  /** Mediana del monto absoluto (CLP) — contexto, no se usa para el color. */
+  /** Mediana del monto absoluto, en la misma unidad — contexto, no color. */
   mediana_monto: number | null;
 }
 
@@ -57,6 +95,8 @@ export interface HexbinMeta {
   /** Arista del hexágono en metros (derivada del zoom en el servidor). */
   edge_m: number;
   destino: string;
+  /** Unidad de los valores; ausente en respuestas anteriores (= pesos). */
+  unidad?: HexbinUnidad;
   min_n: number;
   cells: number;
   /** Transacciones efectivamente agregadas (suma de `n`). */

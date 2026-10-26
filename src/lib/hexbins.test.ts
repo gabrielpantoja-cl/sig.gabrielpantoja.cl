@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HEXBIN_CLASSES, hexEdgeForZoom, hexEdgeLabel, quantileBreaks } from '@/lib/hexbins';
+import { HEXBIN_CLASSES, fmtValorM2, hexEdgeForZoom, hexEdgeLabel, quantileBreaks } from '@/lib/hexbins';
 
 describe('hexEdgeForZoom', () => {
   it('spans 4 km at country scale down to 60 m at street scale', () => {
@@ -37,5 +37,21 @@ describe('quantileBreaks', () => {
     expect(quantileBreaks([])).toEqual([]);
     expect(quantileBreaks([NaN, Infinity])).toEqual([]);
     expect(quantileBreaks([1, NaN, 2])).toEqual(quantileBreaks([1, 2]));
+  });
+});
+
+describe('fmtValorM2', () => {
+  it('keeps enough decimals for rural UF/m²', () => {
+    expect(fmtValorM2(0.0055377, 'uf')).toBe('UF 0,0055');
+    expect(fmtValorM2(0.21875, 'uf')).toBe('UF 0,219');
+    expect(fmtValorM2(2.5446, 'uf', true)).toBe('2,5');
+    expect(fmtValorM2(348.4, 'uf')).toBe('UF 348');
+  });
+
+  it('formats pesos whole, compact for the legend', () => {
+    expect(fmtValorM2(348997.42, 'clp')).toBe('$348.997');
+    expect(fmtValorM2(348997.42, 'clp', true)).toBe('$349k');
+    expect(fmtValorM2(1_194_774, 'clp', true)).toBe('$1,2M');
+    expect(fmtValorM2(null, 'clp')).toBe('—');
   });
 });

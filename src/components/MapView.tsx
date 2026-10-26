@@ -87,6 +87,7 @@ import { HUMEDALES_EXPORT_URL, HUMEDALES_MIN_ZOOM, HUMEDALES_SERVICE_NAME, type 
 import { VEGETACIONAL_EXPORT_URL, VEGETACIONAL_MIN_ZOOM, VEGETACIONAL_SERVICE_NAME } from '@/lib/vegetacional';
 import type { PermalinkView } from '@/lib/permalink';
 import type { Extension } from '@/lib/encuadre';
+import type { HexbinUnidad } from '@/lib/hexbins';
 import { BIOCLIMA_DEFAULT_VARIABLE, type BioclimaVariable } from '@/lib/bioclima';
 import { DEFAULT_LAYER_OPACITY, type LayerOpacity } from '@/lib/layer-opacity';
 import {
@@ -148,6 +149,7 @@ export default function MapView({
   showHexbins = false,
   hexbinDestino,
   hexbinMinN,
+  hexbinUnidad,
   hexbinFiltersQs = '',
   kmlLayers = [],
   basemap = DEFAULT_BASEMAP_ID,
@@ -212,6 +214,8 @@ export default function MapView({
   hexbinDestino?: string;
   /** Mínimo de transacciones por celda para dibujarla. */
   hexbinMinN?: number;
+  /** Unidad del valor por m² del mapa de calor (UF o pesos). */
+  hexbinUnidad?: HexbinUnidad;
   /** Query string de los filtros activos, para que la capa agregue exactamente
    *  el mismo subconjunto que dibujan los puntos CBR. */
   hexbinFiltersQs?: string;
@@ -1062,7 +1066,7 @@ export default function MapView({
     onStatusRef: onConservadoresStatusRef, reorderOverlays,
   });
 
-  useHexbinLayer({ mapRef, hexbinsRef, hexbinSamplesRef, showHexbins, hexbinDestino, hexbinMinN, hexbinFiltersQs, hexbinRamp, onHexbinStatusRef, reorderOverlays });
+  useHexbinLayer({ mapRef, hexbinsRef, hexbinSamplesRef, showHexbins, hexbinDestino, hexbinMinN, hexbinUnidad, hexbinFiltersQs, hexbinRamp, onHexbinStatusRef, reorderOverlays });
 
   // Capas remotas pedidas como UNA imagen por vista a un proxy ArcGIS. Mismo
   // ciclo para las cuatro (ver `useViewportRaster`): una petición solo si la

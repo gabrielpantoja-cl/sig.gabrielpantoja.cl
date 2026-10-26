@@ -5,7 +5,7 @@ import type { LayerMetadataEntry } from '@/lib/map-export';
 import { LINEAS_TRANSMISION_COLOR } from '@/lib/lineas-transmision';
 import { HUMEDALES_COLOR } from '@/lib/humedales';
 import { RELIEVE_MODO_LABEL, type RelieveModo } from '@/lib/relieve';
-import { HEXBINS_COLOR, destinoLabel, hexEdgeLabel, type HexbinStatus } from '@/lib/hexbins';
+import { HEXBINS_COLOR, destinoLabel, hexEdgeLabel, unidadM2Label, type HexbinStatus } from '@/lib/hexbins';
 import { bioclimaRamp, type BioclimaVariable } from '@/lib/bioclima';
 
 /**
@@ -274,14 +274,14 @@ export function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEnt
         ? [
             `Hexágonos de ${hexEdgeLabel(st.meta.edge_m)} de arista · mínimo ${st.meta.min_n} transacciones por celda`,
             `${st.meta.cells.toLocaleString('es-CL')} celdas · ${st.meta.points.toLocaleString('es-CL')} transacciones agregadas`,
-            `Destino SII: ${destinoLabel(st.meta.destino)}`,
+            `Destino SII: ${destinoLabel(st.meta.destino)} · ${unidadM2Label(st.meta.unidad ?? 'clp')}`,
           ].join('\n')
         : 'Sin celdas suficientes en la vista exportada';
     entries.push({
-      title: 'Mapa de calor de valor ($/m² terreno)',
+      title: `Mapa de calor de valor (${st.kind === 'ready' ? unidadM2Label(st.meta.unidad ?? 'clp') : 'por m²'} terreno)`,
       details:
         `${detalle}\n` +
-        'Superficie interpolada desde la mediana de $/m² de cada celda; color por cuantiles recalculados\n' +
+        'Superficie interpolada desde la mediana por m² de cada celda; color por cuantiles recalculados\n' +
         'sobre la vista. Señal de mercado, no tasación.\n' +
         'Fuente: elaboración propia sobre inscripciones de los Conservadores de Bienes Raíces',
       color: HEXBINS_COLOR,
