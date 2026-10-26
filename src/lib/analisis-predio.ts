@@ -137,6 +137,28 @@ export function poligonoDesdeVertices(puntos: readonly Punto[]): PoligonoGeoJson
   return { type: 'Polygon', coordinates: [ring] };
 }
 
+/**
+ * Los polígonos de una capa del usuario (KML) → un solo (Multi)Polygon para la
+ * ficha. Puntos y líneas se ignoran: un KML de deslinde suele traer también los
+ * vértices como Placemark. `null` si no hay ningún polígono.
+ */
+export function poligonoDeFeatures(fc: {
+  features: { geometry: { type: string; coordinates?: unknown; geometries?: unknown } | null }[];
+}): PoligonoGeoJson | null {
+  const partes: Posicion[][][] = [];
+  const agregar = (g: { type: string; coordinates?: unknown; geometries?: unknown } | null) => {
+    if (!g) return;
+    if (g.type === 'Polygon') partes.push(g.coordinates as Posicion[][]);
+    else if (g.type === 'MultiPolygon') partes.push(...(g.coordinates as Posicion[][][]));
+    else if (g.type === 'GeometryCollection' && Array.isArray(g.geometries)) {
+      for (const sub of g.geometries) agregar(sub as typeof g);
+    }
+  };
+  for (const f of fc.features) agregar(f.geometry);
+  if (partes.length === 0) return null;
+  return partes.length === 1 ? { type: 'Polygon', coordinates: partes[0] } : { type: 'MultiPolygon', coordinates: partes };
+}
+
 /** Radio de búsqueda de comparables, en metros, acotado. */
 export function parseRadioM(raw: string | null): number {
   if (raw == null || raw === '') return RADIO_DEFAULT_M;
