@@ -86,6 +86,7 @@ import { SUELOS_EXPORT_URL, SUELOS_MIN_ZOOM, SUELOS_SERVICE_NAME, type SuelosSta
 import { HUMEDALES_EXPORT_URL, HUMEDALES_MIN_ZOOM, HUMEDALES_SERVICE_NAME, type HumedalesStatus } from '@/lib/humedales';
 import { VEGETACIONAL_EXPORT_URL, VEGETACIONAL_MIN_ZOOM, VEGETACIONAL_SERVICE_NAME } from '@/lib/vegetacional';
 import type { PermalinkView } from '@/lib/permalink';
+import type { Extension } from '@/lib/encuadre';
 import { BIOCLIMA_DEFAULT_VARIABLE, type BioclimaVariable } from '@/lib/bioclima';
 import { DEFAULT_LAYER_OPACITY, type LayerOpacity } from '@/lib/layer-opacity';
 import {
@@ -151,6 +152,7 @@ export default function MapView({
   kmlLayers = [],
   basemap = DEFAULT_BASEMAP_ID,
   focus = null,
+  encuadre = null,
   initialView = null,
   onViewChange,
   onRenderProgress,
@@ -219,6 +221,9 @@ export default function MapView({
   basemap?: BasemapId;
   /** Resultado del geocoder: el mapa vuela ahí y deja un marcador pulsante. */
   focus?: GeocodeResult | null;
+  /** Extensión a la que volar una vez por `key` (al elegir una comuna en el
+   *  filtro). La misma `key` con otros puntos no vuelve a mover el mapa. */
+  encuadre?: { key: number; extension: Extension } | null;
   /** Encuadre con que nace el mapa (permalink). Solo se lee al crear el mapa. */
   initialView?: PermalinkView | null;
   /** Se llama al terminar cada paneo o zoom, para escribir el permalink. */
@@ -1281,6 +1286,21 @@ export default function MapView({
       map.removeLayer(marker);
     };
   }, [focus]);
+
+  // Comuna elegida en el filtro: vuela a la extensión de sus transacciones,
+  // una sola vez por elección (cambiar luego los años no vuelve a encuadrar).
+  const encuadreHecho = useRef<number | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !encuadre || encuadreHecho.current === encuadre.key) return;
+    encuadreHecho.current = encuadre.key;
+    const [south, west, north, east] = encuadre.extension;
+    map.flyToBounds(L.latLngBounds([south, west], [north, east]), {
+      padding: [40, 40],
+      maxZoom: 15,
+      duration: 1.2,
+    });
+  }, [encuadre]);
 
   // `data-basemap` selecciona el filtro CSS del lienzo (globals.css): `none`
   // para los fondos que se muestran tal cual, `light`/`dark` para el lienzo

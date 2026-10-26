@@ -23,6 +23,8 @@ versionado.
 
 ### Añadido
 
+- **Encuadre de la comuna elegida.** Al elegir una comuna en el filtro el
+  mapa vuela a sus transacciones (antes quedaba en la vista de Chile).
 - **Estadísticas en UF.** El panel abre en UF y un selector «UF | Pesos»
   cambia de unidad. El 92,7 % de la base trae UF y solo el 79,5 % trae pesos:
   en Coyhaique, 2012–2024 aparecía sin precio. `/api/stats` agrega los campos

@@ -43,6 +43,7 @@ import type { Punto } from '@/lib/medicion';
 import { track } from '@/lib/analytics';
 import { buildExportMetadata } from '@/lib/export-metadata';
 import { serializeDestinos } from '@/lib/destinos';
+import { extensionRobusta } from '@/lib/encuadre';
 import { useCbrData } from '@/hooks/useCbrData';
 import { useCloseOnBack } from '@/hooks/useCloseOnBack';
 import { useKmlLayers } from '@/hooks/useKmlLayers';
@@ -142,6 +143,14 @@ export default function Home() {
 function SigApp({ initial }: { initial: PermalinkState }) {
   const on = (layer: PermalinkLayer) => initial.layers.includes(layer);
   const [comuna, setComuna] = useState(initial.filters.comuna);
+  // Comuna elegida A MANO en el filtro, con un contador para que elegir dos
+  // veces la misma vuelva a encuadrar. Una comuna que llega desde un
+  // permalink no cuenta: ese enlace ya trae su propio encuadre.
+  const [comunaElegida, setComunaElegida] = useState<{ key: number; comuna: string } | null>(null);
+  const handleComunaChange = useCallback((value: string) => {
+    setComuna(value);
+    setComunaElegida((prev) => (value === 'todas' ? null : { key: (prev?.key ?? 0) + 1, comuna: value }));
+  }, []);
   const [anioFrom, setAnioFrom] = useState<number | null>(initial.filters.anioMin);
   const [anioTo, setAnioTo] = useState<number | null>(initial.filters.anioMax);
   const rangoAnios = useMemo<RangoAnios>(() => ({ desde: anioFrom, hasta: anioTo }), [anioFrom, anioTo]);
@@ -284,6 +293,16 @@ function SigApp({ initial }: { initial: PermalinkState }) {
       setBootDone(true);
     },
   });
+
+  // Encuadre de la comuna elegida: se deriva cuando los puntos cargados ya son
+  // los de esa comuna (todos traen su `comuna`), así el vuelo usa la
+  // selección real y no la anterior.
+  const encuadre = useMemo(() => {
+    if (!comunaElegida || loading || points.length === 0) return null;
+    if (points[0].comuna !== comunaElegida.comuna) return null;
+    const extension = extensionRobusta(points);
+    return extension ? { key: comunaElegida.key, extension } : null;
+  }, [comunaElegida, loading, points]);
 
   // Mobile: consolidated drawer (search + filters + stats), closed by default
   // so the map owns the screen.
@@ -626,7 +645,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   const filterFields = (
     <FilterFields
       comuna={comuna}
-      setComuna={setComuna}
+      setComuna={handleComunaChange}
       facets={facets}
       rangoAnios={rangoAnios}
       setRangoAnios={setRangoAnios}
@@ -901,6 +920,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               kmlLayers={kmlLayers}
               basemap={basemap}
               focus={focus}
+              encuadre={encuadre}
               initialView={initial.view}
               onViewChange={onViewChange}
               onRenderProgress={handleRenderProgress}
