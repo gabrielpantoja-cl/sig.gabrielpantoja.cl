@@ -23,6 +23,10 @@ versionado.
 
 ### Añadido
 
+- **Estadísticas en UF.** El panel abre en UF y un selector «UF | Pesos»
+  cambia de unidad. El 92,7 % de la base trae UF y solo el 79,5 % trae pesos:
+  en Coyhaique, 2012–2024 aparecía sin precio. `/api/stats` agrega los campos
+  `*_uf` con sus propios denominadores; nunca convierte entre unidades.
 - **Filtro por destino SII** en el panel de filtros: selección múltiple con
   los destinos de la comuna elegida y su conteo (Agrícola, Habitacional, Sitio
   Eriazo…). Filtra puntos, estadísticas y exportación, viaja en el permalink

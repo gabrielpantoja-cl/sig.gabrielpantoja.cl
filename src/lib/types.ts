@@ -73,6 +73,16 @@ export interface Stats {
   precio_m2: number | null;
   /** $/m² típico: mediana de las razones monto/superficie por transacción. */
   precio_m2_mediana: number | null;
+  /** Lo mismo en UF, sobre `montoUf`: unidad principal del panel. Cada
+   *  denominador es propio (`count_uf`, `count_uf_m2`); nunca se convierte. */
+  count_uf: number;
+  count_uf_m2: number;
+  avg_uf: number | null;
+  mediana_uf: number | null;
+  min_uf: number | null;
+  max_uf: number | null;
+  uf_m2: number | null;
+  uf_m2_mediana: number | null;
 }
 
 /**

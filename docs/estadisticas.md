@@ -152,7 +152,27 @@ curl -s -H 'Origin: https://sig.gabrielpantoja.cl' \
   'https://sig.gabrielpantoja.cl/api/stats' | jq
 ```
 
-## 7. Pendiente
+## 7. UF como unidad principal *(2026-10-26)*
+
+`/api/stats` repite cada métrica en UF sobre `"montoUf"` (`count_uf`,
+`count_uf_m2`, `avg_uf`, `mediana_uf`, `min_uf`, `max_uf`, `uf_m2`,
+`uf_m2_mediana`), con las mismas fórmulas y sus propios denominadores. El panel
+abre en UF y un selector «UF | Pesos» cambia de unidad.
+
+Por qué: el 92,7 % de la base trae UF y solo el 79,5 % trae pesos. Hay 22.027
+filas con UF y sin pesos. En Coyhaique solo 804 de 15.824 transacciones tienen
+`monto`, casi todas de 2025, así que en pesos los años 2012–2024 quedaban sin
+precio. Con la UF, «Coyhaique, agrícola, hasta 2020» pasa de 0 a 1.331
+transacciones con precio. La UF es además la unidad que permite comparar años.
+
+**Nunca se convierte una unidad en la otra.** La UF guardada puede venir
+redondeada y la conversión daría una cifra precisa pero falsa (la misma regla
+del popup, `src/lib/map-popups.ts`).
+
+Pendiente: el filtro de monto sigue en pesos (`monto_min`/`monto_max`) y deja
+fuera las filas que solo tienen UF; el mapa de calor también lee solo `monto`.
+
+## 8. Pendiente
 
 Del diagnóstico original quedaron sin implementar (ver
 [`roadmap.md`](./roadmap.md)):
