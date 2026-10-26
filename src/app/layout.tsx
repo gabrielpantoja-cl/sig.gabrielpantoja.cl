@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { UpdateNotice } from "@/components/UpdateNotice";
@@ -19,6 +19,15 @@ export const metadata: Metadata = {
   description:
     "Mapa interactivo y datos abiertos de compraventas de suelo rural inscritas en el Conservador de Bienes Raíces del centro-sur de Chile. Consulta por comuna, año, monto, superficie y ROL; descarga CSV/GeoJSON.",
   metadataBase: new URL("https://sig.gabrielpantoja.cl"),
+};
+
+// Color de la barra de estado en Android: el mismo fondo del header (los
+// valores de --background en globals.css), así la barra no corta la página.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({
