@@ -15,7 +15,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 > before a PR; conduct in [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), security
 > reports via [SECURITY.md](./SECURITY.md).
 
-Single-page Next.js 16 App Router app (one route, `/`). Maps ~85k CBR land
+Next.js 16 App Router app: the map at `/` plus a data-health page at
+`/estado`. Maps ~85k CBR land
 transaction points from Neon plus ~15 thematic layers from official Chilean
 sources.
 
@@ -45,6 +46,7 @@ Browser → /api/{ndvi,relieve}/* → public COGs on AWS, rendered by our server
 Browser → POST /api/analisis/predio → Neon PostGIS (capas.* + referenciales) + Copernicus COGs
 Browser → /api/geocode → Nominatim/OSM (Chile only, cached proxy)
 Browser → /api/analytics (sendBeacon) → Neon analytics.events (analytics_writer, INSERT)
+Browser → /estado, monitors → /api/health → public daily backup-verification table (NOT Neon)
 Any client → src/proxy.ts (before CDN cache) on /api/{points,export} → api_* analytics events
 ```
 
@@ -68,6 +70,7 @@ key-files table lives there too. Invariants that are easy to break:
 - Transmission lines are referential axes: never derive servidumbres with buffers. Catastro frutícola `vintage` is the survey year, never the planting year. Relieve is a DSM and its Copernicus licence notice is mandatory.
 - Do NOT add CARTO or Stadia basemaps (they require API keys). The basemap preference is read via `useSyncExternalStore`, not `useState` + `useEffect`.
 - `/api/version` is the only route that skips `enforce()` and must stay `no-store`.
+- `/estado` and `/api/health` must never query Neon: a monitor polling every few minutes would keep its compute awake and burn the transfer quota.
 
 ## Environment
 
@@ -75,6 +78,9 @@ key-files table lives there too. Invariants that are easy to break:
 with `npx vercel link` once, then
 `npx vercel env pull .env.local --environment=development`. Without it the CBR
 routes answer 500 but every other layer works.
+
+Optional `/estado`: `ESTADO_SUPABASE_URL` + `ESTADO_SUPABASE_KEY` (publishable
+key; see `docs/estado.md`). Without them the page shows «no disponible».
 
 Optional analytics: `ANALYTICS_DATABASE_URL` (role `analytics_writer`, see
 `db/analytics.sql`) and `ANALYTICS_SALT`. Locally use
@@ -105,6 +111,7 @@ The update monitor triggers on `BUILD_ID`, so un-bumped deploys still notify.
 
 - `docs/design-notes.md` — per-layer and per-feature design decisions + full key-files table
 - `docs/arquitectura-capas.md` — layer catalog + recipe for a new layer (READ before adding one)
+- `docs/estado.md` — `/estado` and `/api/health`: data source, levels, why they never query Neon
 - `docs/estadisticas.md` — how the stats panel is computed (READ before touching `/api/stats` or `StatsFields`)
 - `docs/fuentes-gis-chile.md` — catalog of official Chilean GIS sources and verified endpoints
 - `docs/roadmap.md` — current state and prioritized backlog
