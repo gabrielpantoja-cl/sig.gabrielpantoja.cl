@@ -302,6 +302,20 @@ body {
   color: #c2410c;
   font-weight: 600;
 }
+.sig-medir-analizar {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+.sig-medir-analizar[hidden] {
+  display: none;
+}
+.sig-medir-analizar:not(:disabled) {
+  border-color: hsl(153 28% 35%);
+  background: hsl(153 28% 35%);
+  color: #fff;
+  font-weight: 600;
+}
 .sig-medir-modo:focus-visible,
 .sig-medir-accion:focus-visible,
 .sig-medir-cerrar:focus-visible {

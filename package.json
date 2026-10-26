@@ -49,6 +49,7 @@
     "data:build:red-drenaje": "node scripts/build-red-drenaje.mjs",
     "data:build:red-vial": "node scripts/build-red-vial.mjs",
     "data:build:urban": "node scripts/build-urban-limit.mjs",
+    "data:load:postgis": "node scripts/load-postgis.mjs",
     "dev": "next dev",
     "lint": "eslint",
     "start": "next start",

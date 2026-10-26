@@ -48,7 +48,9 @@ import {
   type RelieveModo,
 } from '@/lib/relieve';
 import { useMeasureControl, type MedicionFijada } from '@/components/map/useMeasureControl';
-import { formatoEscala } from '@/lib/medicion';
+import { useFichaPredioLayer } from '@/components/map/useFichaPredioLayer';
+import { formatoEscala, type Punto } from '@/lib/medicion';
+import type { FichaPredio, PoligonoGeoJson } from '@/lib/analisis-predio';
 import type { RemoteRasterStatus } from '@/lib/remote-raster';
 import { useViewportRaster } from '@/components/map/useViewportRaster';
 import { usePointQuery, type PointQueryFlags } from '@/components/map/usePointQuery';
@@ -164,6 +166,9 @@ export default function MapView({
   ndviConsulta = null,
   onNdviPoint,
   ndvi = null,
+  onAnalizarPredio,
+  predioGeometry = null,
+  fichaPredio = null,
 }: {
   layerOpacity?: LayerOpacity;
   points: MapPoint[];
@@ -252,6 +257,12 @@ export default function MapView({
   onNdviPoint?: (lat: number, lng: number) => void;
   /** Serie NDVI actual: entra al cajetín del PNG exportado. */
   ndvi?: NdviExport | null;
+  /** «Analizar predio» de la herramienta Medir: vértices de la superficie elegida. */
+  onAnalizarPredio?: (vertices: Punto[]) => void;
+  /** Polígono de la ficha del predio abierta; MapView lo dibuja y lo encuadra. */
+  predioGeometry?: PoligonoGeoJson | null;
+  /** Ficha vigente: sus comparables CBR se dibujan en el mapa. */
+  fichaPredio?: FichaPredio | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -338,6 +349,7 @@ export default function MapView({
   // modo sin re-registrarse en cada toggle.
   const ndviModeRef = useRef(ndviMode);
   const onNdviPointRef = useRef(onNdviPoint);
+  const onAnalizarPredioRef = useRef(onAnalizarPredio);
   useEffect(() => {
     onRenderProgressRef.current = onRenderProgress;
     onRenderCompleteRef.current = onRenderComplete;
@@ -352,7 +364,8 @@ export default function MapView({
     onConservadoresStatusRef.current = onConservadoresStatus;
     ndviModeRef.current = ndviMode;
     onNdviPointRef.current = onNdviPoint;
-  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onViewChange, onHumedalesStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onRelieveStatus, onVegetacionalStatus, onHexbinStatus, onConservadoresStatus, ndviMode, onNdviPoint]);
+    onAnalizarPredioRef.current = onAnalizarPredio;
+  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onViewChange, onHumedalesStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onRelieveStatus, onVegetacionalStatus, onHexbinStatus, onConservadoresStatus, ndviMode, onNdviPoint, onAnalizarPredio]);
 
   // Publica el método de export en el ref entregado por la página. La closure
   // se re-bindea en cada cambio de flags para que la captura refleje siempre
@@ -1086,7 +1099,10 @@ export default function MapView({
   // consulta integrada no dispara (los clics son vértices).
   const measureActiveRef = useRef(false);
   const measureFixedRef = useRef<MedicionFijada[]>([]);
-  useMeasureControl({ mapRef, activeRef: measureActiveRef, fixedRef: measureFixedRef });
+  useMeasureControl({
+    mapRef, activeRef: measureActiveRef, fixedRef: measureFixedRef, onAnalizarRef: onAnalizarPredioRef,
+  });
+  useFichaPredioLayer({ mapRef, geometry: predioGeometry, ficha: fichaPredio });
 
   // Consulta integrada del punto: un solo clic, un solo popup con lo que cada
   // capa activa sabe de ese lugar. Las banderas viajan en una ref para que
