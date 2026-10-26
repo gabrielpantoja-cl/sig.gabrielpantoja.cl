@@ -168,6 +168,23 @@ export function parseRadioM(raw: string | null): number {
   return Math.min(RADIO_MAX_M, Math.max(RADIO_MIN_M, Math.round(n)));
 }
 
+/** «Superficie similar»: comparables entre la mitad y el doble del predio. */
+export const FACTOR_SUPERFICIE_SIMILAR = 2;
+
+/**
+ * Query string de la ficha: el radio y, si se pide, el rango de superficie
+ * similar (`sup_min`/`sup_max` en m², los mismos filtros de `/api/points`).
+ */
+export function consultaFicha(radioM: number, superficieSimilarHa: number | null): string {
+  const qs = new URLSearchParams({ radio_m: String(radioM) });
+  if (superficieSimilarHa !== null && superficieSimilarHa > 0) {
+    const m2 = superficieSimilarHa * 10_000;
+    qs.set('sup_min', String(Math.floor(m2 / FACTOR_SUPERFICIE_SIMILAR)));
+    qs.set('sup_max', String(Math.ceil(m2 * FACTOR_SUPERFICIE_SIMILAR)));
+  }
+  return qs.toString();
+}
+
 const METROS_POR_GRADO = 111_195;
 
 /**

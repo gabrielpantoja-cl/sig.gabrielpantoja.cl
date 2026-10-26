@@ -743,8 +743,9 @@ respuesta calculada, no solo un mapa. Diseño y decisiones en
       3 km de lado).
 - [ ] Anexo **PDF** de la ficha (mapa + tablas + fuentes + avisos de
       licencia) y export **GeoPackage**.
-- [ ] Comparables: rango de superficie, fecha y exclusión de las inscripciones
-      del propio predio.
+- [~] Comparables: *hecho* «solo superficie similar» (½× a 2× del predio,
+      `sup_min`/`sup_max`); *falta* rango de fechas y excluir las
+      inscripciones del propio predio.
 - [ ] Editar vértices del polígono arrastrándolos y llevar la ficha al
       permalink.
 
@@ -1245,7 +1246,7 @@ dirección del producto. Al retomar, el horizonte activo es el primero con
   vintages (cumple la regla de los tres lugares de atribución).
 - [~] **Comparables**: selección de transacciones por cercanía + destino +
   superficie, con su estadística (mediana, P25/P75) y su mapa. *Hecho:*
-  cercanía y destino; *falta:* rango de superficie y filtros de fecha.
+  cercanía, destino y superficie similar; *falta:* filtros de fecha.
 - Herramientas clásicas: buffer, intersección con capas activas, perfil de
   elevación sobre una línea, distancia a la red vial.
 - Export **DXF** y **GeoPackage** del viewport y de la ficha. *Hecho:* la

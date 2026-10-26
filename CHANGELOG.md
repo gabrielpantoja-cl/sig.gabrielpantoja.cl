@@ -35,7 +35,8 @@ versionado.
   - Relieve calculado al vuelo sobre Copernicus GLO-30: pendiente media, %
     por clase SAG, % sobre 30 y 45 % y rango de cotas.
   - Comparables CBR en un radio de 1 a 20 km, con mediana y P25–P75 por
-    destino; los 100 más cercanos se dibujan en el mapa.
+    destino; los 100 más cercanos se dibujan en el mapa. «Solo superficie
+    similar» los acota a entre la mitad y el doble del predio.
   - Descarga en GeoJSON (polígono + resumen + comparables) y CSV de
     comparables para Excel.
 
