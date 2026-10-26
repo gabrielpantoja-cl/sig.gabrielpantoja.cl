@@ -112,7 +112,7 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | 9 | 🟢 NDVI antes / después (dos fechas y su diferencia) | Leer incendios, cosechas, humedales que se secan | [§ 5.2](#52-ndvi-sentinel-2---en-producción-2026-09-17--2026-09-27) |
 | 10 | 🟢 Riqueza de especies GBIF con esfuerzo de muestreo | Biodiversidad sin confundir «sin muestreo» con «sin especies» | [Investigación](#investigación-y-datos-abiertos) |
 | 11 | 🟡 `db/web.sql`: `web_readonly` con SELECT por columna, solo lectura y `statement_timeout` | Revisión de seguridad 2026-10-26: los permisos del rol no están en el repo y una credencial filtrada expondría PII. Requiere el rol owner de Neon | [Deuda › Seguridad](#seguridad-y-operación) |
-| 12 | 🟡 PWA instalable y objetivos táctiles de 48 dp | Prueba en Android 2026-10-26: no se puede instalar, y 43 controles miden menos de 40 px | [Accesibilidad y mobile](#accesibilidad-y-mobile-auditoría-2026-08-28) |
+| 12 | 🟡 Objetivos táctiles de 48 dp y service worker para terreno | Prueba en Android 2026-10-26: 43 controles miden menos de 40 px; la PWA ya se instala pero no funciona sin señal | [Accesibilidad y mobile](#accesibilidad-y-mobile-auditoría-2026-08-28) |
 
 ## Criterios de priorización
 
@@ -845,10 +845,13 @@ que amplían el uso diario del perito:
       `useCloseOnBack` (`CloseWatcher`, sin entradas de historial que choquen
       con el permalink por `replaceState`; Escape como respaldo). Antes,
       «atrás» sacaba del sitio con el panel abierto.
-- [ ] 🟡 **PWA instalable** *(prueba Android 2026-10-26)*: no hay
-      `manifest`, `theme-color`, íconos ni service worker. Manifest + íconos
-      + service worker que guarde la interfaz y las capas de `public/data/`
-      para usarla sin señal en terreno. Ver la decisión sobre APK más abajo.
+- [x] **PWA instalable** — 2026-10-26: `src/app/manifest.ts`, íconos en
+      `public/icons/` (con uno maskable), `apple-icon.png` y `theme-color`
+      claro/oscuro. Chrome no reporta errores de instalación.
+- [ ] 🟡 **Service worker para terreno sin señal**: guardar la interfaz y las
+      capas de `public/data/` (62 MB: elegir cuáles, o pedir permiso). Los
+      puntos CBR quedan fuera hasta que el payload sea liviano (ver
+      Rendimiento). Ver la decisión sobre APK más abajo.
 - [ ] 🟡 **Objetivos táctiles de 48 dp**: 43 controles miden menos de 40 px
       en un Pixel 7 (botones del header 32 px, barras del histograma de años
       23 px de ancho, «Cerrar» 31×26, «Predio por coordenadas UTM» 20 px de
