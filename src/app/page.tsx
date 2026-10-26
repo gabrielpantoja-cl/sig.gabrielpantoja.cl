@@ -42,6 +42,7 @@ import { kmlDisplayName } from '@/lib/kml';
 import type { Punto } from '@/lib/medicion';
 import { track } from '@/lib/analytics';
 import { buildExportMetadata } from '@/lib/export-metadata';
+import { serializeDestinos } from '@/lib/destinos';
 import { useCbrData } from '@/hooks/useCbrData';
 import { useCloseOnBack } from '@/hooks/useCloseOnBack';
 import { useKmlLayers } from '@/hooks/useKmlLayers';
@@ -154,6 +155,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   const [montoMax, setMontoMax] = useState(initial.filters.montoMax);
   const [supMin, setSupMin] = useState(initial.filters.supMin);
   const [supMax, setSupMax] = useState(initial.filters.supMax);
+  const [destinos, setDestinos] = useState<string[]>(initial.filters.destinos);
   const [predio, setPredio] = useState(initial.filters.predio);
   const [rol, setRol] = useState(initial.filters.rol);
 
@@ -226,10 +228,11 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     if (montoMax) p.set('monto_max', montoMax);
     if (supMin) p.set('sup_min', supMin);
     if (supMax) p.set('sup_max', supMax);
+    if (destinos.length > 0) p.set('destinos', serializeDestinos(destinos));
     if (predio.trim()) p.set('predio', predio.trim());
     if (rol.trim()) p.set('rol', rol.trim());
     return p.toString();
-  }, [comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol]);
+  }, [comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, destinos, predio, rol]);
 
   const activeFilters = [
     comuna !== 'todas',
@@ -240,6 +243,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     montoMax,
     supMin,
     supMax,
+    destinos.length > 0,
   ].filter(Boolean).length;
 
   const clearFilters = useCallback(() => {
@@ -252,6 +256,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     setMontoMax('');
     setSupMin('');
     setSupMax('');
+    setDestinos([]);
     track('filter_clear');
   }, []);
 
@@ -458,10 +463,10 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     relieve: relieveModo,
     destino: hexbinDestino,
     minN: hexbinMinN,
-    filters: { comuna, anioMin: anioFrom, anioMax: anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol },
+    filters: { comuna, anioMin: anioFrom, anioMax: anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, destinos, predio, rol },
   }), [
     layerFlags, basemap, bioclimaVariable, relieveModo, hexbinDestino, hexbinMinN,
-    comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol,
+    comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, destinos, predio, rol,
   ]);
   const { onViewChange, flush: flushPermalink } = usePermalinkSync(permalinkState, initial.view);
 
@@ -558,6 +563,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
         montoMax,
         supMin,
         supMax,
+        destinos,
         predio,
         rol,
         stats,
@@ -580,7 +586,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     showRedDrenaje, showLineasTransmision, showSuelos, showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales,
     showNdviVisual, showRelieve, relieveModo,
     showHexbins, hexbinStatus,
-    comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, predio, rol,
+    comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, destinos, predio, rol,
     stats, kmlLayers,
   ]);
 
@@ -633,6 +639,8 @@ function SigApp({ initial }: { initial: PermalinkState }) {
       setSupMin={setSupMin}
       supMax={supMax}
       setSupMax={setSupMax}
+      destinos={destinos}
+      setDestinos={setDestinos}
       exportHref={exportHref}
       activeCount={activeFilters}
       onClear={clearFilters}

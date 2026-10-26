@@ -43,6 +43,15 @@ describe('serializePermalink', () => {
     expect(qs).toBe('v=-39.85067,-73.23874,15&capas=puntos,humedales&fondo=satelital&comuna=Valdivia&anio_min=2022');
   });
 
+  it('keeps the destino filter apart from the heat-map destino', () => {
+    const qs = serializePermalink({ ...initial, filters: { ...DEFAULT_FILTERS, destinos: ['W', 'A'] } }, DEFAULTS);
+    expect(qs).toBe('destinos=A,W');
+    const back = parsePermalink(`?${qs}`, DEFAULTS);
+    expect(back.filters.destinos).toEqual(['A', 'W']);
+    expect(back.destino).toBe(DEFAULTS.destino);
+    expect(parsePermalink('?destinos=w,1', DEFAULTS).filters.destinos).toEqual([]);
+  });
+
   it('rounds the centre to fewer decimals at regional zoom', () => {
     expect(serializePermalink({ ...initial, view: { lat: -39.851234, lng: -73.239876, zoom: 8 } }, DEFAULTS))
       .toBe('v=-39.851,-73.240,8');

@@ -1,3 +1,5 @@
+import { parseDestinos } from '@/lib/destinos';
+
 /**
  * Builds a parameterized SQL WHERE clause from the request query string.
  *
@@ -6,8 +8,9 @@
  * /api/export so all three filter identically.
  *
  * Supported params: comuna, anio_min, anio_max, fecha_desde, fecha_hasta,
- * monto_min, monto_max, sup_min, sup_max (over superficieTerreno), predio
- * and rol (literal ILIKE "contains"). Date filters and year filters use the
+ * monto_min, monto_max, sup_min, sup_max (over superficieTerreno), destinos
+ * (comma-separated SII codes, see `src/lib/destinos.ts`), predio and rol
+ * (literal ILIKE "contains"). Date filters and year filters use the
  * escritura date; only when it is absent do they fall back to the inscripción
  * date.
  *
@@ -86,6 +89,9 @@ export function buildFilters(sp: URLSearchParams): ParsedFilters {
   if (supMin != null) conds.push(`"superficieTerreno" >= ${push(supMin)}`);
   const supMax = intParam(sp, 'sup_max');
   if (supMax != null) conds.push(`"superficieTerreno" <= ${push(supMax)}`);
+
+  const destinos = parseDestinos(sp.get('destinos'));
+  if (destinos.length > 0) conds.push(`destino IN (${destinos.map(push).join(', ')})`);
 
   const predio = containsPattern(sp, 'predio');
   if (predio) conds.push(`predio ILIKE ${push(predio)}`);

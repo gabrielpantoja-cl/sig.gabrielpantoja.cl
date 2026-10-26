@@ -4,7 +4,8 @@ import { getSql } from '@/lib/neon';
 /**
  * GET /api/facets — values needed to populate the filter UI: the list of
  * comunas, the available ranges for year and monto, and the transaction count
- * per comuna and year (~7 KB) that feeds the year filter. Fetched once on load;
+ * per comuna and year (~7 KB) that feeds the year filter, and per comuna and
+ * SII destino (~15 KB, 1.2k pairs) that feeds the destino filter. Fetched once on load;
  * cached aggressively at the edge since it changes at most daily.
  */
 
@@ -54,12 +55,28 @@ export async function GET(req: Request) {
       (anios[comuna] ??= {})[String(row.anio)] = Number(row.n);
     }
 
+    // Same row set as `buildFilters`; rows without destino cannot be selected
+    // by the filter, so they are not offered.
+    const destinoRows = (await sql.query(
+      `SELECT comuna, destino, count(*)::int AS n
+       FROM referenciales
+       WHERE lat IS NOT NULL AND lng IS NOT NULL
+         AND comuna IS NOT NULL AND comuna <> ''
+         AND destino ~ '^[A-Z]$'
+       GROUP BY 1, 2`,
+    )) as Record<string, unknown>[];
+    const destinos: Record<string, Record<string, number>> = {};
+    for (const row of destinoRows) {
+      (destinos[String(row.comuna)] ??= {})[String(row.destino)] = Number(row.n);
+    }
+
     const r = rangeRows[0] ?? {};
     const facets = {
       comunas: comunaRows.map((c) => String(c.comuna)),
       minAnio: Number(r.min_anio ?? 2015),
       maxAnio: Number(r.max_anio ?? new Date().getFullYear()),
       anios,
+      destinos,
       minMonto: Number(r.min_monto ?? 0),
       maxMonto: Number(r.max_monto ?? 0),
     };

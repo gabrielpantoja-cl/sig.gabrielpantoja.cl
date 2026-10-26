@@ -102,7 +102,7 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 |---|---|---|---|
 | 0 | 🔴 Cargar las capas oficiales en PostGIS (`db/capas.sql` + `npm run data:load:postgis`) | La ficha del predio ya está en producción, pero comuna, límite urbano y áreas protegidas responden «capa aún no cargada» hasta que se carguen. Requiere el rol owner de Neon | [Geoprocesos](#geoprocesos-ficha-del-predio-2026-10-26) |
 | 1 | 🟡 Etiquetar `v0.3.0` | «No publicado» acumula Relieve, Medir, Conservadores, «¿Qué hay aquí?» y permalink | [Deuda › Plataforma](#plataforma-y-release) |
-| 2 | 🟡 Filtro de transacciones: monto en UF, filtro por destino y rango de años «desde–hasta» | Diagnóstico en Coyhaique (2026-10-23): 14,4 mil de 15,8 mil transacciones solo tienen `montoUf` y el SIG las muestra sin precio | [Filtro de transacciones](#filtro-de-transacciones-diagnóstico-2026-10-23) |
+| 2 | 🟡 Filtro de transacciones: monto en UF (destino y rango de años ya están) | Diagnóstico en Coyhaique (2026-10-23): 14,4 mil de 15,8 mil transacciones solo tienen `montoUf` y el SIG las muestra sin precio | [Filtro de transacciones](#filtro-de-transacciones-diagnóstico-2026-10-23) |
 | 3 | 🟡 Límite de consultas, parte 3: cupos separados por costo (datos / imágenes / consultas) y tope global por organismo | Las partes 1 y 2 (grilla + debounce, 429 honesto) ya están; con varias capas remotas el cupo único de 60/min se sigue agotando | [Deuda › Seguridad](#seguridad-y-operación) |
 | 4 | 🟡 Dividir `LayersControl.tsx`, `MapView.tsx` y `page.tsx` | Siguen creciendo (1.666, 1.275 y 1.006 líneas) | [Deuda › Frontend](#arquitectura-del-frontend) |
 | 5 | 🟡 Derechos de agua DGA (76k puntos, sin nombre del solicitante, datum convertido) | Endpoint masivo verificado el 2026-10-18; el agua pesa tanto como el suelo en la tasación | [§ 2.2](#22-derechos-de-aprovechamiento-de-aguas-dga---investigación) |
@@ -854,12 +854,14 @@ Revisado con Playwright sobre producción, comuna de **Coyhaique** y los años
       exponer `montoUf` en `/api/points` y `/api/stats` y hacer de la UF la
       unidad principal, que además es la correcta para comparar años (ya lo
       anotaba `plan-mapa-de-calor.md`). Los pesos quedan como referencia.
-- [ ] 🟡 **Filtro por destino SII.** `buildFilters` no lo admite y el panel
-      no lo ofrece. Coyhaique tiene 6.716 W (sitio eriazo), 6.465 H (habitacional)
-      y 2.066 A (agrícola), y la mediana los mezcla. El mapa de calor ya filtra por
-      un único destino; los puntos y las estadísticas, no. Propuesta: un
-      selector múltiple con los códigos de `estructura-catastral.md`, en el
-      permalink con el nombre `destino`.
+- [x] 🟡 **Filtro por destino SII** — hecho el 2026-10-26. Coyhaique tiene
+      6.716 W (sitio eriazo), 6.465 H (habitacional) y 2.066 A (agrícola), y
+      la mediana los mezclaba. Ahora el panel de filtros ofrece una selección
+      múltiple con los destinos presentes en la comuna y su conteo
+      (`facets.destinos`), que filtra puntos, estadísticas y exportación. El
+      parámetro es `destinos=H,W` en la API y en el permalink: `destino` ya
+      era el destino único del mapa de calor, y compartir el nombre habría
+      filtrado los puntos sin pedirlo (`src/lib/destinos.ts`, con tests).
 - [x] 🟡 **Rango de años «desde–hasta»** — hecho el 2026-10-23. El
       deslizador que solo fijaba «desde» (y dejaba `anio_min=1994` activo al
       volver al tope) es ahora un histograma de la comuna elegida más dos

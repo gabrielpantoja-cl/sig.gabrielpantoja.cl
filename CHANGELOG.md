@@ -23,6 +23,11 @@ versionado.
 
 ### Añadido
 
+- **Filtro por destino SII** en el panel de filtros: selección múltiple con
+  los destinos de la comuna elegida y su conteo (Agrícola, Habitacional, Sitio
+  Eriazo…). Filtra puntos, estadísticas y exportación, viaja en el permalink
+  como `destinos=H,W` y queda en el cajetín del PNG. La API acepta el mismo
+  parámetro en `/api/points`, `/api/stats` y `/api/export`.
 - **Ficha del predio, el primer geoproceso del SIG.** El usuario entrega un
   polígono y recibe lo que el SIG sabe de él.
   - Entradas: «Medir» → Superficie → «Analizar predio»; vértices UTM pegados
