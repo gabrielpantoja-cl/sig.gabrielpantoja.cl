@@ -295,11 +295,13 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   });
 
   // Encuadre de la comuna elegida: se deriva cuando los puntos cargados ya son
-  // los de esa comuna (todos traen su `comuna`), así el vuelo usa la
-  // selección real y no la anterior.
+  // los de esa comuna, así el vuelo usa la selección real y no la anterior.
+  // TODOS, no el primero: durante el debounce `points` sigue siendo el
+  // conjunto anterior (todo Chile), y si su primer punto era de esa comuna el
+  // mapa volaba a la extensión del país.
   const encuadre = useMemo(() => {
     if (!comunaElegida || loading || points.length === 0) return null;
-    if (points[0].comuna !== comunaElegida.comuna) return null;
+    if (!points.every((p) => p.comuna === comunaElegida.comuna)) return null;
     const extension = extensionRobusta(points);
     return extension ? { key: comunaElegida.key, extension } : null;
   }, [comunaElegida, loading, points]);
