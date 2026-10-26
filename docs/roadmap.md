@@ -485,7 +485,7 @@ para la tasación rural, y base de análisis para la ecoinformática.
 Temperatura media anual (BIO1) y precipitación anual (BIO12), climatología
 1970–2000 a 2,5′, como PNG estático recortado a Chile (75 KB entre ambas), con
 selector de variable, opacidad, leyenda y export PNG. Rampa compartida entre ETL
-y leyenda (`src/lib/bioclima-ramp.json`). Detalle de diseño en `AGENTS.md` y
+y leyenda (`src/lib/bioclima-ramp.json`). Detalle de diseño en `design-notes.md` y
 `arquitectura-capas.md`.
 
 **Lo que falta:**
@@ -735,7 +735,7 @@ que amplían el uso diario del perito:
       *Hecho 2026-10-04/05*: eventos del navegador por `sendBeacon` y acceso a
       la API de datos registrado desde `src/proxy.ts`; esquema aislado con rol
       propio, sin IP ni valores de filtros, retención 13 meses. Reporte:
-      `npm run analytics:report`. Diseño completo en `AGENTS.md`.
+      `npm run analytics:report`. Diseño completo en `design-notes.md`.
       *Pendiente*: panel web del reporte (hoy es CLI) y usar las cifras de
       `boot` para priorizar «Aligerar la carga».
 

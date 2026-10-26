@@ -10,15 +10,14 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # sig.gabrielpantoja.cl — SIG de suelo
 
-> **This is an open source project.** Released as public source on
-> 2026-07-22 at https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
-> Code is [MIT](./LICENSE); data layers retain their own licenses (see
-> [README § Licencias](./README.md)). Contributions are welcome via PR —
-> read [CONTRIBUTING.md](./CONTRIBUTING.md) first. Behaviour expectations
-> are governed by [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md); security
-> reports go through [SECURITY.md](./SECURITY.md).
+> **Open source** ([MIT](./LICENSE); data layers keep their own licences, see
+> [README § Licencias](./README.md)). Read [CONTRIBUTING.md](./CONTRIBUTING.md)
+> before a PR; conduct in [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), security
+> reports via [SECURITY.md](./SECURITY.md).
 
-Single-page Next.js 16 App Router app. One route (`/`), one page. Maps ~85k CBR land transaction points from Neon + a static GeoJSON layer of protected areas (RNAP).
+Single-page Next.js 16 App Router app (one route, `/`). Maps ~85k CBR land
+transaction points from Neon plus ~15 thematic layers from official Chilean
+sources.
 
 ## Commands
 
@@ -26,318 +25,110 @@ Single-page Next.js 16 App Router app. One route (`/`), one page. Maps ~85k CBR 
 |---|---|
 | `npm run dev` | Dev server on `localhost:3000` |
 | `npm run build` | Production build |
-| `npm run lint` | ESLint (`eslint-config-next/core-web-vitals`) — required to merge (see [HARD RULES](#hard-rules)) |
-| `npm run typecheck` | TypeScript strict check (`tsc --noEmit`) — runs in CI after lint |
-| `npm test` | Vitest unit tests (`src/**/*.test.ts`, node environment) — runs in CI after typecheck. `npm run test:watch` for watch mode |
-| `npm run data:build:protected` | Regenerate `public/data/areas-protegidas.{geojson,meta.json}` from MMA official data |
-| `npm run data:build:urban` | Regenerate `public/data/limite-urbano.{geojson,meta.json}` from MINVU data |
-| `npm run data:build:comunas` | Regenerate `public/data/limites-comunales.{geojson,meta.json}` from SUBDERE DPA 2023 |
-| `npm run data:build:red-vial` | Regenerate `public/data/red-vial.{geojson,meta.json}` from MOP Dirección de Vialidad |
-| `npm run data:build:red-drenaje` | Regenerate `public/data/red-drenaje.{geojson,meta.json}` from DGA (Banco Nacional de Aguas, Ríos + Esteros via ArcGIS REST paginated) |
-| `npm run data:build:lineas-transmision` | Regenerate `public/data/lineas-transmision.{geojson,meta.json}` from Ministerio de Energía IDE Energía (CEN geometry) |
-| `npm run data:build:catastro-fruticola` | Regenerate `public/data/catastro-fruticola.{geojson,meta.json}` from CIREN-ODEPA |
-| `npm run data:build:bioclima` | Regenerate `public/data/bioclima-{temperatura,precipitacion}.png` + meta from WorldClim 2.1 (downloads a 628 MiB package the first time) |
-| `npm run data:build` | Run all data:build sub-tasks |
-| `npm run analytics:report [-- días]` | Print the internal usage report (visits, location, devices, features, load time) from `analytics.events` |
+| `npm run lint` | ESLint — required to merge |
+| `npm run typecheck` | `tsc --noEmit` (strict) |
+| `npm test` | Vitest 4 unit tests (`src/**/*.test.ts`, next to the module; `npm run test:watch`) |
+| `npm run data:build` | Regenerate every static layer; one layer: `npm run data:build:<capa>` (`protected`, `urban`, `comunas`, `red-vial`, `red-drenaje`, `lineas-transmision`, `catastro-fruticola`, `bioclima`) |
+| `npm run analytics:report [-- días]` | Internal usage report from `analytics.events` |
 
-Unit tests use **Vitest 4** (`vitest.config.mts`) and cover the pure server/lib logic: `filters`, `arcgis-proxy`, `humedales` (alias mapping + popup), `security`, `hexbins`, `heat-surface`, KMZ extraction, ramps and ROL normalization. Tests sit next to the module (`foo.test.ts`). `server-only` is aliased to an empty stub (`test/server-only.ts`) because outside Next's bundler the package is not resolvable. CI and Vercel run **Node 22** (`engines.node: 22.x` in `package.json` is what Vercel reads; keep it equal to `node-version` in `.github/workflows/lint.yml`). Moving to Vitest 5 (needs Node ≥ 22.12) is now possible but has not been done.
+CI (`.github/workflows/lint.yml`) runs lint → typecheck → test → build on
+**Node 22**; keep `engines.node` in `package.json` equal to the workflow's
+`node-version`. In tests `server-only` is aliased to `test/server-only.ts`.
 
 ## Architecture
 
 ```
-Browser → /api/{points,stats,export,facets,hexbins} → Neon (web_readonly, SELECT)
-Browser → /api/geocode → Nominatim/OSM (address search, Chile only, cached proxy)
+Browser → /api/{points,stats,export,facets,hexbins,conservadores} → Neon (web_readonly, SELECT)
+Browser → /api/{suelos,vegetacional,humedales,propiedades-rurales}/* → official ArcGIS (validated proxy)
+Browser → /api/{ndvi,relieve}/* → public COGs on AWS, rendered by our server
+Browser → /api/geocode → Nominatim/OSM (Chile only, cached proxy)
 Browser → /api/analytics (sendBeacon) → Neon analytics.events (analytics_writer, INSERT)
-Any client → src/proxy.ts (before CDN cache) on /api/{points,export} → Neon analytics.events (api_* events)
+Any client → src/proxy.ts (before CDN cache) on /api/{points,export} → api_* analytics events
 ```
 
-- **No client-side DB access**. All data arrives through route handlers in `src/app/api/`.
-- **MapView** is dynamically imported with `ssr: false` (Leaflet needs the browser `window`).
-- **Map points** arrive from Neon via the API. **Protected areas** are a pre-built local GeoJSON at `public/data/areas-protegidas.geojson`, generated by `npm run data:build` from MMA CC0 data.
-- **Urban limits** are a second static GeoJSON layer at `public/data/limite-urbano.geojson`, generated by `npm run data:build:urban` from MINVU data. Single amber-colored layer (no category sub-layers).
-- **Communal limits (DPA)** are a third static GeoJSON layer at `public/data/limites-comunales.geojson`, generated by `npm run data:build:comunas` from the official SUBDERE DPA 2023 dataset (geoportal.cl). Dashed slate boundary lines, clickable for comuna/provincia/región/CUT.
-- **Red caminera (MOP)** is a fourth static GeoJSON layer at `public/data/red-vial.geojson`, generated by `npm run data:build:red-vial` from the official Dirección de Vialidad shapefile download (mapasvialidad.mop.gob.cl). Violet lines with per-classification visual hierarchy; hover tooltip + popup expose the official road name (`NOMBRE_CAMINO`) and ROL de Vialidad, which often differ from Google/OSM naming.
-- **Red de drenaje (DGA)** is a sixth static GeoJSON layer at `public/data/red-drenaje.geojson`, generated by `npm run data:build:red-drenaje` from the DGA Banco Nacional de Aguas ArcGIS REST (services3.arcgis.com/aSoEm9TBK2shtWjP) — paginated Ríos + Esteros (~35.5k features). The Mapoteca Digital HTML (`dga.mop.gob.cl/.../mapoteca`) is down since 2026-07 (404) so the FeatureServer is the only stable channel. Cyan-blue lines, ríos thicker than esteros; tooltip + popup expose the official DGA name and BNA basin hierarchy (COD_CUEN → COD_SUBC → COD_SSUBC). License + attribution in `src/lib/red-drenaje.ts`.
-- **Líneas de transmisión eléctrica** is a static GeoJSON layer at `public/data/lineas-transmision.geojson`, generated by `npm run data:build:lineas-transmision` from the official Ministerio de Energía IDE Energía ArcGIS layer (spatial data mainly from CEN). Styled by nominal voltage; tooltip + popup expose official line/tramo names, circuit, status and infrastructure owner. These are referential axes, NEVER legal easement polygons or property encumbrances; do not derive servidumbres with buffers. Terms + attribution in `src/lib/lineas-transmision.ts`.
-- **Derechos de aprovechamiento de aguas (DGA)** is a PLANNED layer
-  (Fase 2): contexto hídrico (glaciares SNIA, cuencas DGA), with link-outs
-  to the Catastro Público de Aguas for individual expedientes. Currently
-  in source discovery phase (`scripts/build-derechos-agua.mjs` is a stub).
-  A bulk endpoint exists (`SNIA/SNIA_DerechoAprovechamiento`, 76k points) but
-  carries `NombreSolicitante` (PII — must never pass the proxy), ends in 2021
-  and mixes three datums. See `docs/roadmap.md` § 2.2.
-- **Catastro Frutícola (CIREN-ODEPA)** is a fifth static GeoJSON layer at `public/data/catastro-fruticola.geojson`, generated by `npm run data:build:catastro-fruticola` from IDE Minagri. Polygons of fruit producers by species, clickable for ROL del predio, comuna, declared species and the year of the regional survey. The public MapServer exposes **no** variety, surface, irrigation or planting-date attributes — only `desccomu`, `rolpredi`, `especie_01…04` and the SUBDERE codes; anything else belongs to CIREN's commercial product. The `vintage` year is derived by the ETL from the sublayer NAME (`CIREN YYYY`), so it is **the survey date, constant per region — never the planting year**; the popup labels it "Levantamiento CIREN" with an explicit note. License + attribution in `src/lib/catastro-fruticola.ts`.
-- **Recursos vegetacionales (CONAF)** is a REMOTE DYNAMIC layer (no static file): the map requests one rendered PNG per viewport through `/api/vegetacional/export` and queries attributes through `/api/vegetacional/identify`. The official ArcGIS service remains server-side behind validated proxies; regional vintages are heterogeneous and shown explicitly. License/attribution in `src/lib/vegetacional.ts`.
-- **Suelos agrológicos (CIREN)** is a REMOTE DYNAMIC layer (no static file): the CIREN dataset exceeds 500 MB, so the map fetches ONE rendered PNG per viewport through the validated `/api/suelos/export` proxy to the official ArcGIS service (esri.ciren.cl), displayed via `L.ImageOverlay` refreshed on `moveend`; point queries use `/api/suelos/identify`. Proxy failures identify the exact CIREN service and operation in the UI. NEVER switch it to tiled WMS — the ~40 simultaneous GetMap requests Leaflet fires collapse the state server. See `docs/arquitectura-capas.md` § Capas dinámicas remotas.
-- **Humedales (MMA)** is a REMOTE DYNAMIC layer (no static file) that serves BOTH sublayers of the official `SIMBIO/SIMBIO_HUMEDALES` MapServer (arcgis.mma.gob.cl): the **Inventario Nacional de Humedales** (sublayer 0, ~118k polygons by ORDEN_1: continentales / artificiales / marinos y costeros) and the **Humedales Urbanos Declarados** under Ley 21.202 (sublayer 1, 137 polygons with their resolución exenta, BCN link and expediente). Same pattern as suelos: one PNG per viewport through `/api/humedales/export` (min zoom 8; ~0,5 s at comuna scale, ~1,6 s at z8) and `/api/humedales/identify` on click. `identify` returns attributes under their ALIAS with Chilean-format numbers («124,13») and the literal text «Null»: `src/lib/humedales-proxy.ts` maps each alias to a stable field through an allowlist (unknown fields are dropped) and returns the declaration first because it is the one with legal effect. Like every remote raster, it reports `idle|zoom-required|loading|ready|rate-limited|error` to the legend, and its point-query section lives in `map-popups.ts` under the escape tests. A point with no wetland opens no popup. Geometry is referential, never a boundary. Licence CC0 (MMA open-data portal).
-- **Mapa de calor de valor ($/m²)** is a DERIVED layer with no static file and no ETL, rendered as a CONTINUOUS RASTER (not tiles). Two stages, and the order is what makes it defensible: (1) `/api/hexbins` aggregates the CBR points in Neon with PostGIS `ST_HexagonGrid` (3.3.3 installed) and returns the CENTROID of each cell carrying the **median** of `monto / superficieTerreno`, plus P25/P75 and `n`; (2) `src/lib/heat-surface.ts` interpolates those medians with a Gaussian kernel into an `L.ImageOverlay`. The hex grid is the SAMPLING lattice and is NEVER drawn — drawing it produced a mosaic with visible seams and holes. Interpolating the medians (not the raw points) is the whole point: the median already absorbed the extreme amounts (mean/median of `monto` is 5,06× in this base), and only then is the smoothing applied. The surface is a weighted MEAN of value (`num/den`, a Shepard interpolation), so colour tracks value and never density; density goes to the alpha channel, where a pixel far from any transaction fades out instead of inventing a value. Cell edge comes from the zoom SERVER-SIDE (60 m … 4 km); the `JOIN LATERAL ST_HexagonGrid(edge, pts.g)` runs **per point**, so cost is O(rows in bbox), not O(viewport area). Always filter by a single `destino` (median $/m² is ~261× higher for `H` than for `A`; a shared scale is meaningless). Colour position is 60 % quantile + 40 % log — pure quantiles made neighbouring cells jump from purple to yellow. The legend positions its ticks with the same `rampPosition` function that colours the raster, so they match by construction. Clicking returns the nearest REAL cell median, never the interpolated pixel. Calibration table and rationale in `docs/plan-mapa-de-calor.md` §5 Fase 1.5.
-- **Bioclima (WorldClim 2.1)** is a static PNG overlay — deliberately NOT the per-viewport
-  pattern used by suelos/vegetacional. Clipped to Chile the raster is 224 × 924 px (**50 KB
-  temperature, 25 KB precipitation**), so `npm run data:build:bioclima` renders both images
-  once into `public/data/bioclima-*.png` and `MapView` hangs them as a plain `L.ImageOverlay`
-  at the BACK of the stack (a continuous surface would hide every other layer). No route
-  handler, no `moveend` refetch, no third-party dependency at runtime — the per-viewport
-  proxy exists for CIREN's 500 MB remote dataset and would be pure complexity here. The ETL
-  downloads the official 628 MiB package (all 19 bioclimatic variables ship in ONE zip; there
-  is no per-variable download), extracts only BIO1 and BIO12, and clips the window out of the
-  8640 × 4320 global GeoTIFF with `geotiff` + `pngjs`. Three details that are load-bearing:
-  (1) **the PNG is written REPROJECTED to Web Mercator** — rows evenly spaced in EPSG:3857
-  Y, not in degrees of latitude. `L.ImageOverlay` stretches the image linearly in the map's
-  projection, so a degree-spaced PNG lands **up to 287 km too far south** in central Chile;
-  that bug shipped once and showed up as Chiloé rendering blank, because the pixel landing on
-  the island came from ~2.4° further north, which at that longitude is open ocean. The offset
-  is zero at both edges of the clip and worst in the middle, so it is invisible to a "looks
-  plausible" check — verify against a concrete coastline, an island is the best witness;
-  (2) the colour ramp lives in `src/lib/bioclima-ramp.json`, read by BOTH the ETL and the
-  legend, so map and legend cannot drift apart; (3) the overlay's bounds come from the
-  manifest, computed from the pixel-rounded clip — using the nominal degrees offsets the
-  image by up to half a cell; (4) ocean arrives as `NaN` or a large negative sentinel and both
-  must be dropped, or the sea gets painted with the coldest ramp colour. BIO1 is °C float32 —
-  v2.1 dropped v1.4's ×10 integer scaling. Climatology is **1970-2000** at 2.5 arc-minutes: an
-  interpolated surface from weather stations, never a site measurement, and the attribution
-  says so. Point queries are not implemented yet (`docs/roadmap.md` § 5.1).
-- **NDVI Visual (Sentinel-2)** is a REMOTE DYNAMIC raster layer (no static file, no ETL): the map requests ONE PNG per viewport through `/api/ndvi/export`, which composes it server-side from Sentinel-2 L2A COGs (Element 84 Earth Search / AWS Open Data) and returns it as an `L.ImageOverlay` refreshed on `moveend`. The server picks one scene per MGRS grid (clearest <=15% cloud preferred over freshest-but-hazy <=40%), chooses the COG overview whose pixel is <= 2x the output resolution, masks with SCL, interpolates red/nir, and paints the ramp in `src/lib/ndvi-ramp.json` — the same file the legend reads, so map and legend cannot drift apart. Output grid is linear in EPSG:3857 (inverse Mercator gives each row's latitude); min zoom 10 with a server-side span cap; 20 s budget with honest 504s; scene bands read in PARALLEL (serial was ~1.6 s/scene). Client debounces `moveend` 250 ms and quantizes bbox/size so the CDN reuses keys; legend distinguishes `zoom-required|loading|ready(+fecha)|ready-without-scenes (transparent, NOT a failure)|error`. NDVI pixels enter the PNG export automatically (generic overlayPane `<img>` capture); `showNdviVisual` only adds the Copernicus attribution. Full design rationale in `docs/arquitectura-capas.md` § Capas dinámicas remotas.
-- **Basemap selector**: the user picks the canvas from a Google-Maps-style thumbnail control in the bottom-left (`src/components/BasemapSwitcher.tsx`), backed by the catalog in `src/lib/basemap.ts`. Five options: **OpenStreetMap** (raw colours), **Neutro** (DEFAULT since 2026-10-06: the same OSM tiles desaturated/inverted by CSS, dark on dark-scheme systems and light grey on light ones — the correct canvas for the value heat map), **Satélite** (Esri World Imagery + the transparent World_Boundaries_and_Places label layer), **Topográfico** (OpenTopoMap, contours + SRTM hillshade), and **Sin fondo** (no tile layer at all, for clean PNG plates). Do NOT add CARTO Positron/Dark Matter or Stadia/Stamen: verified 2026-08-27, CARTO stamps "API KEY REQUIRED" on every tile and Stadia returns 401 without a key; all five current sources were re-verified 2026-08-28 for HTTP 200 + CORS `*`. The `data-basemap` attribute on the map container names the FILTER in force (`none|light|dark`), not the provider, and the same filter is replicated with `ctx.filter` in `map-export.ts` so the exported PNG matches the screen — along with the per-provider attribution, which is a licence obligation and differs per basemap (ODbL, CC-BY-SA, the Esri formula). Per-layer `maxNativeZoom` under a shared `MAP_MAX_ZOOM` is what keeps the viewport from going blank when switching from a z19 base to OpenTopoMap (z17). The preference persists in `localStorage` and is read through `useSyncExternalStore` (`src/lib/basemap-store.ts`) so SSR and hydration agree — do NOT move it back to `useState` + `useEffect`.
-- **Cursor coordinates**: a single footer line at the bottom of the map, left of the attribution (`.sig-coordenadas`, a plain div created in the MapView init effect and removed in its cleanup — NOT an L.Control, which stacks vertically in its corner), shows the cursor position as decimal degrees, DMS and UTM (zone 18S/19S picked per longitude), like Google Earth Pro's status bar. Its `right` offset is re-measured from the attribution width on every paint; DMS hides under 1100 px and the whole line under 760 px. It writes the DOM directly at most once per animation frame — never React state, mousemove fires dozens of times per second — and hides on `mouseout` and on touch screens (`hover: none`). Projection and formatting live in `src/lib/coordenadas.ts` (tested), shared with the NDVI server code.
-- **Rate limit and the remote rasters**: `enforce()` keeps ONE sliding window of 60 requests/min per IP for every `/api/*` route (in memory, per instance — approximate by design). Its 429 now uses the shared error contract (`code: RATE_LIMITED`, `service: sig.gabrielpantoja.cl`) plus `Retry-After`, built by `rateLimitResponse()`; NDVI's own stricter windows use the same helper. The map treats 429 as `rate-limited` (amber «pausa breve», self-retry after `Retry-After`), NEVER as the agency being down. To spend less of that budget, the four ArcGIS rasters go through `useViewportRaster`: 250 ms debounce, and the request is snapped to a 128 px grid in Web Mercator with half a cell of margin (`rasterRequest`) — a small pan inside the same cell requests nothing, and two users in the same cell request the SAME URL, which the CDN serves (`s-maxage=300`) without touching the function or the limit. The bbox is DERIVED from Mercator pixels so its aspect equals the image size: ArcGIS silently expands a bbox whose aspect does not match, which would misplace the overlay — do NOT reuse NDVI's 4-decimal/64-px rounding for ArcGIS layers. Measured 2026-10-10: 20 pans with four layers went from ~21 to 9 requests per layer.
-- **Point query («¿Qué hay aquí?»)**: ONE map click handler, `src/components/map/usePointQuery.ts`, answers for every queryable layer in ONE popup: remote `identify` for humedales, suelos, vegetacional and propiedades rurales (in parallel, through their same-origin proxies), point-in-polygon in the browser for the static polygon layers already loaded (áreas protegidas, límite urbano, comunas, catastro frutícola — `src/lib/consulta-punto.ts`, tested, holes and MultiPolygon included), and the nearest heat-map cell. The popup opens at once with «Consultando…» sections and is rebuilt as each service answers; closing it aborts what is in flight. Every section says whether there is no data at that point, the map must be zoomed in, the agency did not answer, or OUR rate limit fired (429 is never reported as an agency outage). The layer hooks no longer register their own click handlers and the static polygons no longer bind popups — do NOT add per-layer click popups back; add a section to `usePointQuery` instead. CBR pins, lines (roads, drainage, transmission) and KML keep their own popups; if one opened on the same click the point query does not fire.
-- **Permalink**: the URL describes the view. `src/lib/permalink.ts` (pure, tested) parses and serializes centre+zoom (`v=lat,lng,z`), layers (`capas=`, names from the CLOSED analytics catalog; `layerFlags` in `page.tsx` is `satisfies Record<PermalinkLayer, boolean>`, so a new layer that is not added to the link fails to compile), basemap (`fondo=`), bioclima variable, heat-map `destino`/`min_n`, and the filters under the SAME names the API uses (`comuna`, `anio_min`, …). Every value is validated and falls back field by field; anything equal to the default is not written, so a fresh SIG stays at `/`. `src/hooks/usePermalink.ts` writes with `history.replaceState` (never `pushState`) 400 ms after the last change; the map centre arrives from MapView's `moveend` through a ref, not React state. Hydration: the page is static, so `Home` renders the defaults on the server and, if the tab was opened with a query, remounts `SigApp` with `key={openingSearch}` so the `useState` initialisers read the link — do NOT replace this with `setState` in an effect. A `fondo=` link overrides the stored basemap preference without overwriting it. Not in the link: opacities, open panels, NDVI query, user KML. Analytics never sees the query (it records pathname + `utm_*` only); the `share` event carries the method, never the URL.
-- **Boot screen**: `RetroLoader` is rendered OUTSIDE `<main>` as a full-viewport vignette (`.sig-loader-*` in `globals.css`: masked `backdrop-filter` blur on the edges, sharp centre) while `<main>` is `inert` + `aria-busy`. «Saltar y explorar el mapa mientras carga» fades it out without stopping the load; a status pill shows background progress and «✓ N transacciones cargadas» at the end (`boot_skip` analytics event, prop `pct`). Boot completes on the cluster's last chunk, OR on decode when there is nothing to paint (CBR layer off or 0 rows) — `onDecoded(count)` handles that case, which used to hang the loader.
-- **Go to my location**: `src/components/map/useLocateControl.ts` adds a Leaflet control in the bottom-right corner (stacked ABOVE the attribution) that asks the device for ONE position (`getCurrentPosition` with high accuracy, 15 s timeout — never `watchPosition`), flies to the accuracy circle (max zoom 17) and leaves the blue pulsing dot plus that circle, both non-interactive so they never swallow the `identify` clicks of the remote layers. The accuracy is always shown («Tu ubicación (±18 m)»), with a warning above 500 m (IP/wifi fix); denied/timeout/unavailable/insecure-context each get their own message (`src/lib/geolocalizacion.ts`, tested). The position NEVER leaves the browser: the `locate` analytics event carries only `ok` and the error code.
-- **Relieve (Copernicus GLO-30)** is a REMOTE DYNAMIC layer computed by US (no ETL, no static file), same pattern as NDVI Visual: `/api/relieve/export?modo=sombreado|pendiente|exposicion&bbox&size` reads the public Copernicus DEM GLO-30 COGs on AWS (`s3://copernicus-dem-30m`, 1° tiles, overviews ×2/×4/×8) by HTTP range and returns ONE indexed PNG per viewport; `/api/relieve/punto?punto=lng,lat` returns elevation, slope and aspect at native 30 m for the point query. `src/lib/relieve-raster.ts` (server-only) builds a MOSAIC in Copernicus' own grid with 2 cells of margin, computes the Horn gradient there (never on resampled pixels), and bilinearly interpolates the GRADIENT — not the colour — into the EPSG:3857-linear output grid. Water is `gradient == 0` in all four cells (Copernicus flattens lakes/rivers/coastal sea) and stays transparent; tiles absent from `src/lib/relieve-baldosas.json` (generated from `tileList.txt`) are sea. Pyramid level = coarsest not coarser than the output pixel, bumped if the mosaic would exceed 6 M cells; longitude spacing changes beyond 50° S (3600 → 2400 px) and the mosaic follows the centre tile. Slope classes are the SAG «Pauta para Estudio de Suelos» (2011) A–I in % — 30/45/60 % are also legal thresholds (Ley 20.283 art. 2 N° 5: native forest ≥ 45 % is «de conservación y protección»); the popup flags ≥ 45 %. Hillshade is NW light at 45°, flat = transparent, with vertical exaggeration ONLY for the shading at coarse levels. PNGs are palette-indexed (`src/lib/png-indexado.ts`: ~4× smaller than RGBA) and cached `s-maxage` 7 days (the DEM never changes). It is a DSM (canopy and roofs, not ground) — the legend, popup and PNG card say so, and the licence notice («Produced using Copernicus WorldDEM-30 …») plus its art. 6 c liability sentence are MANDATORY wherever it is shown. Rendering reuses `useViewportRaster` (its `exportUrl` may carry a query). Min zoom 10; permalink `capas=relieve&relieve=<modo>`.
-- **Measure + numeric scale**: `src/components/map/useMeasureControl.ts` adds «Medir» to the bottom-right stack (above «Ir a mi ubicación»): distance or surface, clicks become vertices (`activeRef` makes `usePointQuery` stand down and any layer popup opened on the same click is closed; double-click zoom is off, and tapping the last/first vertex finishes/closes). Geodesy in `src/lib/medicion.ts` (tested): haversine distance and spherical polygon area on the IUGG mean radius, < 0,5 % off WGS84 — referential, and the panel says the legal surface is the plano/título's. Fixed measurements stay until «Borrar todo» and go into the PNG: lines/vertices live in the vector canvas (`preferCanvas`) the export already captures, the DOM labels are published in `fixedRef` and painted by `drawMeasurementLabels`. No cursor preview on `hover: none` screens (the emulated mousemove left a phantom segment that inflated the total). The numeric scale (`1:6.900`) sits inside Leaflet's scale control and next to the PNG's scale bar: centre latitude, 96 dpi CSS pixel, two significant figures — the bar stays the reference. The `measure` analytics event carries `mode` and `vertices`, never coordinates or results. Not in the permalink.
-- **Update monitor**: `src/components/UpdateNotice.tsx` (mounted in the root layout) polls `GET /api/version` every 5 minutes while the tab is visible and shows a dismissible banner with an **Actualizar** button when the served `build` differs from the one the tab loaded. It compares the build, not the version, so a fix-only deploy still notifies. `/api/version` is the one route that skips `enforce()` (polling must not eat the rate-limit budget of real map queries) and must stay `no-store`.
-- **Internal analytics (privacy-first)**: `src/components/Analytics.tsx` (root layout) sends `pageview` + `leave` (active seconds); `page.tsx` sends feature events via `track()` from `src/lib/analytics.ts`. The event list is CLOSED in `src/lib/analytics-events.ts` — the server drops anything else. `POST /api/analytics` always answers 204 and writes in `after()` to the isolated `analytics` schema (`db/analytics.sql`) with its own role `analytics_writer` — never `web_readonly`, which stays SELECT-only and gets nothing on that schema. No tracking cookies, no localStorage: session = random in-memory id; the ONLY cookie is the opt-out `sig_no_analytics=1`, set by visiting `/?analytics=off` (cleared with `?analytics=on`) — it excludes the admin's own browser from ALL events, including its API calls; visitor = daily-rotating HMAC of IP+UA (`ANALYTICS_SALT`), IP never stored; location only country/region/city from Vercel geo headers; DNT/GPC and bots dropped; 13-month retention purge. Props must NEVER carry filter values or user text (ROL, predio, search queries) — field NAMES only. Data-API access (`/api/points`, `/api/export`) is logged server-side by `src/proxy.ts` as `api_points` / `api_export` — in the proxy, not the routes, because `/api/points` is CDN-cached (`s-maxage`) and a cache hit never invokes the route. These server events are NOT accepted from `POST /api/analytics` (`ANALYTICS_SERVER_EVENTS`), do NOT drop bots or non-browser clients (seeing scripts is the point), and carry `source` (`site` via `sec-fetch-site`/referer, else `external`), `client` (first UA token, e.g. `curl/…`) and filter NAMES only. Without `ANALYTICS_DATABASE_URL` the whole thing is a no-op.
-- **Conservadores de Bienes Raíces** is a Neon-backed point layer (off by default, group `cbr`): `GET /api/conservadores` returns the located offices only (`lat/lng IS NOT NULL`; `''` → null; `s-maxage` 1 day) and `src/components/map/useConservadoresLayer.ts` draws one institutional-building marker per office, no clustering. The jurisdiction is NOT in the response: it is the union of the DPA polygons of `/data/limites-comunales.geojson` matched by `jurisdiccion_cut` ↔ `CUT_COM` (never derive the CUT from the `cbr-XXXXX` id). That GeoJSON goes through `src/components/map/geojson-cache.ts`, shared with the «Límites comunales» layer (`cached: true`), so it is parsed once and works with that layer off. The highlight is driven ONLY by each marker's `popupopen`/`popupclose` (`highlightOnOpen`/`highlightOnClose` in `src/lib/conservadores.ts`, tested), is non-interactive so clicks inside it still reach the point query, and only zooms OUT to fit. Popup in `buildConservadorPopup` (escape tests). Markers are DOM icons and do not enter the PNG export; the highlight polygon does.
-- **Communal limits styling**: each comuna gets a distinct translucent pastel fill assigned by `CUT_COM % palette` (`comunaFillColor` in `src/lib/comunas.ts`) over the dashed slate border.
+- **No client-side DB access.** All data goes through `src/app/api/`.
+- **MapView** is dynamically imported with `ssr: false` (Leaflet needs `window`); each thematic layer lives in its own hook under `src/components/map/`.
+- **Layer families**: static files in `public/data/` built by `scripts/build-*.mjs` (with a `*.meta.json` provenance manifest); remote per-viewport PNGs (ArcGIS proxies via `useViewportRaster`, NDVI and Relieve rendered server-side); derived (value heat map from `/api/hexbins`); Neon points (CBR, Conservadores).
+- **Point query («¿Qué hay aquí?»)**: ONE click handler, `usePointQuery.ts`, for every queryable layer. Do NOT add per-layer click popups; add a section there.
+- **Permalink**: `src/lib/permalink.ts` + `usePermalink.ts` (`replaceState`, never `pushState`). A new layer must be added to `layerFlags` in `page.tsx` or it fails to compile.
+- **Analytics** is privacy-first: closed event catalog in `src/lib/analytics-events.ts`, no tracking cookies, props carry field NAMES only — never filter values or user text.
 
-## Key files
+**Before touching a layer or map feature, read its section in
+[`docs/design-notes.md`](./docs/design-notes.md)** — it records the
+load-bearing decisions (and the bugs that already shipped once). The full
+key-files table lives there too. Invariants that are easy to break:
 
-| Path | Role |
-|---|---|
-| `src/app/page.tsx` | Single page — filters + stats bar + map; state lives in the hooks below |
-| `src/hooks/useCbrData.ts` | Facets + points/stats for the debounced filter query (byte-level download progress, derived loading/error) |
-| `src/hooks/useRuralRolSearch.ts` | ROL search against CIREN rural properties (`/search` → `/feature`), abortable |
-| `src/hooks/useKmlLayers.ts` | User KML layers: in-browser parse, toggle, rename, remove |
-| `src/hooks/useNdviQuery.ts` | NDVI point-query tool state (armed mode, current query, export payload, Escape handling) |
-| `src/lib/export-metadata.ts` | Legal traceability box of the PNG export (filters + sources of active layers). Tested |
-| `src/app/layout.tsx` | Root layout (Geist font, metadata) |
-| `src/components/MapView.tsx` | Leaflet map shell: init, basemap, CBR MarkerCluster (~74k points), overlay stacking, PNG export, KML; each thematic layer lives in its own hook below |
-| `src/components/map/useStaticGeoJsonLayer.ts` | Race-safe hook for every static `public/data/*.geojson` layer (aborts the fetch if the layer is switched off mid-download) |
-| `src/components/map/useViewportRaster.ts` | ONE lifecycle for the four ArcGIS per-viewport rasters (suelos, vegetacional, humedales, propiedades rurales): debounce, grid-snapped request reused across small pans and across users (CDN), 429 → `rate-limited` + self-retry, no stale image |
-| `src/lib/remote-raster.ts` | Grid-snapped Web Mercator request (`rasterRequest`), `retryAfterSeconds`, the shared `RemoteRasterStatus`. Tested |
-| `src/components/map/use*Layer.ts` | Hooks for the layers with their own logic: `useHexbinLayer`, `useNdviVisualLayer`, `useBioclimaLayer` |
-| `src/components/map/usePointQuery.ts` | «¿Qué hay aquí?»: the single click handler and integrated popup for all queryable layers |
-| `src/lib/consulta-punto.ts` | Point-query section model, point-in-polygon, rate-limit-aware failure messages. Tested |
-| `src/lib/permalink.ts` | Permalink: parse/serialize the view state to the URL query, with per-field validation. Tested |
-| `src/hooks/usePermalink.ts` | Writes the permalink with `replaceState` (debounced, `flush()` for «Compartir vista») |
-| `src/lib/relieve.ts` | Relieve: modes, SAG slope classes, aspect sectors, Copernicus tile geometry, Horn gradient, hillshade, palettes, attribution + licence notices. Tested |
-| `src/lib/relieve-raster.ts` | server-only: Copernicus COG mosaic, per-viewport render (indexed PNG) and point query |
-| `src/lib/png-indexado.ts` | Minimal palette PNG encoder (PLTE + tRNS, per-row filter) for class rasters. Tested |
-| `src/components/map/useMeasureControl.ts` | «Medir» control: distance/surface vertices, fixed measurements + labels for the PNG |
-| `src/lib/medicion.ts` | Numeric scale (`1:N` at 96 dpi), haversine distance, spherical area, m/km/ha formatting. Tested |
-| `src/components/map/useLocateControl.ts` | «Ir a mi ubicación» control: one GPS fix, accuracy circle, messages |
-| `src/lib/geolocalizacion.ts` | Pure helpers for the location control (error codes, messages, accuracy formatting). Tested |
-| `src/components/map/raster-overlay.ts` | Helpers shared by the per-viewport raster hooks (image preload, proxy failure details) |
-| `src/lib/map-popups.ts` | Pure HTML builders for every map popup; all data goes through `esc()`, links through `safeHref()` (http/https only). Tested |
-| `src/components/LayersControl.tsx` | Toggle + legend for protected areas layer |
-| `src/lib/neon.ts` | Neon read-only client (NEON_DATABASE_URL) |
-| `src/lib/filters.ts` | Shared filter params (sanitized, anti-injection) |
-| `src/lib/types.ts` | MapPoint, Stats, Facets types |
-| `src/lib/security.ts` | Origin allowlist + rate-limit for the public API |
-| `src/lib/urban-limit.ts` | Urban limit GeoJSON types & layer config |
-| `src/lib/comunas.ts` | Communal limits (DPA 2023) types, style & attribution |
-| `src/lib/red-vial.ts` | Red caminera (MOP Vialidad) types, per-class styles & attribution |
-| `src/lib/red-drenaje.ts` | Red de drenaje (DGA Banco Nacional de Aguas) types, per-type styles (ríos/esteros) & attribution |
-| `src/lib/lineas-transmision.ts` | Ministerio de Energía transmission-line types, voltage styles, attribution & legal disclaimer |
-| `src/lib/derechos-agua.ts` | Derechos de agua (DGA) types, colors, SNIA links & attribution |
-| `src/lib/bioclima.ts` | Bioclima (WorldClim) manifest loader, default variable, attribution |
-| `src/lib/catastro-fruticola.ts` | CIREN-ODEPA catastro frutícola types, palette & attribution |
-| `src/lib/humedales.ts` | Humedales MMA: export/identify endpoints, official class colours, status type, attribution + disclaimer |
-| `src/lib/humedales-proxy.ts` | server-only: upstream service, alias→field allowlist for `identify`, Chilean-number parsing, error body. Tested |
-| `src/lib/suelos.ts` | Suelos agrológicos CIREN: export/identify endpoints, class colors & attribution |
-| `src/lib/arcgis-proxy.ts` | Shared plumbing for the ArcGIS proxies (suelos, vegetacional, propiedades rurales): exact-param parsing, identify/export validation, capped fetch with timeout, PNG checks, error body |
-| `src/lib/hexbins.ts` | Mapa de calor de valor: zoom→sampling-edge ladder, colour ramps, quantile breaks, destino codes, disclaimer |
-| `src/lib/heat-surface.ts` | Gaussian interpolation of the cell medians into a continuous raster (splat accumulation, quantile+log colour scale, coverage-driven alpha) |
-| `src/lib/basemap.ts` | Basemap catalog: the five backgrounds, their tile URLs, licences, native zooms and CSS filters (and why not CARTO/Stadia) |
-| `src/lib/basemap-store.ts` | Basemap preference as an external store for `useSyncExternalStore` (localStorage without hydration mismatch) |
-| `src/components/BasemapSwitcher.tsx` | Thumbnail basemap picker, bottom-left, Google-Maps style |
-| `src/lib/version.ts` | `APP_VERSION`, `BUILD_ID`, and the SemVer policy for this project |
-| `src/app/api/version/route.ts` | Deployment identity for the update monitor (no auth gate, `no-store`) |
-| `src/components/UpdateNotice.tsx` | Update monitor: polls `/api/version`, offers «Actualizar» |
-| `src/lib/analytics-events.ts` | Closed catalog of analytics events + privacy design (shared client/server) |
-| `src/lib/analytics.ts` | Client `track()` via `sendBeacon`, no cookies, honours DNT/GPC |
-| `src/lib/analytics-server.ts` | Payload validation, daily visitor HMAC, geo/UA enrichment, insert + retention purge |
-| `src/app/api/analytics/route.ts` | `POST` ingest: origin check, own rate-limit bucket, always 204, write in `after()` |
-| `db/analytics.sql` | One-off, idempotent: `analytics` schema, `events` table, views, `analytics_writer` role |
-| `scripts/analytics-report.mjs` | `npm run analytics:report` — usage report from the CLI |
-| `src/proxy.ts` | Next 16 proxy: logs `/api/points` + `/api/export` access (before the CDN cache) as `api_*` analytics events |
-| `src/app/api/hexbins/route.ts` | PostGIS `ST_HexagonGrid` aggregation of $/m² per viewport |
-| `src/lib/kml.ts` | User-uploaded KML/KMZ layers: browser-side KMZ unzip (fflate, `doc.kml` first, 150 MB uncompressed cap) + parse (@tmcw/togeojson) + validation. Tested |
-| `src/lib/protected-areas.ts` | Protected area category colors & config |
-| `src/components/RetroLoader.tsx` | Retro loading screen driven by REAL progress (download + marker render) |
-| `src/components/GeocoderSearch.tsx` | Address/place search with autocomplete (via /api/geocode) |
-| `src/components/MapPanel.tsx` | Floating map panel: fixed chip button + anchored dropdown card |
-| `src/components/InfoPanel.tsx` | Transaction detail sidebar |
-| `src/components/FieldGroups.tsx` | Grouped field display for point info |
-| `scripts/build-protected-areas.mjs` | ETL: download → simplify (mapshaper) → emit GeoJSON + meta |
-| `scripts/build-urban-limit.mjs` | ETL: download MINVU data → simplify → emit GeoJSON + meta |
-| `scripts/build-comunas.mjs` | ETL: download SUBDERE DPA 2023 zip → reproject → simplify → emit GeoJSON + meta |
-| `scripts/build-red-vial.mjs` | ETL: MOP ArcGIS REST (esriJSON by OBJECTID ranges) → GeoJSON → simplify → emit GeoJSON + meta |
-| `scripts/build-red-drenaje.mjs` | ETL: DGA ArcGIS REST paginated (Ríos + Esteros FeatureServer, 1000/request with backoff 2-5-10 s) → combined GeoJSON with derived `tipo` field → simplify → emit GeoJSON + meta |
-| `scripts/build-lineas-transmision.mjs` | ETL: Ministerio de Energía IDE Energía ArcGIS REST paginated → WGS84 GeoJSON + provenance meta |
-| `scripts/build-derechos-agua.mjs` | ETL: investigación de fuente DGA — WFS SNIA Glaciares, CIREN cuencas |
-| `scripts/build-bioclima.mjs` | ETL: WorldClim 628 MiB package → extract BIO1/BIO12 → clip Chile window from global GeoTIFF → paint PNG with shared ramp → emit manifest |
-| `src/lib/bioclima-ramp.json` | Bioclima colour ramp, read by BOTH the ETL (to paint) and the legend (to describe) so they cannot drift apart |
-| `src/lib/ndvi-ramp.json` | NDVI Visual colour ramp (10 stops, domain -0.1..0.9), read by BOTH `ndvi-raster.ts` (paints) and `LayersControl` (legend) so they cannot drift apart |
-| `src/lib/ndvi-visual.ts` | NDVI Visual shared constants (min zoom 10, export URL, attribution, service name), `NdviVisualEstado` status type, ramp helpers (`ndviRampCssGradient`, `ndviRampTicks`, `formatoNdvi`) |
-| `src/lib/ndvi-raster.ts` | server-only NDVI renderer: scene selection (two-tier cloud rule), COG overview pick, SCL mask, bilinear red/nir, EPSG:3857 output grid, two-phase parallel band reads |
-| `src/app/api/ndvi/export/route.ts` | GET route: bbox/size validation (Chile bounds, span caps, size 64..1600), rate limit + 20 s budget, PNG or 204 no-coverage, English error contract `{error:{code,message,service,operation}}` — shared by every proxy and both NDVI routes |
-| `scripts/build-catastro-fruticola.mjs` | ETL: CIREN-ODEPA ArcGIS REST → GeoJSON → simplify → emit GeoJSON + meta |
+- Never use tiled WMS for the ArcGIS layers (~40 simultaneous GetMap collapse the state servers): one PNG per viewport.
+- Raster overlays must be produced linear in EPSG:3857, never in degrees (bioclima once landed 287 km off).
+- A 429 is OUR rate limit (60 req/min/IP, `enforce()`), never reported as the agency being down.
+- Shared ramps (`bioclima-ramp.json`, `ndvi-ramp.json`, `rampPosition`) are read by both painter and legend — never duplicate them.
+- The heat map always filters by a single `destino` and interpolates cell MEDIANS; the hex grid is never drawn.
+- Transmission lines are referential axes: never derive servidumbres with buffers. Catastro frutícola `vintage` is the survey year, never the planting year. Relieve is a DSM and its Copernicus licence notice is mandatory.
+- Do NOT add CARTO or Stadia basemaps (they require API keys). The basemap preference is read via `useSyncExternalStore`, not `useState` + `useEffect`.
+- `/api/version` is the only route that skips `enforce()` and must stay `no-store`.
 
 ## Environment
 
-`NEON_DATABASE_URL` in `.env.local` (and Vercel). Never prefixed `NEXT_PUBLIC_`.
+`NEON_DATABASE_URL` in `.env.local` (and Vercel), never `NEXT_PUBLIC_`. Get it
+with `npx vercel link` once, then
+`npx vercel env pull .env.local --environment=development`. Without it the CBR
+routes answer 500 but every other layer works.
 
-Node **22** (`.nvmrc`; run `nvm use`). Locally the easiest way to get `.env.local` is `npx vercel link` once and then `npx vercel env pull .env.local --environment=development` — without `NEON_DATABASE_URL` the CBR routes answer 500 and the map shows an alert, but every other layer works.
-
-Optional, for internal analytics: `ANALYTICS_DATABASE_URL` (role `analytics_writer`, see `db/analytics.sql`) and `ANALYTICS_SALT` (32+ random chars). Same rules: server-only, never `NEXT_PUBLIC_`. Locally, put the production URL in `ANALYTICS_REPORT_DATABASE_URL` (read only by `npm run analytics:report`), NOT in `ANALYTICS_DATABASE_URL` — that one would make `npm run dev` write events.
+Optional analytics: `ANALYTICS_DATABASE_URL` (role `analytics_writer`, see
+`db/analytics.sql`) and `ANALYTICS_SALT`. Locally use
+`ANALYTICS_REPORT_DATABASE_URL` for the report, NOT `ANALYTICS_DATABASE_URL`
+(dev would write events).
 
 ## Data & privacy
 
 Exposed per point: `lat, lng, monto, anio, comuna, predio, superficie, rol, destino, fojas, numero, conservador`.
-
-- `rol` IS intentionally public (SII property identifier, not PII under Ley 19.628). Enables perito ROL search.
-- NEVER expose: `comprador, vendedor, rut, user_id, observaciones`.
-
-Protected areas layer has 12 legal categories with distinct colors (see `src/lib/protected-areas.ts`).
+`rol` IS intentionally public (SII identifier, not PII under Ley 19.628).
 
 ## Versioning
 
-SemVer `MAYOR.MENOR.PARCHE`, currently **0.2.0** (`package.json` and
-`src/lib/version.ts` must agree — the API route reports the latter).
-
-The leading `0` is a factual claim, not modesty: **the public `/api/*`
-contract is not frozen yet**. `1.0.0` is the moment that contract is
-documented and we commit to not breaking it without notice.
-
-| Number | Bumps when |
-|---|---|
-| **MAYOR** | `1.0.0` on the frozen, documented `/api/*` contract; afterwards, any incompatible change to those responses |
-| **MENOR** | A user-visible capability ships: a thematic layer, the heat map, the PNG export, the basemap selector |
-| **PARCHE** | Fixes, styling, and regenerating an existing layer's data via `npm run data:build:*` |
-
-Tag each release (`v0.1.0`) and record it in `CHANGELOG.md`. Bumping the
-version is what makes the update monitor's banner name a number the user can
-recognise — but the monitor triggers on `BUILD_ID` (the Vercel commit SHA), so
-a fix deployed without a bump still notifies.
+SemVer, currently **0.2.0** (`package.json` and `src/lib/version.ts` must
+agree). `0.x` because the `/api/*` contract is not frozen; `1.0.0` freezes it.
+MENOR = a user-visible capability ships; PARCHE = fixes, styling, data
+regeneration. Tag each release (`v0.2.0`) and record it in `CHANGELOG.md`.
+The update monitor triggers on `BUILD_ID`, so un-bumped deploys still notify.
 
 ## Conventions
 
-- **Tailwind CSS v4** — PostCSS plugin (`@tailwindcss/postcss`), NOT v3 config file
-- **Path alias**: `@/` → `src/`
-- **TypeScript**: strict mode, `bundler` module resolution
-- **ESLint**: flat config (`eslint.config.mjs`)
-- **Semicolons used** in source files (check existing before adding)
-- **Dark mode**: `dark:` variants via Tailwind class-based dark mode
+- **Tailwind CSS v4** via `@tailwindcss/postcss` (no v3 config file); `dark:` class-based dark mode
+- **Path alias** `@/` → `src/`; TypeScript strict, `bundler` resolution; ESLint flat config
+- **Semicolons** in source files
+- Commit straight to `main` for routine work; use `feat/**`, `fix/**`, `chore/**`, `docs/**` branches for large or experimental changes
 
 ## Documentation
 
-Detailed design docs live in `docs/`:
-- `docs/arquitectura-capas.md` — layer catalog + recipe for adding a new thematic layer (READ THIS before adding any layer)
-- `docs/estadisticas.md` — how the CBR stats panel is computed (the three denominators, the two $/m² readings, visual hierarchy) — READ THIS before touching `/api/stats` or `StatsFields`
-- `docs/fuentes-gis-chile.md` — single catalog of official Chilean GIS data sources (in use and candidates, verified endpoints, reliability notes, MOP ecosystem findings, ArcGIS REST pattern)
-- `docs/roadmap.md` — current state, prioritized backlog of future layers + UX/product improvements, milestones
-- `docs/plan-mapa-de-calor.md` — design and calibration of the value heat map
-- `docs/estructura-catastral.md` — SII catastral detail structure and coding tables (destino codes, etc.)
-- `docs/auditoria-ux-2026-08.md` — hands-on audit of the viewer from a power GIS user's perspective (2026-08-28): 14 findings with evidence and root cause, including a **broken PNG export**; evidence record; follow-up lives in `roadmap.md`
-
-Refer to these before making architectural changes to the map or layout.
-
-## Feature workflow
-
-1. **Check Next.js docs first** — always read `node_modules/next/dist/docs/` before writing any code (this is NOT standard Next.js)
-2. **Understand existing patterns** — read the relevant component or route handler for convention reference
-3. **Data layer first** — add DB query logic in `src/app/api/`, never on the client
-4. **MapView is client-only** — always use dynamic import with `ssr: false` for Leaflet components
-5. **Lint before commit** — run `npm run lint` and fix all errors
-6. **Use semicolons** — match the existing code style
-7. **Solo-dev direct push:** for routine changes, commit straight to `main` (`git commit` then `git push`). Use a feature branch only when the change is large enough to want isolation (multi-day work, experimental, etc.) — the `feat/**`, `fix/**`, `chore/**`, `docs/**` LSP-style prefixes are still recommended for readability regardless of where you commit. Local commits before pushing are fine; the GitHub ruleset is the only enforcement layer.
+- `docs/design-notes.md` — per-layer and per-feature design decisions + full key-files table
+- `docs/arquitectura-capas.md` — layer catalog + recipe for a new layer (READ before adding one)
+- `docs/estadisticas.md` — how the stats panel is computed (READ before touching `/api/stats` or `StatsFields`)
+- `docs/fuentes-gis-chile.md` — catalog of official Chilean GIS sources and verified endpoints
+- `docs/roadmap.md` — current state and prioritized backlog
+- `docs/plan-mapa-de-calor.md` — heat map design and calibration
+- `docs/estructura-catastral.md` — SII catastral structure and coding tables
+- `docs/auditoria-ux-2026-08.md` — UX audit from a power GIS user's perspective
 
 ## HARD RULES
 
-These must never be violated:
-
-- **NEVER expose:** `comprador`, `vendedor`, `rut`, `user_id`, `observaciones` — these are PII under Ley 19.628, strip them at the API level (see `src/lib/security.ts`)
-- **NEVER use `NEXT_PUBLIC_` for database credentials** — `NEON_DATABASE_URL` goes in `.env.local` only, never prefixed
-- **NEVER add client-side DB access** — all data must go through route handlers in `src/app/api/`
-- **NEVER commit `.env.local`** — it contains the live Neon database URL
-- **Environment edit policy** — tracked templates such as `.env.example` may
-  be edited; real `.env` / `.env.*` files require explicit approval and remain
-  forbidden from commits
-- **NEVER remove semicolons** — the codebase uses them consistently in source files
-- **NEVER `--force` push to `main`** — the `Protect main` ruleset (Settings → Rules) blocks force pushes and deletion of `main` (GitHub-side enforcement, no need for a local `pre-push` hook). Direct push to `main` is allowed for solo-maintainer workflows: the `ESLint + TypeScript` check (lint, typecheck, unit tests and `npm run build`, on a pinned `ubuntu-24.04` runner) fires on every push to `main` (`.github/workflows/lint.yml`), so a red build will reject the commit. Run `npm run lint` locally before pushing as your safety net. The ruleset also grants the repo admin a bypass actor for emergencies. The PR template stays in `.github/PULL_REQUEST_TEMPLATE.md` for anyone who prefers the branch + PR flow.
+- **NEVER expose** `comprador`, `vendedor`, `rut`, `user_id`, `observaciones` (PII under Ley 19.628) — stripped at the API level (`src/lib/security.ts`)
+- **NEVER use `NEXT_PUBLIC_`** for database credentials
+- **NEVER add client-side DB access**
+- **NEVER commit `.env.local`** or any real `.env*` file; editing them needs explicit approval (tracked templates like `.env.example` are fine)
+- **NEVER remove semicolons**
+- **NEVER `--force` push to `main`** — blocked by the `Protect main` ruleset; the `ESLint + TypeScript` check (lint, typecheck, tests, build) runs on every push. Run `npm run lint` before pushing.
 
 ## AI tooling
 
-This repo is read by Claude Code, OpenCode, Codex and other agents. The
-`opencode.json` at the repo root is **committed with permissions and instruction
-wiring only** — it deliberately carries no `model` or `enabled_providers` keys,
-so the model comes from each machine's global `~/.config/opencode/opencode.json`
-(this maintainer's per-machine defaults are described in `AGENTS.local.md`).
-Project-level config overrides the global `~/.config/opencode/opencode.json`
-on merge, so permissions and instructions apply to every session while the
-model stays a per-machine choice.
+Read by Claude Code, OpenCode, Codex and others. This file is the single
+source of truth; per-machine overrides (paths, model, providers, permissions)
+live in the gitignored `AGENTS.local.md`. `CLAUDE.md` / `CLAUDE.local.md` are
+shims that import them. `opencode.json` is committed with permissions and
+instruction wiring only — no model, which stays a per-machine choice.
 
-Other operators can override locally without touching the committed file via
-any of:
-
-- `OPENCODE_CONFIG` env var pointing to a per-machine JSON file
-  (precedence between global and project — see opencode docs § Precedence order)
-- `~/.config/opencode/opencode.json` (global; project-level overrides it)
-- Editing `opencode.json` on their fork
-
-> **Note (2026-07)**: earlier drafts of this repo referenced an
-> `opencode.local.json` file at the repo root as a per-machine override.
-> opencode does **not** read that filename — only `opencode.json` is recognized
-> at project level (see
-> [opencode.ai/docs/config/#precedence-order](https://opencode.ai/docs/config/#precedence-order)).
-> The `.gitignore` entry for it has been kept as a no-op marker; per-machine
-> overrides live in `~/.config/opencode/opencode.json` instead.
-
-The canonical agent instructions live in `AGENTS.md` (this file).
-Per-machine overrides (paths, shell, MCP, model, providers, permissions)
-live in `AGENTS.local.md` (gitignored). `CLAUDE.md` and `CLAUDE.local.md`
-are thin shims that import these files for Claude Code's filename
-convention.
-
-### Shared AI assets (committed)
-
-`.opencode/` contains shared (committed) AI assets:
-
-| Path | Purpose |
-|---|---|
-| `.opencode/agents/orchestrator.md` | Primary coordinator with a deny-by-default specialist allowlist (no model pinned; the session's model comes from the machine config) |
-| `.opencode/agents/*-agent.md` | Read-only GIS, Next.js, Neon and ETL specialists invoked by the orchestrator |
-| `.opencode/commands/*.md` | Custom `/slash` commands (markdown form) |
-| `.opencode/skills/<name>/SKILL.md` | On-demand skills (one folder per skill) |
-
-The `package.json` / `package-lock.json` / `node_modules/` under
-`.opencode/` are local install artifacts and are excluded by
-`.opencode/.gitignore`. Do not commit them.
-
-### Per-machine assets (NOT committed)
-
-- `~/.config/opencode/agents/*.md`
-- `~/.config/opencode/commands/*.md`
-- `~/.config/opencode/skills/<name>/SKILL.md`
-- `opencode.local.json` at the repo root — **no-op marker** (see Note above;
-  opencode does not read this filename; per-machine overrides go in
-  `~/.config/opencode/opencode.json`)
-
-The built-in `README` agent is a documentation subagent, not a third primary
-agent. The project primary coordinator is `orchestrator`; it delegates only to
-the read-only specialists listed in `.opencode/agents/README.md`. Keep those
-specialists read-only and preserve the deny-by-default delegation policy when
-adding a new one. Since this is a public repository, agent prompts must never
+`.opencode/` holds the shared assets: `agents/orchestrator.md` (primary
+coordinator, deny-by-default delegation), read-only specialists
+`agents/*-agent.md` (keep them read-only), `commands/*.md` and
+`skills/<name>/SKILL.md`. This is a public repo: agent prompts must never
 contain credentials, private appraisal content or machine-specific secrets.

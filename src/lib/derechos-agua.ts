@@ -115,7 +115,7 @@ export function derechosAguaPopupContent(
 /**
  * Atribución y descargo legal para la capa.
  *
- * @see AGENTS.md § Derechos de agua
+ * @see docs/design-notes.md § Derechos de aprovechamiento de aguas
  */
 export const derechosAguaAttribution = `
 © Dirección General de Aguas (DGA) — Ministerio de Obras Públicas (MOP).
