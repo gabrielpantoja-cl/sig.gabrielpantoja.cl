@@ -23,6 +23,22 @@ versionado.
 
 ### Añadido
 
+- **Ficha del predio, el primer geoproceso del SIG.** El usuario entrega un
+  polígono y recibe lo que el SIG sabe de él.
+  - Entradas: «Medir» → Superficie → «Analizar predio»; vértices UTM pegados
+    desde un plano (Buscar → «Predio por coordenadas UTM», huso 18S/19S);
+    «Analizar» junto a cada capa KML con polígonos; «Analizar este predio»
+    tras ubicar un predio CIREN por ROL.
+  - Cruce en PostGIS con comuna, límite urbano y áreas protegidas, sobre
+    geometría oficial sin simplificar (`npm run data:load:postgis`). Hasta
+    que se carguen, esas secciones dicen «capa aún no cargada».
+  - Relieve calculado al vuelo sobre Copernicus GLO-30: pendiente media, %
+    por clase SAG, % sobre 30 y 45 % y rango de cotas.
+  - Comparables CBR en un radio de 1 a 20 km, con mediana y P25–P75 por
+    destino; los 100 más cercanos se dibujan en el mapa.
+  - Descarga en GeoJSON (polígono + resumen + comparables) y CSV de
+    comparables para Excel.
+
 - **Filtro de años «desde–hasta» con histograma.** El panel de filtros
   muestra cuántas transacciones hay cada año en la comuna elegida.
   - Clic en una barra deja solo ese año; otro clic lo quita, y Mayús+clic

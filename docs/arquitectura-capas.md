@@ -1,6 +1,6 @@
 # Arquitectura de capas del SIG: catálogo y receta para agregar una capa nueva
 
-> Documento vivo. Última actualización: 2026-10-18.
+> Documento vivo. Última actualización: 2026-10-26.
 >
 > **Este proyecto es open source** ([MIT](../LICENSE)) y se desarrolla
 > públicamente en https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl.
@@ -18,6 +18,14 @@ nuestro servidor desde COG públicos). Este documento cataloga las capas existen
 fija la receta para agregar la próxima, de modo que cada capa nueva salga con
 el mismo estándar: fuente oficial verificable, manifiesto de procedencia,
 atribución visible y cita en el popup.
+
+> **Capas como datos de análisis (2026-10-26).** Además de dibujarse, las
+> capas con licencia redistribuible se cargan SIN SIMPLIFICAR en el esquema
+> `capas` de PostGIS (`db/capas.sql`, `npm run data:load:postgis`) para la
+> ficha del predio (`/api/analisis/predio`). Hoy: comunas, límite urbano y
+> áreas protegidas. Una capa nueva que deba entrar en la ficha agrega su
+> entrada al catálogo `CAPAS` de `scripts/load-postgis.mjs` (campos fuente →
+> columna) y su sección en la ruta. Ver `design-notes.md` («Ficha del predio»).
 
 ## Catálogo de capas temáticas
 

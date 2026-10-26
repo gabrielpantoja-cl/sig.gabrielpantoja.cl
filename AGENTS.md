@@ -29,6 +29,7 @@ sources.
 | `npm run typecheck` | `tsc --noEmit` (strict) |
 | `npm test` | Vitest 4 unit tests (`src/**/*.test.ts`, next to the module; `npm run test:watch`) |
 | `npm run data:build` | Regenerate every static layer; one layer: `npm run data:build:<capa>` (`protected`, `urban`, `comunas`, `red-vial`, `red-drenaje`, `lineas-transmision`, `catastro-fruticola`, `bioclima`) |
+| `npm run data:load:postgis [-- capa]` | Load official layers UNSIMPLIFIED into PostGIS `capas` for the ficha del predio (needs `ETL_DATABASE_URL`, role `etl_writer` from `db/capas.sql`; Node 22) |
 | `npm run analytics:report [-- días]` | Internal usage report from `analytics.events` |
 
 CI (`.github/workflows/lint.yml`) runs lint → typecheck → test → build on
@@ -41,6 +42,7 @@ CI (`.github/workflows/lint.yml`) runs lint → typecheck → test → build on
 Browser → /api/{points,stats,export,facets,hexbins,conservadores} → Neon (web_readonly, SELECT)
 Browser → /api/{suelos,vegetacional,humedales,propiedades-rurales}/* → official ArcGIS (validated proxy)
 Browser → /api/{ndvi,relieve}/* → public COGs on AWS, rendered by our server
+Browser → POST /api/analisis/predio → Neon PostGIS (capas.* + referenciales) + Copernicus COGs
 Browser → /api/geocode → Nominatim/OSM (Chile only, cached proxy)
 Browser → /api/analytics (sendBeacon) → Neon analytics.events (analytics_writer, INSERT)
 Any client → src/proxy.ts (before CDN cache) on /api/{points,export} → api_* analytics events
