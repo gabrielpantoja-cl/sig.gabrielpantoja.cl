@@ -6,6 +6,12 @@ import { destinoLabel } from '@/lib/hexbins';
 import { formatoDistancia, formatoSuperficie } from '@/lib/medicion';
 import { comparablesACsv, fichaAGeoJson } from '@/lib/ficha-export';
 import {
+  PENDIENTE_CLASES,
+  RELIEVE_ATTRIBUTION,
+  RELIEVE_DESCARGO,
+  RELIEVE_DESCARGO_LICENCIA,
+} from '@/lib/relieve';
+import {
   ANALISIS_PREDIO_URL,
   RADIO_DEFAULT_M,
   type FichaPredio,
@@ -233,6 +239,56 @@ export function FichaPredioPanel({
                     </span>
                   )}
                 </p>
+              ))}
+          </Bloque>
+
+          <Bloque titulo="Relieve (Copernicus GLO-30)">
+            {ficha.relieve.estado === 'error' && (
+              <p className="text-red-800 dark:text-red-200">
+                No se pudo leer el modelo de elevación a tiempo; vuelve a intentar en unos segundos.
+              </p>
+            )}
+            {ficha.relieve.estado === 'ok' &&
+              (ficha.relieve.datos === null ? (
+                <p className="opacity-60">Sin datos de elevación: el predio es mar o más chico que una celda de 30 m.</p>
+              ) : (
+                <>
+                  <p className="tabular-nums">
+                    Pendiente media {pct(ficha.relieve.datos.pendienteMedia)} · mediana{' '}
+                    {pct(ficha.relieve.datos.pendienteMediana)} · cota{' '}
+                    {Math.round(ficha.relieve.datos.cotaMin).toLocaleString('es-CL')}–
+                    {Math.round(ficha.relieve.datos.cotaMax).toLocaleString('es-CL')} m
+                  </p>
+                  <p className="tabular-nums">
+                    ≥ 30 %: {pct(ficha.relieve.datos.pctSobre30)} ·{' '}
+                    <span className={ficha.relieve.datos.pctSobre45 > 0 ? 'font-semibold text-red-800 dark:text-red-300' : ''}>
+                      ≥ 45 %: {pct(ficha.relieve.datos.pctSobre45)}
+                    </span>
+                  </p>
+                  {ficha.relieve.datos.pctSobre45 > 0 && (
+                    <p className="opacity-70">
+                      Sobre 45 % el bosque nativo es «de conservación y protección» (Ley 20.283, art. 2 N° 5).
+                    </p>
+                  )}
+                  <div className="mt-1 flex h-2 overflow-hidden rounded" aria-hidden="true">
+                    {ficha.relieve.datos.clases.map((c) => (
+                      <span
+                        key={c.clase}
+                        style={{ width: `${c.pct}%`, background: PENDIENTE_CLASES.find((k) => k.clase === c.clase)?.color }}
+                      />
+                    ))}
+                  </div>
+                  <p className="mt-0.5 opacity-60">
+                    {ficha.relieve.datos.clases
+                      .filter((c) => c.pct >= 1)
+                      .map((c) => `${c.clase} ${pct(c.pct)}`)
+                      .join(' · ')}{' '}
+                    (clases SAG, celda {Math.round(ficha.relieve.datos.resolucionM)} m)
+                  </p>
+                  <p className="mt-1 text-[0.65rem] opacity-50">
+                    {RELIEVE_DESCARGO} {RELIEVE_ATTRIBUTION}. {RELIEVE_DESCARGO_LICENCIA}
+                  </p>
+                </>
               ))}
           </Bloque>
 

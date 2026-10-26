@@ -26,6 +26,7 @@ export function fichaAGeoJson(
   const urbano = ok(ficha.limiteUrbano);
   const protegidas = ok(ficha.areasProtegidas);
   const comparables = ok(ficha.comparables);
+  const relieve = ok(ficha.relieve);
 
   const predio = {
     type: 'Feature' as const,
@@ -43,6 +44,11 @@ export function fichaAGeoJson(
         ? protegidas.areas.map((a) => `${a.nombre} (${redondear(a.pct, 2)} %)`).join('; ') || null
         : null,
       area_protegida_mas_cercana_m: protegidas?.masCercana ? Math.round(protegidas.masCercana.distanciaM) : null,
+      pendiente_media_pct: relieve ? redondear(relieve.pendienteMedia, 1) : null,
+      pendiente_sobre_30_pct: relieve ? redondear(relieve.pctSobre30, 2) : null,
+      pendiente_sobre_45_pct: relieve ? redondear(relieve.pctSobre45, 2) : null,
+      cota_min_m: relieve ? Math.round(relieve.cotaMin) : null,
+      cota_max_m: relieve ? Math.round(relieve.cotaMax) : null,
       comparables_radio_m: comparables?.radioM ?? null,
       comparables_total: comparables?.total ?? null,
       fuentes: ficha.fuentes.map((f) => `${f.fuente}${f.descargado ? ` (${f.descargado})` : ''}`).join('; '),
