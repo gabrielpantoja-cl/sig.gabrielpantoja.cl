@@ -63,6 +63,8 @@ export type BuildMetadataInput = {
   montoMax: string;
   supMin: string;
   supMax: string;
+  /** Filtro de destinos SII; opcional para no romper a quien no lo conoce. */
+  destinos?: readonly string[];
   predio: string;
   rol: string;
   stats: Stats | null;
@@ -119,6 +121,9 @@ export function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEnt
       if (Number.isFinite(n)) {
         filtrosLineas.push(`Superficie terreno ≤ ${n.toLocaleString('es-CL')} m²`);
       }
+    }
+    if (input.destinos && input.destinos.length > 0) {
+      filtrosLineas.push(`Destino SII: ${input.destinos.map(destinoLabel).join(', ')}`);
     }
     if (input.predio.trim()) filtrosLineas.push(`Predio contiene: «${input.predio.trim()}»`);
     if (input.rol.trim()) filtrosLineas.push(`ROL SII contiene: «${input.rol.trim()}»`);

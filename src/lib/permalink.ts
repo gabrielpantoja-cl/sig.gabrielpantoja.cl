@@ -25,6 +25,7 @@
  */
 
 import type { BasemapId } from '@/lib/basemap';
+import { parseDestinos, serializeDestinos } from '@/lib/destinos';
 import { esRelieveModo, type RelieveModo } from '@/lib/relieve';
 
 /** Capas que viajan en el enlace. Mismos nombres que `layer_on`. */
@@ -71,6 +72,8 @@ export interface PermalinkFilters {
   montoMax: string;
   supMin: string;
   supMax: string;
+  /** Destinos SII del filtro (`destinos=H,W`); no es el `destino` del mapa de calor. */
+  destinos: string[];
   predio: string;
   rol: string;
 }
@@ -97,6 +100,7 @@ export const DEFAULT_FILTERS: PermalinkFilters = {
   montoMax: '',
   supMin: '',
   supMax: '',
+  destinos: [],
   predio: '',
   rol: '',
 };
@@ -204,6 +208,7 @@ export function parsePermalink(search: string, defaults: PermalinkDefaults): Per
       montoMax: pattern(params, 'monto_max', AMOUNT_RE),
       supMin: pattern(params, 'sup_min', AMOUNT_RE),
       supMax: pattern(params, 'sup_max', AMOUNT_RE),
+      destinos: parseDestinos(params.get('destinos')),
       predio: text(params, 'predio'),
       rol: text(params, 'rol'),
     },
@@ -256,6 +261,7 @@ export function serializePermalink(state: PermalinkState, defaults: PermalinkDef
   if (f.montoMax) params.set('monto_max', f.montoMax);
   if (f.supMin) params.set('sup_min', f.supMin);
   if (f.supMax) params.set('sup_max', f.supMax);
+  if (f.destinos.length > 0) params.set('destinos', serializeDestinos(f.destinos));
   if (f.predio.trim()) params.set('predio', f.predio.trim());
   if (f.rol.trim()) params.set('rol', f.rol.trim());
 

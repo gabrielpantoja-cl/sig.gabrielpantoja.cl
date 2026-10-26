@@ -95,6 +95,9 @@ export interface Facets {
   /** Transacciones por comuna y año (`{ Coyhaique: { "2016": 1151 } }`):
    *  rango e histograma del filtro de años. Ver `src/lib/anios.ts`. */
   anios: Record<string, Record<string, number>>;
+  /** Transacciones por comuna y destino SII (`{ Coyhaique: { W: 6716 } }`):
+   *  opciones del filtro de destino. Ver `src/lib/destinos.ts`. */
+  destinos: Record<string, Record<string, number>>;
   minMonto: number;
   maxMonto: number;
 }

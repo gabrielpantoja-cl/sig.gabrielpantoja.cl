@@ -14,6 +14,8 @@ import {
   type AnioConteo,
   type RangoAnios,
 } from '@/lib/anios';
+import { alternarDestino, destinosDisponibles } from '@/lib/destinos';
+import { destinoLabel } from '@/lib/hexbins';
 
 /**
  * Grupos de campos presentacionales, sin estado propio. El estado vive en
@@ -169,6 +171,8 @@ export function FilterFields({
   setSupMin,
   supMax,
   setSupMax,
+  destinos,
+  setDestinos,
   exportHref,
   activeCount,
   onClear,
@@ -190,6 +194,8 @@ export function FilterFields({
   setSupMin: (v: string) => void;
   supMax: string;
   setSupMax: (v: string) => void;
+  destinos: string[];
+  setDestinos: (v: string[]) => void;
   exportHref: (format: 'csv' | 'geojson') => string;
   /** Filtros activos (mismo conteo que el distintivo del botón «Filtros»). */
   activeCount: number;
@@ -308,6 +314,13 @@ export function FilterFields({
         </div>
       </label>
 
+      <DestinoField
+        opciones={destinosDisponibles(facets?.destinos, comuna)}
+        loading={!facets}
+        seleccion={destinos}
+        onChange={setDestinos}
+      />
+
       <div className="flex items-center gap-2 border-t border-black/10 pt-3 dark:border-white/10">
         <span className="text-xs opacity-60">Exportar:</span>
         <a
@@ -331,6 +344,72 @@ export function FilterFields({
 
 const fmtN = (v: number): string => v.toLocaleString('es-CL');
 
+
+/**
+ * Selección múltiple de destinos SII (`destinos=`). Las opciones son las de
+ * la comuna elegida, con su conteo, y solo las presentes: un código sin
+ * transacciones no filtra nada útil. Ninguno marcado = todos los destinos.
+ *
+ * Existe porque la mediana mezclaba sitios eriazos, viviendas y predios
+ * agrícolas (Coyhaique: 6.716 W, 6.465 H, 2.066 A). Un destino elegido que no
+ * existe en la comuna nueva se sigue mostrando, para poder desmarcarlo.
+ */
+function DestinoField({
+  opciones,
+  loading,
+  seleccion,
+  onChange,
+}: {
+  opciones: { code: string; n: number }[];
+  loading: boolean;
+  seleccion: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const huerfanos = seleccion
+    .filter((code) => !opciones.some((o) => o.code === code))
+    .map((code) => ({ code, n: 0 }));
+  const lista = [...opciones, ...huerfanos];
+  const activo = seleccion.length > 0;
+  return (
+    <fieldset className="flex flex-col gap-1 text-sm">
+      <legend className="mb-1 flex w-full items-center justify-between gap-2 font-medium">
+        <span>
+          Destino SII
+          {activo && <span className="font-normal opacity-70">: {seleccion.join(', ')}</span>}
+        </span>
+        {activo && (
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="text-xs font-normal underline opacity-70 hover:opacity-100"
+          >
+            Todos
+          </button>
+        )}
+      </legend>
+      {loading ? (
+        <p className="text-xs opacity-60">Cargando destinos…</p>
+      ) : lista.length === 0 ? (
+        <p className="text-xs opacity-60">Sin destinos registrados en esta comuna.</p>
+      ) : (
+        <div className="flex max-h-36 flex-col gap-0.5 overflow-y-auto pr-1">
+          {lista.map(({ code, n }) => (
+            <label key={code} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-black/5 dark:hover:bg-white/10">
+              <input
+                type="checkbox"
+                checked={seleccion.includes(code)}
+                onChange={() => onChange(alternarDestino(seleccion, code))}
+              />
+              <span className="min-w-0 flex-1 truncate">{destinoLabel(code)}</span>
+              <span className="text-xs tabular-nums opacity-60">{n.toLocaleString('es-CL')}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      <p className="text-xs opacity-60">Ninguno marcado = todos. La mediana no mezcla bien eriazos, viviendas y predios agrícolas.</p>
+    </fieldset>
+  );
+}
 /**
  * Años de la fecha disponible como rango «desde–hasta». El histograma es el de
  * la comuna elegida (conteos de `facets.anios`): clic en una barra deja ese

@@ -24,6 +24,13 @@ describe('buildFilters', () => {
     expect(where).not.toContain('$7');
   });
 
+  it('binds each destino code as its own placeholder', () => {
+    const { where, params } = build('comuna=Coyhaique&destinos=W,A,W,x');
+    expect(where).toContain('destino IN ($2, $3)');
+    expect(params).toEqual(['Coyhaique', 'A', 'W']);
+    expect(build('destinos=,,zz').params).toEqual([]);
+  });
+
   it('drops numbers that do not parse', () => {
     expect(build('monto_min=abc&sup_min=&anio_max=NaN').params).toEqual([]);
   });
