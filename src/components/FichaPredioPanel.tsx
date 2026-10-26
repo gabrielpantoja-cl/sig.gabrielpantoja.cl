@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { track } from '@/lib/analytics';
 import { destinoLabel } from '@/lib/hexbins';
 import { formatoDistancia, formatoSuperficie } from '@/lib/medicion';
+import { comparablesACsv, fichaAGeoJson } from '@/lib/ficha-export';
 import {
   ANALISIS_PREDIO_URL,
   RADIO_DEFAULT_M,
@@ -25,6 +26,17 @@ const clp = (v: number | null) =>
 const porHa = (mediana: number | null) => mediana !== null && mediana < 10_000;
 const ppm2 = (v: number | null, enHa: boolean) =>
   v === null ? '—' : enHa ? `${clp(v * 10_000)}/ha` : `${clp(v)}/m²`;
+
+function descargar(contenido: string, tipo: string, nombre: string) {
+  const url = URL.createObjectURL(new Blob([contenido], { type: tipo }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const fechaArchivo = () => new Date().toISOString().slice(0, 10);
 
 type Resultado =
   | { clave: string; tipo: 'ok'; ficha: FichaPredio }
@@ -58,10 +70,13 @@ function Bloque({ titulo, children }: { titulo: string; children: React.ReactNod
  */
 export function FichaPredioPanel({
   geometry,
+  origen,
   onFicha,
   onCerrar,
 }: {
   geometry: PoligonoGeoJson;
+  /** De dónde salió el polígono («Polígono dibujado», «KML · Lote 3»…). */
+  origen: string;
   /** Ficha vigente (o null mientras carga), para dibujar los comparables en el mapa. */
   onFicha: (ficha: FichaPredio | null) => void;
   onCerrar: () => void;
@@ -123,6 +138,7 @@ export function FichaPredioPanel({
       <header className="mb-2 flex items-start justify-between gap-2">
         <div>
           <h2 id={idTitulo} className="text-[0.8rem] font-semibold leading-tight">Ficha del predio</h2>
+          {origen && <p className="opacity-70">{origen}</p>}
           <p className="opacity-60">
             {ficha
               ? `${formatoSuperficie(ficha.superficieHa * 10_000)} · perímetro ${formatoDistancia(ficha.perimetroM)}`
@@ -272,6 +288,36 @@ export function FichaPredioPanel({
                 </>
               ))}
           </Bloque>
+
+          <div className="flex gap-2 border-t border-black/10 py-2 dark:border-white/10">
+            <button
+              type="button"
+              onClick={() => {
+                descargar(
+                  JSON.stringify(fichaAGeoJson(geometry, ficha, origen)),
+                  'application/geo+json',
+                  `ficha-predio-${fechaArchivo()}.geojson`,
+                );
+                track('export_data', { format: 'ficha_geojson' });
+              }}
+              className="flex-1 rounded-md border border-black/15 px-2 py-1 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+              title="Polígono con el resumen de la ficha y los comparables como puntos (QGIS, ArcGIS)"
+            >
+              GeoJSON
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                descargar(comparablesACsv(ficha), 'text/csv;charset=utf-8', `comparables-${fechaArchivo()}.csv`);
+                track('export_data', { format: 'ficha_csv' });
+              }}
+              disabled={ficha.comparables.estado !== 'ok' || ficha.comparables.datos.puntos.length === 0}
+              className="flex-1 rounded-md border border-black/15 px-2 py-1 hover:bg-black/5 disabled:opacity-40 dark:border-white/20 dark:hover:bg-white/10"
+              title="Los comparables más cercanos, para Excel"
+            >
+              CSV comparables
+            </button>
+          </div>
 
           <footer className="border-t border-black/10 pt-2 opacity-60 dark:border-white/10">
             <p>

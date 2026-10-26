@@ -31,7 +31,14 @@ import { GeocoderSearch } from '@/components/GeocoderSearch';
 import { InfoPanel } from '@/components/InfoPanel';
 import { NdviPanel } from '@/components/NdviPanel';
 import { FichaPredioPanel } from '@/components/FichaPredioPanel';
-import { poligonoDesdeVertices, type FichaPredio, type PoligonoGeoJson } from '@/lib/analisis-predio';
+import { VerticesUtmForm } from '@/components/VerticesUtmForm';
+import {
+  poligonoDeFeatures,
+  poligonoDesdeVertices,
+  type FichaPredio,
+  type PoligonoGeoJson,
+} from '@/lib/analisis-predio';
+import { kmlDisplayName } from '@/lib/kml';
 import type { Punto } from '@/lib/medicion';
 import { track } from '@/lib/analytics';
 import { buildExportMetadata } from '@/lib/export-metadata';
@@ -303,10 +310,11 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   // Ficha del predio: el polígono que «Medir» entregó y la respuesta vigente
   // (sus comparables se dibujan en el mapa). Comparte el lugar flotante con la
   // serie NDVI: abrir una cierra la otra.
-  const [predioGeometry, setPredioGeometry] = useState<PoligonoGeoJson | null>(null);
+  const [predioAnalizado, setPredioAnalizado] = useState<{ geometry: PoligonoGeoJson; origen: string } | null>(null);
+  const predioGeometry = predioAnalizado?.geometry ?? null;
   const [fichaPredio, setFichaPredio] = useState<FichaPredio | null>(null);
   const cerrarFicha = useCallback(() => {
-    setPredioGeometry(null);
+    setPredioAnalizado(null);
     setFichaPredio(null);
   }, []);
 
@@ -326,13 +334,33 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     cerrarNdvi,
   } = useNdviQuery({ onPoint: handleNdviOpened });
 
-  const handleAnalizarPredio = useCallback((vertices: Punto[]) => {
+  // Toda entrada de la ficha del predio pasa por aquí: polígono dibujado con
+  // «Medir», vértices UTM pegados, una capa KML o el predio CIREN por ROL.
+  const analizarPredio = useCallback((geometry: PoligonoGeoJson, origen: string) => {
     cerrarNdvi();
     setActivePanel(null);
     setDrawerOpen(false);
     setFichaPredio(null);
-    setPredioGeometry(poligonoDesdeVertices(vertices));
+    setPredioAnalizado({ geometry, origen });
   }, [cerrarNdvi]);
+  const handleAnalizarPredio = useCallback(
+    (vertices: Punto[]) => analizarPredio(poligonoDesdeVertices(vertices), 'Polígono dibujado'),
+    [analizarPredio],
+  );
+  const handleAnalizarUtm = useCallback(
+    (vertices: Punto[]) => analizarPredio(poligonoDesdeVertices(vertices), `${vertices.length} vértices UTM`),
+    [analizarPredio],
+  );
+  const handleAnalizarRural = useCallback(() => {
+    if (!selectedRuralFeature) return;
+    const rolCiren = selectedRuralFeature.feature.properties?.rol;
+    const geometry = poligonoDeFeatures({ features: [selectedRuralFeature.feature] });
+    if (!geometry) return;
+    analizarPredio(
+      geometry,
+      `Predio CIREN${typeof rolCiren === 'string' && rolCiren ? ` · ROL ${rolCiren}` : ''}`,
+    );
+  }, [analizarPredio, selectedRuralFeature]);
 
   // Las transacciones CBR son la capa principal y vienen activadas por defecto,
   // pero el perito las puede ocultar para componer una vista limpia (por ej.
@@ -481,6 +509,11 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   // + fuentes de capas activas) se construye acá, en el momento del click, y
   // se entrega por args para no inflar el deps array del useEffect en MapView.
   const { kmlLayers, kmlError, addKmlFiles, toggleKml, removeKml, renameKml } = useKmlLayers();
+  const handleAnalizarKml = useCallback((id: string) => {
+    const layer = kmlLayers.find((l) => l.id === id);
+    const geometry = layer ? poligonoDeFeatures(layer.geojson) : null;
+    if (layer && geometry) analizarPredio(geometry, `KML · ${kmlDisplayName(layer)}`);
+  }, [analizarPredio, kmlLayers]);
 
   const mapExportRef = useRef<MapExportFn | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -563,6 +596,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     `/api/export?${debouncedQs ? `${debouncedQs}&` : ''}format=${format}`;
 
   const searchFields = (
+    <div className="flex flex-col gap-3">
     <SearchFields
       predio={predio}
       setPredio={setPredio}
@@ -572,7 +606,10 @@ function SigApp({ initial }: { initial: PermalinkState }) {
       onLocateRuralRol={locateRuralRol}
       onSelectRuralMatch={selectRuralMatch}
       onClearRuralSearch={clearRuralSearch}
+      onAnalizarRural={selectedRuralFeature ? handleAnalizarRural : undefined}
     />
+    <VerticesUtmForm onAnalizar={handleAnalizarUtm} />
+    </div>
   );
 
   const filterFields = (
@@ -788,6 +825,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
           onAddKmlFiles={addKmlFiles}
           onToggleKml={toggleKml}
           onRemoveKml={removeKml}
+          onAnalizarKml={handleAnalizarKml}
           onRenameKml={renameKml}
           onExport={handleExportClick}
           exporting={exporting}
@@ -1000,7 +1038,12 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               (1100) siguen por sobre él y siguen siendo clicables. */}
           {predioGeometry && (
             <div className="absolute right-3 top-24 z-[700] max-h-[calc(100vh-7rem)] w-[min(26rem,calc(100%-1.5rem))] overflow-y-auto md:top-14">
-              <FichaPredioPanel geometry={predioGeometry} onFicha={setFichaPredio} onCerrar={cerrarFicha} />
+              <FichaPredioPanel
+                geometry={predioGeometry}
+                origen={predioAnalizado?.origen ?? ''}
+                onFicha={setFichaPredio}
+                onCerrar={cerrarFicha}
+              />
             </div>
           )}
           {ndviConsulta && !predioGeometry && (

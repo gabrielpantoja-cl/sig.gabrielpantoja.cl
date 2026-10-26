@@ -7,6 +7,7 @@ import {
   RADIO_MIN_M,
   holguraGrados,
   parseRadioM,
+  poligonoDeFeatures,
   poligonoDesdeVertices,
   validarPoligono,
   type Posicion,
@@ -150,5 +151,28 @@ describe('holguraGrados', () => {
       expect(distanciaM({ lat: lat0, lng: lng0 }, este)).toBeGreaterThanOrEqual(radio);
       expect(distanciaM({ lat: lat0, lng: lng0 }, norte)).toBeGreaterThanOrEqual(radio);
     }
+  });
+});
+
+describe('poligonoDeFeatures', () => {
+  it('keeps only polygons and merges several into a MultiPolygon', () => {
+    const fc = {
+      features: [
+        { geometry: { type: 'Point', coordinates: [-73.2, -39.8] } },
+        { geometry: { type: 'Polygon', coordinates: [cuadrado(100)] } },
+        { geometry: { type: 'LineString', coordinates: cuadrado(100) } },
+        { geometry: { type: 'GeometryCollection', geometries: [{ type: 'Polygon', coordinates: [cuadrado(50)] }] } },
+        { geometry: null },
+      ],
+    };
+    const g = poligonoDeFeatures(fc);
+    expect(g?.type).toBe('MultiPolygon');
+    if (g?.type === 'MultiPolygon') expect(g.coordinates).toHaveLength(2);
+    expect(validarPoligono(g).ok).toBe(true);
+  });
+
+  it('returns a plain Polygon for one feature and null for none', () => {
+    expect(poligonoDeFeatures({ features: [{ geometry: { type: 'Polygon', coordinates: [cuadrado(100)] } }] })?.type).toBe('Polygon');
+    expect(poligonoDeFeatures({ features: [{ geometry: { type: 'Point', coordinates: [-73, -39] } }] })).toBeNull();
   });
 });

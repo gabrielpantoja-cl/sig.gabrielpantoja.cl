@@ -74,6 +74,7 @@ import {
   type NdviVisualEstado,
 } from '@/lib/ndvi-visual';
 import { KML_MAX_FILE_MB, kmlDisplayName, type KmlLayer } from '@/lib/kml';
+import { poligonoDeFeatures } from '@/lib/analisis-predio';
 import { PROPIEDADES_RURALES_ATTRIBUTION, PROPIEDADES_RURALES_COLOR, PROPIEDADES_RURALES_DISCLAIMER, PROPIEDADES_RURALES_MIN_ZOOM, PROPIEDADES_RURALES_REGIONS, PROPIEDADES_RURALES_SOURCE_URL, type PropiedadesRuralesStatus } from '@/lib/propiedades-rurales';
 import {
   BIOCLIMA_SOURCE_URL,
@@ -703,6 +704,7 @@ export function LayersControl({
   onAddKmlFiles,
   onToggleKml,
   onRemoveKml,
+  onAnalizarKml,
   onRenameKml,
   onExport,
   exporting,
@@ -770,6 +772,8 @@ export function LayersControl({
   onAddKmlFiles: (files: FileList) => void;
   onToggleKml: (id: string) => void;
   onRemoveKml: (id: string) => void;
+  /** Abre la ficha del predio sobre los polígonos de esa capa KML. */
+  onAnalizarKml?: (id: string) => void;
   /** Actualiza el alias editable del perito («Sector de Tasación», etc.).
    *  El cambio se refleja en el popup del feature y en el cajetín del PNG
    *  exportado. El nombre original del archivo, en `KmlLayer.name`, no se
@@ -1533,6 +1537,17 @@ export function LayersControl({
                     onSave={(v) => onRenameKml(layer.id, v)}
                   />
                   <span className="opacity-50 no-shrink-0">({layer.featureCount})</span>
+                  {onAnalizarKml && poligonoDeFeatures(layer.geojson) && (
+                    <button
+                      type="button"
+                      onClick={() => onAnalizarKml(layer.id)}
+                      aria-label={`Analizar el predio de la capa ${label}`}
+                      title="Ficha del predio: comuna, límite urbano, áreas protegidas y comparables CBR"
+                      className="shrink-0 rounded border border-[hsl(153_28%_35%)] px-1 leading-tight text-[hsl(153_28%_28%)] hover:bg-[hsl(153_28%_35%)]/10 dark:text-[hsl(153_35%_70%)]"
+                    >
+                      Analizar
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onRemoveKml(layer.id)}

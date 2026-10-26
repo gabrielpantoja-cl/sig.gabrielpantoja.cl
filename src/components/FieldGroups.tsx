@@ -41,6 +41,7 @@ export function SearchFields({
   onLocateRuralRol,
   onSelectRuralMatch,
   onClearRuralSearch,
+  onAnalizarRural,
 }: {
   predio: string;
   setPredio: (v: string) => void;
@@ -50,6 +51,8 @@ export function SearchFields({
   onLocateRuralRol: () => void;
   onSelectRuralMatch: (match: PropiedadRuralSearchMatch) => void;
   onClearRuralSearch: () => void;
+  /** Presente cuando hay un predio CIREN elegido: abre su ficha del predio. */
+  onAnalizarRural?: () => void;
 }) {
   const normalizedRol = normalizePropiedadRuralRol(rol);
   const busy = ruralRolSearch.kind === 'loading' || ruralRolSearch.kind === 'selecting';
@@ -100,6 +103,15 @@ export function SearchFields({
             </button>
           )}
         </div>
+        {onAnalizarRural && (
+          <button
+            type="button"
+            onClick={onAnalizarRural}
+            className="w-full rounded-md border border-[hsl(153_28%_35%)] bg-[hsl(153_28%_35%)] px-2 py-1.5 text-xs font-medium text-white"
+          >
+            Analizar este predio
+          </button>
+        )}
         <div aria-live="polite">
           {rol.trim() && !normalizedRol && (
             <p className="text-[0.68rem] text-amber-700 dark:text-amber-300">Para CIREN usa un ROL completo, por ejemplo 123-45.</p>
