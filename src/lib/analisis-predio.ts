@@ -14,6 +14,7 @@
  */
 
 import { superficieM2, type Punto } from '@/lib/medicion';
+import type { RelieveZonal } from '@/lib/zonal';
 
 export const ANALISIS_PREDIO_URL = '/api/analisis/predio';
 
@@ -287,5 +288,7 @@ export interface FichaPredio {
   limiteUrbano: Seccion<LimiteUrbanoPredio>;
   areasProtegidas: Seccion<AreasProtegidasPredio>;
   comparables: Seccion<ComparablesPredio>;
+  /** Pendiente y cotas desde Copernicus GLO-30; `datos: null` = el predio es mar o más chico que una celda. */
+  relieve: Seccion<RelieveZonal | null>;
   fuentes: FuenteCapa[];
 }

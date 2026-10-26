@@ -23,6 +23,8 @@ import {
   type RelieveModo,
   type RelievePunto,
 } from './relieve';
+import { crucesFila, resumirRelieve, type RelieveZonal } from './zonal';
+import type { PoligonoGeoJson } from './analisis-predio';
 
 /**
  * Relieve — pintado server-side por viewport desde Copernicus DEM GLO-30.
@@ -336,4 +338,63 @@ export async function relieveEnPunto(lat: number, lng: number, signal: AbortSign
     pendienteGrados: pendienteGrados(g),
     exposicion: exposicionGrados(g),
   };
+}
+
+/* ---------- Estadística zonal del predio ---------- */
+
+/**
+ * Celdas máximas del mosaico para la ficha del predio: ~1,5 M celdas a 30 m
+ * son ~13.000 ha. Un predio más grande sube de nivel de pirámide (60, 120,
+ * 240 m), que la ficha informa en `resolucionM`.
+ */
+const CELDAS_ZONAL = 1_500_000;
+
+/**
+ * Pendiente (Horn, sobre la grilla nativa de Copernicus, igual que la capa) y
+ * cota de cada celda cuyo centro cae dentro del predio, resumidas por
+ * `resumirRelieve`. `null` si el predio es mar o más chico que una celda.
+ */
+export async function relieveEnPoligono(geometry: PoligonoGeoJson, signal: AbortSignal): Promise<RelieveZonal | null> {
+  const anillos = geometry.type === 'Polygon' ? geometry.coordinates : geometry.coordinates.flat();
+  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
+  for (const anillo of anillos) {
+    for (const [lng, lat] of anillo) {
+      if (lng < west) west = lng;
+      if (lng > east) east = lng;
+      if (lat < south) south = lat;
+      if (lat > north) north = lat;
+    }
+  }
+  const latMedia = (south + north) / 2;
+  const celdas = (k: number) => {
+    const res = PIXEL_GRADOS * 2 ** k;
+    return ((east - west) / (res * (3600 / anchoBaldosa(Math.floor(latMedia)))) + 6) * ((north - south) / res + 6);
+  };
+  let nivel = 0;
+  while (nivel < 3 && celdas(nivel) > CELDAS_ZONAL) nivel++;
+
+  const m = await leerMosaico([west, south, east, north], nivel, signal);
+  if (signal.aborted) throw new Error('Relieve cancelado');
+  const { gx, gy } = gradientes(m);
+  const pendientes: number[] = [];
+  const cotas: number[] = [];
+  const g: Gradiente = { dzdx: 0, dzdy: 0 };
+  for (let i = 1; i < m.filas - 1; i++) {
+    const lat = m.norte - (i + 0.5) * m.resLat;
+    if (lat < south || lat > north) continue;
+    const cruces = crucesFila(anillos, lat);
+    for (let k = 0; k + 1 < cruces.length; k += 2) {
+      const j0 = Math.max(1, Math.ceil((cruces[k] - m.oeste) / m.resLon - 0.5));
+      const j1 = Math.min(m.cols - 2, Math.floor((cruces[k + 1] - m.oeste) / m.resLon - 0.5));
+      for (let j = j0; j <= j1; j++) {
+        const idx = i * m.cols + j;
+        if (Number.isNaN(gx[idx])) continue;
+        g.dzdx = gx[idx];
+        g.dzdy = gy[idx];
+        pendientes.push(pendientePct(g));
+        cotas.push(m.z[idx]);
+      }
+    }
+  }
+  return resumirRelieve(pendientes, cotas, m.resLat * METROS_POR_GRADO);
 }

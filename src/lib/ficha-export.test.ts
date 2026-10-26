@@ -25,6 +25,14 @@ const ficha = (puntos: Comparable[]): FichaPredio => ({
     estado: 'ok',
     datos: { radioM: 5000, porDestino: [], puntos, total: puntos.length },
   },
+  relieve: {
+    estado: 'ok',
+    datos: {
+      resolucionM: 30.9, celdas: 2000, cotaMin: 310, cotaMax: 420.4, cotaMedia: 355, pendienteMedia: 18.2,
+      pendienteMediana: 15, pctSobre30: 12.345, pctSobre45: 3.21,
+      clases: [{ clase: 'F', nombre: 'Ligeramente escarpado', rango: '15–30 %', pct: 100 }],
+    },
+  },
   fuentes: [{ capa: 'comunas', fuente: 'SUBDERE DPA 2023', licencia: null, descargado: '2026-10-26', cargado: null }],
 });
 
@@ -43,6 +51,10 @@ describe('fichaAGeoJson', () => {
       urbano_pct: null,
       area_protegida_mas_cercana_m: 2346,
       comparables_total: 1,
+      pendiente_media_pct: 18.2,
+      pendiente_sobre_45_pct: 3.21,
+      cota_min_m: 310,
+      cota_max_m: 420,
     });
     expect(punto.geometry).toEqual({ type: 'Point', coordinates: [-72.06, -45.57] });
     expect(punto.properties).toMatchObject({ tipo: 'comparable', rol: '261-101', distancia_m: 813 });

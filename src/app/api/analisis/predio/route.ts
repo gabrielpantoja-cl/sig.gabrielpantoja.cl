@@ -6,6 +6,8 @@ import {
 } from '@/lib/security';
 import { buildFilters } from '@/lib/filters';
 import { getSql } from '@/lib/neon';
+import { relieveEnPoligono } from '@/lib/relieve-raster';
+import type { RelieveZonal } from '@/lib/zonal';
 import {
   MAX_BODY_BYTES,
   MAX_COMPARABLES,
@@ -39,6 +41,10 @@ import {
  * con ST_Subdivide: el área de una feature es la SUMA de sus trozos (que no se
  * solapan), por eso se agrupa por `fid`.
  *
+ * La pendiente y las cotas no salen de la base: se calculan en el momento
+ * sobre Copernicus GLO-30 (`relieveEnPoligono`, la misma grilla y el mismo
+ * gradiente de Horn que la capa Relieve), con su propio presupuesto de tiempo.
+ *
  * Cada sección se consulta en paralelo y falla por separado: una capa aún no
  * cargada responde `sin-capa`, no 500. El polígono no se guarda ni se registra.
  * Privacidad: los comparables salen con la misma porción sin PII que
@@ -46,6 +52,8 @@ import {
  */
 
 export const maxDuration = 30;
+/** El relieve lee COGs remotos (AWS): si tarda más, esa sección sale en `error` y el resto no espera. */
+const PRESUPUESTO_RELIEVE_MS = 15_000;
 
 /** Presupuesto propio: cada ficha son varias intersecciones; 10 por minuto por IP. */
 const limiteFicha = createRateLimiterWithRetry(60_000, 10);
@@ -313,6 +321,19 @@ export async function POST(req: Request) {
       return { radioM, porDestino, puntos, total: Number(row?.total ?? 0) };
     });
 
+    const relieve = (async (): Promise<Seccion<RelieveZonal | null>> => {
+      const controller = new AbortController();
+      const vencimiento = setTimeout(() => controller.abort(), PRESUPUESTO_RELIEVE_MS);
+      try {
+        return { estado: 'ok', datos: await relieveEnPoligono(validacion.geometry, controller.signal) };
+      } catch (err) {
+        console.error('[analisis/predio] relieve:', err instanceof Error ? err.message : err);
+        return { estado: 'error' };
+      } finally {
+        clearTimeout(vencimiento);
+      }
+    })();
+
     const fuentes = (async (): Promise<FuenteCapa[]> => {
       try {
         const rows = (await sql.query(
@@ -339,6 +360,7 @@ export async function POST(req: Request) {
       limiteUrbano: await limiteUrbano,
       areasProtegidas: await areasProtegidas,
       comparables: await comparables,
+      relieve: await relieve,
       fuentes: await fuentes,
     };
     return Response.json(ficha, { headers });
