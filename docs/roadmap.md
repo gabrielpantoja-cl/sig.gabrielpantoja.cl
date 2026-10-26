@@ -722,11 +722,6 @@ respuesta calculada, no solo un mapa. Diseño y decisiones en
   proyectos), así que un agente no puede crear ramas ni correr SQL como
   owner. `claude mcp add --transport http neon https://mcp.neon.tech/mcp`
   en este directorio lo habilita.
-- **Datos regenerados sin commitear.** Llenar la caché reconstruyó
-  `public/data/limite-urbano.geojson` (el MINVU actualizó el dato; siguen
-  siendo 601 límites) y los `.meta.json` de límite urbano y comunas. Es un
-  PARCHE de datos aparte; el cargador toma la fecha de esos manifiestos como
-  procedencia.
 
 **Siguiente**
 
