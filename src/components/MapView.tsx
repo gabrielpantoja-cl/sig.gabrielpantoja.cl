@@ -799,7 +799,9 @@ export default function MapView({
 
     const markers = points.map((p) => {
       const marker = L.marker([p.lat, p.lng], { icon: cbrPinIcon });
-      marker.bindPopup(buildPopup(p));
+      // Contenido diferido: Leaflet llama a la función al abrir el popup, en
+      // vez de armar ~108k strings HTML durante la carga (caro en Android).
+      marker.bindPopup(() => buildPopup(p));
       return marker;
     });
 

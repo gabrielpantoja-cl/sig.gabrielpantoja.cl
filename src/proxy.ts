@@ -23,6 +23,10 @@ const EVENTS: Record<string, AnalyticsServerEvent> = {
 export function proxy(request: NextRequest, event: NextFetchEvent) {
   const name = EVENTS[request.nextUrl.pathname];
   if (!name || request.method !== 'GET') return;
+  // El mapa baja los puntos en varias partes (`part`/`parts`): se cuenta
+  // una sola consulta, la parte 0, no una por parte.
+  const part = request.nextUrl.searchParams.get('part');
+  if (part !== null && part !== '0') return;
   if (!analyticsEnabled() || optedOut(request) || analyticsRateLimited(request)) return;
 
   event.waitUntil(
