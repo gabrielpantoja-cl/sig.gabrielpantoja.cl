@@ -27,6 +27,9 @@ versionado.
   cambia de unidad. El 92,7 % de la base trae UF y solo el 79,5 % trae pesos:
   en Coyhaique, 2012–2024 aparecía sin precio. `/api/stats` agrega los campos
   `*_uf` con sus propios denominadores; nunca convierte entre unidades.
+  El filtro de monto también es en UF por defecto (`uf_min`/`uf_max` en la
+  API y el permalink, selector UF/Pesos); los enlaces con `monto_min` siguen
+  funcionando en pesos.
 - **Filtro por destino SII** en el panel de filtros: selección múltiple con
   los destinos de la comuna elegida y su conteo (Agrícola, Habitacional, Sitio
   Eriazo…). Filtra puntos, estadísticas y exportación, viaja en el permalink

@@ -43,6 +43,21 @@ describe('serializePermalink', () => {
     expect(qs).toBe('v=-39.85067,-73.23874,15&capas=puntos,humedales&fondo=satelital&comuna=Valdivia&anio_min=2022');
   });
 
+  it('writes the monto range under the names of its unit', () => {
+    const uf = { ...initial, filters: { ...DEFAULT_FILTERS, montoMin: '500', montoUnidad: 'uf' as const } };
+    expect(serializePermalink(uf, DEFAULTS)).toBe('uf_min=500');
+    const clp = { ...initial, filters: { ...DEFAULT_FILTERS, montoMax: '9000000', montoUnidad: 'clp' as const } };
+    expect(serializePermalink(clp, DEFAULTS)).toBe('monto_max=9000000');
+  });
+
+  it('reads old pesos links as pesos and prefers UF when both come', () => {
+    expect(parsePermalink('?monto_min=1000', DEFAULTS).filters)
+      .toMatchObject({ montoMin: '1000', montoMax: '', montoUnidad: 'clp' });
+    expect(parsePermalink('?monto_min=1000&uf_max=50', DEFAULTS).filters)
+      .toMatchObject({ montoMin: '', montoMax: '50', montoUnidad: 'uf' });
+    expect(parsePermalink('', DEFAULTS).filters.montoUnidad).toBe('uf');
+  });
+
   it('keeps the destino filter apart from the heat-map destino', () => {
     const qs = serializePermalink({ ...initial, filters: { ...DEFAULT_FILTERS, destinos: ['W', 'A'] } }, DEFAULTS);
     expect(qs).toBe('destinos=A,W');

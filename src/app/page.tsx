@@ -49,7 +49,7 @@ import { useKmlLayers } from '@/hooks/useKmlLayers';
 import { useNdviQuery } from '@/hooks/useNdviQuery';
 import { useRuralRolSearch } from '@/hooks/useRuralRolSearch';
 import { PERMALINK_DEFAULTS, usePermalinkSync } from '@/hooks/usePermalink';
-import { parsePermalink, type PermalinkLayer, type PermalinkState } from '@/lib/permalink';
+import { montoParams, parsePermalink, type MontoUnidad, type PermalinkLayer, type PermalinkState } from '@/lib/permalink';
 import type { RangoAnios } from '@/lib/anios';
 
 // El RetroLoader de page.tsx cubre también la carga del módulo, así que el
@@ -153,6 +153,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   const [fechaHasta, setFechaHasta] = useState(initial.filters.fechaHasta);
   const [montoMin, setMontoMin] = useState(initial.filters.montoMin);
   const [montoMax, setMontoMax] = useState(initial.filters.montoMax);
+  const [montoUnidad, setMontoUnidad] = useState<MontoUnidad>(initial.filters.montoUnidad);
   const [supMin, setSupMin] = useState(initial.filters.supMin);
   const [supMax, setSupMax] = useState(initial.filters.supMax);
   const [destinos, setDestinos] = useState<string[]>(initial.filters.destinos);
@@ -224,15 +225,16 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     if (anioTo != null) p.set('anio_max', String(anioTo));
     if (fechaDesde) p.set('fecha_desde', fechaDesde);
     if (fechaHasta) p.set('fecha_hasta', fechaHasta);
-    if (montoMin) p.set('monto_min', montoMin);
-    if (montoMax) p.set('monto_max', montoMax);
+    const [montoMinKey, montoMaxKey] = montoParams(montoUnidad);
+    if (montoMin) p.set(montoMinKey, montoMin);
+    if (montoMax) p.set(montoMaxKey, montoMax);
     if (supMin) p.set('sup_min', supMin);
     if (supMax) p.set('sup_max', supMax);
     if (destinos.length > 0) p.set('destinos', serializeDestinos(destinos));
     if (predio.trim()) p.set('predio', predio.trim());
     if (rol.trim()) p.set('rol', rol.trim());
     return p.toString();
-  }, [comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, destinos, predio, rol]);
+  }, [comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, montoUnidad, supMin, supMax, destinos, predio, rol]);
 
   const activeFilters = [
     comuna !== 'todas',
@@ -463,10 +465,10 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     relieve: relieveModo,
     destino: hexbinDestino,
     minN: hexbinMinN,
-    filters: { comuna, anioMin: anioFrom, anioMax: anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, destinos, predio, rol },
+    filters: { comuna, anioMin: anioFrom, anioMax: anioTo, fechaDesde, fechaHasta, montoMin, montoMax, montoUnidad, supMin, supMax, destinos, predio, rol },
   }), [
     layerFlags, basemap, bioclimaVariable, relieveModo, hexbinDestino, hexbinMinN,
-    comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, destinos, predio, rol,
+    comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, montoUnidad, supMin, supMax, destinos, predio, rol,
   ]);
   const { onViewChange, flush: flushPermalink } = usePermalinkSync(permalinkState, initial.view);
 
@@ -561,6 +563,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
         fechaHasta,
         montoMin,
         montoMax,
+        montoUnidad,
         supMin,
         supMax,
         destinos,
@@ -586,7 +589,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     showRedDrenaje, showLineasTransmision, showSuelos, showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales,
     showNdviVisual, showRelieve, relieveModo,
     showHexbins, hexbinStatus,
-    comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, supMin, supMax, destinos, predio, rol,
+    comuna, anioFrom, anioTo, fechaDesde, fechaHasta, montoMin, montoMax, montoUnidad, supMin, supMax, destinos, predio, rol,
     stats, kmlLayers,
   ]);
 
@@ -635,6 +638,8 @@ function SigApp({ initial }: { initial: PermalinkState }) {
       setMontoMin={setMontoMin}
       montoMax={montoMax}
       setMontoMax={setMontoMax}
+      montoUnidad={montoUnidad}
+      setMontoUnidad={setMontoUnidad}
       supMin={supMin}
       setSupMin={setSupMin}
       supMax={supMax}

@@ -102,7 +102,7 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 |---|---|---|---|
 | 0 | 🔴 Cargar las capas oficiales en PostGIS (`db/capas.sql` + `npm run data:load:postgis`) | La ficha del predio ya está en producción, pero comuna, límite urbano y áreas protegidas responden «capa aún no cargada» hasta que se carguen. Requiere el rol owner de Neon | [Geoprocesos](#geoprocesos-ficha-del-predio-2026-10-26) |
 | 1 | 🟡 Etiquetar `v0.3.0` | «No publicado» acumula Relieve, Medir, Conservadores, «¿Qué hay aquí?» y permalink | [Deuda › Plataforma](#plataforma-y-release) |
-| 2 | 🟡 Monto en UF: filtro de monto y mapa de calor (estadísticas, destino y rango de años ya están) | Diagnóstico en Coyhaique (2026-10-23): 14,4 mil de 15,8 mil transacciones solo tienen `montoUf` y el SIG las muestra sin precio | [Filtro de transacciones](#filtro-de-transacciones-diagnóstico-2026-10-23) |
+| 2 | 🟡 Mapa de calor en UF/m² (estadísticas y filtro en UF, destino y rango de años ya están) | Diagnóstico en Coyhaique (2026-10-23): 14,4 mil de 15,8 mil transacciones solo tienen `montoUf` y el SIG las muestra sin precio | [Filtro de transacciones](#filtro-de-transacciones-diagnóstico-2026-10-23) |
 | 3 | 🟡 Límite de consultas, parte 3: cupos separados por costo (datos / imágenes / consultas) y tope global por organismo | Las partes 1 y 2 (grilla + debounce, 429 honesto) ya están; con varias capas remotas el cupo único de 60/min se sigue agotando | [Deuda › Seguridad](#seguridad-y-operación) |
 | 4 | 🟡 Dividir `LayersControl.tsx`, `MapView.tsx` y `page.tsx` | Siguen creciendo (1.666, 1.275 y 1.006 líneas) | [Deuda › Frontend](#arquitectura-del-frontend) |
 | 5 | 🟡 Derechos de agua DGA (76k puntos, sin nombre del solicitante, datum convertido) | Endpoint masivo verificado el 2026-10-18; el agua pesa tanto como el suelo en la tasación | [§ 2.2](#22-derechos-de-aprovechamiento-de-aguas-dga---investigación) |
@@ -851,8 +851,10 @@ Revisado con Playwright sobre producción, comuna de **Coyhaique** y los años
       *Hecho (2026-10-26)*: `/api/points` ya traía `montoUf` y el popup lo
       muestra; `/api/stats` calcula todo también en UF y el panel abre en UF
       con un selector «UF | Pesos» ([`estadisticas.md` § 7](./estadisticas.md)).
-      *Pendiente*: filtro de monto en UF (hoy en pesos, excluye las filas solo
-      UF) y mapa de calor en UF/m² (`plan-mapa-de-calor.md` ya lo anotaba).
+      El filtro de monto también es en UF por defecto (`uf_min`/`uf_max`, con
+      selector UF/Pesos; los enlaces viejos con `monto_min` siguen en pesos).
+      *Pendiente*: mapa de calor en UF/m² (`plan-mapa-de-calor.md` ya lo
+      anotaba).
 - [x] 🟡 **Filtro por destino SII** — hecho el 2026-10-26. Coyhaique tiene
       6.716 W (sitio eriazo), 6.465 H (habitacional) y 2.066 A (agrícola), y
       la mediana los mezclaba. Ahora el panel de filtros ofrece una selección

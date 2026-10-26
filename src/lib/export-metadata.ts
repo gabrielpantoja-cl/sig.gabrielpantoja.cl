@@ -19,9 +19,10 @@ import { bioclimaRamp, type BioclimaVariable } from '@/lib/bioclima';
  *  filtros vienen como strings; aquí las formateamos a CLP para el cajetín
  *  del PNG exportado (la idea es que el informe pericial vea un rango
  *  legible, no un número crudo de `?monto_min=10000000`). */
-const fmtMoney = (raw: string): string | null => {
+const fmtMoney = (raw: string, unidad: 'uf' | 'clp' = 'clp'): string | null => {
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return null;
+  if (unidad === 'uf') return `UF ${n.toLocaleString('es-CL', { maximumFractionDigits: 2 })}`;
   return new Intl.NumberFormat('es-CL', {
     style: 'currency',
     currency: 'CLP',
@@ -61,6 +62,8 @@ export type BuildMetadataInput = {
   fechaHasta: string;
   montoMin: string;
   montoMax: string;
+  /** Unidad del rango de monto; sin ella, pesos (lo que había antes). */
+  montoUnidad?: 'uf' | 'clp';
   supMin: string;
   supMax: string;
   /** Filtro de destinos SII; opcional para no romper a quien no lo conoce. */
@@ -100,8 +103,8 @@ export function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEnt
       filtrosLineas.push(`Fecha disponible: ${input.fechaDesde || 'sin mínimo'} – ${input.fechaHasta || 'sin máximo'}`);
     }
 
-    const minD = fmtMoney(input.montoMin);
-    const maxD = fmtMoney(input.montoMax);
+    const minD = fmtMoney(input.montoMin, input.montoUnidad);
+    const maxD = fmtMoney(input.montoMax, input.montoUnidad);
     if (minD || maxD) {
       // Construimos el rango con strings pre-formateados para no anidar
       // template literals con backticks sueltos (riesgo de desbalance de
