@@ -23,6 +23,11 @@ versionado.
 
 ### Añadido
 
+- **Página `/estado` y `/api/health`.** Muestra si el respaldo diario de las
+  transacciones se pudo restaurar y verificar (historial de 30 días), el
+  volumen, el período y el último ingreso, con gráficos por año y por región.
+  `/api/health` entrega lo mismo en JSON para monitores externos. Ninguna de
+  las dos consulta la base principal. Ver `docs/estado.md`.
 - **Encuadre de la comuna elegida.** Al elegir una comuna en el filtro el
   mapa vuela a sus transacciones (antes quedaba en la vista de Chile).
 - **Estadísticas en UF.** El panel abre en UF y un selector «UF | Pesos»
