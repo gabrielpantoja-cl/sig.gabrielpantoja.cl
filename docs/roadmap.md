@@ -886,10 +886,12 @@ Revisado con Playwright sobre producción, comuna de **Coyhaique** y los años
       tienen. En la lista de comunas aparece «Puerto Aysén»
       (374 filas, todas con monto) separada de «Aysén» (3.668 filas): es una
       localidad cargada como comuna; normalizar contra el CUT de la DPA.
-- [ ] 🟢 **Encuadrar la comuna elegida.** Al elegir Coyhaique el mapa queda
-      en la vista de Chile y los puntos quedan fuera de la pantalla. Propuesta:
-      `fitBounds` a la extensión de la selección o al polígono DPA, sin
-      encuadrar cuando la vista llega desde un permalink.
+- [x] 🟢 **Encuadrar la comuna elegida** — hecho el 2026-10-26. Al elegir
+      una comuna en el filtro el mapa vuela a la extensión de sus
+      transacciones, recortando el 2 % de cada borde para que un punto mal
+      geocodificado no lo lleve a medio país (`src/lib/encuadre.ts`, con
+      tests). Una vez por elección, y nunca cuando la comuna llega en un
+      permalink, que ya trae su encuadre.
 - [ ] 🟢 **Descarga por cambio de filtro.** Cada cambio vuelve a bajar los
       puntos completos: 4,1 MB para Coyhaique sin años y 3,5 MB «desde 2015».
       Si la nueva selección es un subconjunto de la cargada (subir «desde»,
