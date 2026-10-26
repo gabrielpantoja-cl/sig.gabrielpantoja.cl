@@ -141,6 +141,9 @@ function hostOf(value: string | null): string | null {
   }
 }
 
+/** Parámetros de la API que no son filtros: no van en `fields`. */
+const NOT_FILTERS = new Set(['format', 'part', 'parts']);
+
 /**
  * Registra una consulta a la API de datos (`/api/points`, `/api/export`).
  * Lo llama `src/proxy.ts`, que corre ANTES de la caché de la CDN: así se
@@ -159,7 +162,7 @@ export async function recordApiEvent(req: Request, event: AnalyticsServerEvent):
   const refererHost = hostOf(req.headers.get('referer'));
   const site =
     req.headers.get('sec-fetch-site') === 'same-origin' || (refererHost !== null && refererHost === host);
-  const fields = [...new Set([...searchParams.keys()].filter((k) => k !== 'format'))].sort().join(',');
+  const fields = [...new Set([...searchParams.keys()].filter((k) => !NOT_FILTERS.has(k)))].sort().join(',');
 
   const props: AnalyticsProps = {
     source: site ? 'site' : 'external',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildFilters } from '@/lib/filters';
+import { MAX_PARTS, buildFilters, parsePartition, partitionCondition } from '@/lib/filters';
 
 const build = (query: string) => buildFilters(new URLSearchParams(query));
 
@@ -51,5 +51,25 @@ describe('buildFilters', () => {
     expect(build('predio=%20Fundo%20').params).toEqual(['%Fundo%']);
     const [pattern] = build(`predio=${'x'.repeat(500)}`).params as string[];
     expect(pattern).toHaveLength(102);
+  });
+});
+
+describe('parsePartition', () => {
+  const parse = (query: string) => parsePartition(new URLSearchParams(query));
+
+  it('accepts a valid part of a valid split', () => {
+    expect(parse('part=0&parts=8')).toEqual({ part: 0, parts: 8 });
+    expect(parse('part=7&parts=8')).toEqual({ part: 7, parts: 8 });
+  });
+
+  it('falls back to the whole set on anything else', () => {
+    for (const q of ['', 'part=0', 'parts=8', 'part=8&parts=8', 'part=-1&parts=8', 'part=0&parts=1',
+      `part=0&parts=${MAX_PARTS + 1}`, 'part=1.5&parts=8', 'part=0&parts=abc', 'part=0;drop&parts=8', 'part=&parts=8']) {
+      expect(parse(q)).toBeNull();
+    }
+  });
+
+  it('interpolates only the validated integers', () => {
+    expect(partitionCondition({ part: 3, parts: 8 })).toMatch(/% 8 = 3$/);
   });
 });

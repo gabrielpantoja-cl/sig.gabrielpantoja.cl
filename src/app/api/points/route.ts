@@ -1,5 +1,5 @@
 import { enforce, corsHeaders } from '@/lib/security';
-import { buildFilters } from '@/lib/filters';
+import { buildFilters, parsePartition, partitionCondition } from '@/lib/filters';
 import { getSql } from '@/lib/neon';
 
 /**
@@ -8,6 +8,10 @@ import { getSql } from '@/lib/neon';
  * Returns ONLY the privacy-safe slice (lat, lng, monto, montoUf, anio, comuna, predio,
  * superficie, rol). PII columns (comprador, vendedor, rut, user_id,
  * observaciones) are never selected.
+ *
+ * Optional `part`/`parts` (e.g. `part=0&parts=8`) return one disjoint slice of
+ * the same result, so each response stays under the CDN's cacheable size
+ * (see `parsePartition`). Without them the route answers the whole set.
  */
 
 // Upper bound against runaway payloads. The frontend clusters, so it can handle
@@ -25,7 +29,9 @@ export async function GET(req: Request) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const { where, params } = buildFilters(searchParams);
+    const { where: filtersWhere, params } = buildFilters(searchParams);
+    const partition = parsePartition(searchParams);
+    const where = partition ? `${filtersWhere} AND ${partitionCondition(partition)}` : filtersWhere;
     const sql = getSql();
 
     // Filter referenciales inside a CTE (where the unqualified filter columns are

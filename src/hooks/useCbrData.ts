@@ -39,6 +39,33 @@ async function fetchPointsWithProgress(
   return JSON.parse(new TextDecoder().decode(buf)) as MapPoint[];
 }
 
+/**
+ * Partes en que se pide /api/points. El conjunto completo (~31 MB) supera lo
+ * que la CDN de Vercel cachea (~10 MB) y era MISS en cada visita; en 8 partes
+ * cada respuesta queda bajo ~4 MB y se cachea. Las partes se piden en paralelo
+ * (HTTP/2) y son disjuntas, así que concatenarlas da el conjunto completo.
+ */
+const POINT_PARTS = 8;
+
+/** Descarga las partes en paralelo; el avance es el de los bytes de todas. */
+async function fetchPointParts(
+  suffix: string,
+  signal: AbortSignal,
+  onProgress: (frac: number) => void,
+): Promise<MapPoint[]> {
+  const fracs = new Array<number>(POINT_PARTS).fill(0);
+  const sep = suffix ? '&' : '?';
+  const parts = await Promise.all(
+    fracs.map((_, i) =>
+      fetchPointsWithProgress(`/api/points${suffix}${sep}part=${i}&parts=${POINT_PARTS}`, signal, (frac) => {
+        fracs[i] = frac;
+        onProgress(fracs.reduce((a, b) => a + b, 0) / POINT_PARTS);
+      }),
+    ),
+  );
+  return parts.flatMap((p) => (Array.isArray(p) ? p : []));
+}
+
 export interface CbrDataCallbacks {
   /** Avance 0..1 de la descarga de /api/points. */
   onDownloadProgress?: (fraction: number) => void;
@@ -56,7 +83,7 @@ export interface CbrDataCallbacks {
  * loading/error se DERIVAN comparando el query pedido con el resuelto/fallido
  * (nada de setState sincrónico dentro del efecto de fetch): si lo cargado no
  * corresponde al filtro actual, estamos cargando. Los callbacks se leen de un
- * ref, así cambiarlos no relanza la descarga de ~20 MB.
+ * ref, así cambiarlos no relanza la descarga de ~31 MB.
  */
 export function useCbrData(debouncedQs: string, callbacks: CbrDataCallbacks = {}) {
   const [facets, setFacets] = useState<Facets | null>(null);
@@ -86,7 +113,7 @@ export function useCbrData(debouncedQs: string, callbacks: CbrDataCallbacks = {}
 
     const suffix = debouncedQs ? `?${debouncedQs}` : '';
     Promise.all([
-      fetchPointsWithProgress(`/api/points${suffix}`, ctrl.signal, (frac) => {
+      fetchPointParts(suffix, ctrl.signal, (frac) => {
         callbacksRef.current.onDownloadProgress?.(frac);
       }),
       fetch(`/api/stats${suffix}`, { signal: ctrl.signal }).then((r) =>

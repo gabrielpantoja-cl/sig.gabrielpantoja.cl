@@ -43,6 +43,7 @@ import type { Punto } from '@/lib/medicion';
 import { track } from '@/lib/analytics';
 import { buildExportMetadata } from '@/lib/export-metadata';
 import { useCbrData } from '@/hooks/useCbrData';
+import { useCloseOnBack } from '@/hooks/useCloseOnBack';
 import { useKmlLayers } from '@/hooks/useKmlLayers';
 import { useNdviQuery } from '@/hooks/useNdviQuery';
 import { useRuralRolSearch } from '@/hooks/useRuralRolSearch';
@@ -280,6 +281,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   // Mobile: consolidated drawer (search + filters + stats), closed by default
   // so the map owns the screen.
   const [drawerOpen, setDrawerOpen] = useState(false);
+  useCloseOnBack(drawerOpen, () => setDrawerOpen(false));
 
   // Desktop: floating panels over the map, only one open at a time.
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);

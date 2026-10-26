@@ -95,3 +95,39 @@ export function buildFilters(sp: URLSearchParams): ParsedFilters {
 
   return { where: conds.join(' AND '), params };
 }
+
+/** Most partitions a client may ask for; more would just multiply queries. */
+export const MAX_PARTS = 16;
+
+export interface Partition {
+  part: number;
+  parts: number;
+}
+
+/**
+ * Optional `part`/`parts` pair that splits a result into disjoint slices.
+ * The map downloads the full set as several parts because the Vercel CDN
+ * does not cache responses above ~10 MB: the whole set (~31 MB) was always a
+ * MISS and hit Neon on every visit, while each part stays cacheable. Anything
+ * invalid answers null, i.e. the whole set — the default contract.
+ */
+export function parsePartition(sp: URLSearchParams): Partition | null {
+  const rawPart = sp.get('part') ?? '';
+  const rawParts = sp.get('parts') ?? '';
+  // Strict digits: Number('') and Number(null) are 0, which would accept
+  // `parts=8` alone as part 0.
+  if (!/^\d{1,2}$/.test(rawPart) || !/^\d{1,2}$/.test(rawParts)) return null;
+  const part = Number(rawPart);
+  const parts = Number(rawParts);
+  if (parts < 2 || parts > MAX_PARTS || part >= parts) return null;
+  return { part, parts };
+}
+
+/**
+ * SQL condition that keeps one slice of `referenciales` by its text id.
+ * `md5`, not `hashtext`: the latter is internal and may change between
+ * PostgreSQL versions, and a cached part must keep meaning the same rows.
+ */
+export function partitionCondition(partition: Partition): string {
+  return `('x' || substr(md5(id), 1, 8))::bit(32)::bigint % ${partition.parts} = ${partition.part}`;
+}
