@@ -42,4 +42,4 @@ GRANT USAGE ON SCHEMA capas TO web_readonly;
 -- en PostgreSQL 16 crear un rol no te hace miembro de él.
 
 -- Si la consulta del ETL tarda, que falle en vez de colgar la conexión.
-ALTER ROLE etl_writer SET statement_timeout = '5min';
+ALTER ROLE etl_writer SET statement_timeout = '15min';

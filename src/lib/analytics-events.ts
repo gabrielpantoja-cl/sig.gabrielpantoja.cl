@@ -38,6 +38,7 @@ export const ANALYTICS_EVENTS = [
   'locate', // «Ir a mi ubicación» (props `ok`, `error`; NUNCA la posición)
   'share', // «Compartir vista» (prop `method`; NUNCA la URL, que lleva filtros)
   'measure', // medición fijada (props `mode`, `vertices`; NUNCA las coordenadas ni el resultado)
+  'parcel_analysis', // ficha del predio (prop `ok`; NUNCA el polígono ni sus cifras)
 ] as const;
 
 /**

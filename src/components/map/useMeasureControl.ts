@@ -3,7 +3,7 @@
 import { useEffect, type RefObject } from 'react';
 import L from 'leaflet';
 import { track } from '@/lib/analytics';
-import { resumenMedicion, type ModoMedicion } from '@/lib/medicion';
+import { resumenMedicion, type ModoMedicion, type Punto } from '@/lib/medicion';
 
 /** Etiqueta de una medición fijada: el export PNG la pinta en ese punto. */
 export type MedicionFijada = { anchor: L.LatLng; texto: string };
@@ -35,17 +35,24 @@ const HINT: Record<ModoMedicion, string> = {
  * export ya captura, y las etiquetas — que son DOM — se publican en
  * `fixedRef` para que el export las pinte.
  *
- * Nada de esto sale del navegador: el evento `measure` lleva el modo y el
- * número de vértices, nunca coordenadas ni resultados.
+ * «Analizar predio» (solo en modo superficie) entrega el polígono —el borrador
+ * si tiene 3+ vértices, si no la última superficie fijada— a `onAnalizarRef`,
+ * que abre la ficha del predio (`/api/analisis/predio`), y apaga la
+ * herramienta para que los clics vuelvan a la consulta del mapa.
+ *
+ * Nada de esto sale del navegador por la analítica: el evento `measure` lleva
+ * el modo y el número de vértices, nunca coordenadas ni resultados.
  */
 export function useMeasureControl({
   mapRef,
   activeRef,
   fixedRef,
+  onAnalizarRef,
 }: {
   mapRef: RefObject<L.Map | null>;
   activeRef: RefObject<boolean>;
   fixedRef: RefObject<MedicionFijada[]>;
+  onAnalizarRef?: RefObject<((vertices: Punto[]) => void) | undefined>;
 }): void {
   useEffect(() => {
     const map = mapRef.current;
@@ -57,6 +64,8 @@ export function useMeasureControl({
     const borrador = L.layerGroup().addTo(map);
     const fijadas = L.layerGroup().addTo(map);
     const etiquetas: L.Tooltip[] = [];
+    /** Vértices de la última superficie fijada: lo que analiza «Analizar predio». */
+    let ultimaSuperficie: Punto[] | null = null;
     const publicadas = fixedRef.current;
     let doubleClickZoomPrevio = map.doubleClickZoom.enabled();
     let cursorPrevio = '';
@@ -69,6 +78,7 @@ export function useMeasureControl({
     let botonFijar: HTMLButtonElement | null = null;
     let botonDeshacer: HTMLButtonElement | null = null;
     let botonBorrar: HTMLButtonElement | null = null;
+    let botonAnalizar: HTMLButtonElement | null = null;
 
     const estiloLinea = (borradorActivo: boolean): L.PolylineOptions => ({
       color: COLOR,
@@ -108,6 +118,10 @@ export function useMeasureControl({
       if (botonFijar) botonFijar.disabled = puntos.length < minimo;
       if (botonDeshacer) botonDeshacer.disabled = puntos.length === 0;
       if (botonBorrar) botonBorrar.disabled = puntos.length === 0 && etiquetas.length === 0;
+      if (botonAnalizar) {
+        botonAnalizar.hidden = modo !== 'superficie' || !onAnalizarRef;
+        botonAnalizar.disabled = puntos.length < 3 && ultimaSuperficie === null;
+      }
     };
 
     const redibujar = () => {
@@ -144,6 +158,7 @@ export function useMeasureControl({
         .addTo(map);
       etiquetas.push(etiqueta);
       publicadas.push({ anchor, texto });
+      if (modo === 'superficie') ultimaSuperficie = puntos.map(({ lat, lng }) => ({ lat, lng }));
       track('measure', { mode: modo, vertices: puntos.length });
       descartar();
     };
@@ -153,7 +168,17 @@ export function useMeasureControl({
       for (const e of etiquetas) e.remove();
       etiquetas.length = 0;
       publicadas.length = 0;
+      ultimaSuperficie = null;
       descartar();
+    };
+
+    const analizar = () => {
+      if (modo !== 'superficie') return;
+      if (puntos.length >= 3) fijar();
+      const vertices = ultimaSuperficie;
+      if (!vertices) return;
+      desactivar();
+      onAnalizarRef?.current?.(vertices);
     };
 
     const cercaDe = (a: L.LatLng, b: L.LatLng) =>
@@ -304,6 +329,9 @@ export function useMeasureControl({
         redibujar();
       });
       botonBorrar = crearBoton(acciones, 'Borrar todo', 'sig-medir-accion', borrarTodo);
+      botonAnalizar = crearBoton(panel, 'Analizar predio', 'sig-medir-accion sig-medir-analizar', analizar);
+      botonAnalizar.title =
+        'Cruza el polígono con comuna, límite urbano, áreas protegidas y transacciones CBR cercanas';
 
       const nota = L.DomUtil.create('p', 'sig-medir-nota', panel);
       nota.textContent =
@@ -327,5 +355,5 @@ export function useMeasureControl({
       for (const e of etiquetas) e.remove();
       publicadas.length = 0;
     };
-  }, [mapRef, activeRef, fixedRef]);
+  }, [mapRef, activeRef, fixedRef, onAnalizarRef]);
 }

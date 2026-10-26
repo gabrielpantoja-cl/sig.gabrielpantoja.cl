@@ -30,6 +30,9 @@ import { SearchFields, FilterFields, StatsFields } from '@/components/FieldGroup
 import { GeocoderSearch } from '@/components/GeocoderSearch';
 import { InfoPanel } from '@/components/InfoPanel';
 import { NdviPanel } from '@/components/NdviPanel';
+import { FichaPredioPanel } from '@/components/FichaPredioPanel';
+import { poligonoDesdeVertices, type FichaPredio, type PoligonoGeoJson } from '@/lib/analisis-predio';
+import type { Punto } from '@/lib/medicion';
 import { track } from '@/lib/analytics';
 import { buildExportMetadata } from '@/lib/export-metadata';
 import { useCbrData } from '@/hooks/useCbrData';
@@ -297,10 +300,21 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     clearRuralSearch();
   }, [clearRuralSearch]);
 
+  // Ficha del predio: el polígono que «Medir» entregó y la respuesta vigente
+  // (sus comparables se dibujan en el mapa). Comparte el lugar flotante con la
+  // serie NDVI: abrir una cierra la otra.
+  const [predioGeometry, setPredioGeometry] = useState<PoligonoGeoJson | null>(null);
+  const [fichaPredio, setFichaPredio] = useState<FichaPredio | null>(null);
+  const cerrarFicha = useCallback(() => {
+    setPredioGeometry(null);
+    setFichaPredio(null);
+  }, []);
+
   const handleNdviOpened = useCallback(() => {
     setActivePanel(null);
     setDrawerOpen(false);
-  }, []);
+    cerrarFicha();
+  }, [cerrarFicha]);
   const {
     ndviMode,
     setNdviMode,
@@ -311,6 +325,14 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     handleNdviResaltado,
     cerrarNdvi,
   } = useNdviQuery({ onPoint: handleNdviOpened });
+
+  const handleAnalizarPredio = useCallback((vertices: Punto[]) => {
+    cerrarNdvi();
+    setActivePanel(null);
+    setDrawerOpen(false);
+    setFichaPredio(null);
+    setPredioGeometry(poligonoDesdeVertices(vertices));
+  }, [cerrarNdvi]);
 
   // Las transacciones CBR son la capa principal y vienen activadas por defecto,
   // pero el perito las puede ocultar para componer una vista limpia (por ej.
@@ -835,6 +857,9 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               ndviConsulta={ndviConsulta}
               onNdviPoint={handleNdviPoint}
               ndvi={ndviExport}
+              onAnalizarPredio={handleAnalizarPredio}
+              predioGeometry={predioGeometry}
+              fichaPredio={fichaPredio}
             />
           </div>
           {/* Carga en segundo plano tras «Saltar»: avance y aviso de término. */}
@@ -973,7 +998,12 @@ function SigApp({ initial }: { initial: PermalinkState }) {
           {/* Serie NDVI: panel flotante arriba a la derecha. z-[700] = igual
               que los dropdowns; la pestaña de capas (850) y el drawer móvil
               (1100) siguen por sobre él y siguen siendo clicables. */}
-          {ndviConsulta && (
+          {predioGeometry && (
+            <div className="absolute right-3 top-24 z-[700] max-h-[calc(100vh-7rem)] w-[min(26rem,calc(100%-1.5rem))] overflow-y-auto md:top-14">
+              <FichaPredioPanel geometry={predioGeometry} onFicha={setFichaPredio} onCerrar={cerrarFicha} />
+            </div>
+          )}
+          {ndviConsulta && !predioGeometry && (
             <div className="absolute right-3 top-24 z-[700] max-h-[calc(100vh-7rem)] w-[min(30rem,calc(100%-1.5rem))] overflow-y-auto md:top-14">
               <NdviPanel
                 consulta={ndviConsulta}

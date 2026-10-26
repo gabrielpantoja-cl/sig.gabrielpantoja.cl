@@ -21,6 +21,13 @@
  * descarga → trazabilidad de la ficha). La tabla vigente solo se bloquea en
  * ese último paso; si algo falla antes, ROLLBACK y queda intacta.
  *
+ * Cada polígono se guarda TROCEADO con ST_Subdivide (≤ 256 vértices por fila,
+ * `fid` = feature original). Un parque marino o un litoral de fiordos tiene
+ * millones de vértices: intersectarlo entero contra un predio en cada consulta
+ * cuesta segundos, mientras que el índice GiST sobre trozos chicos descarta
+ * casi todo y ST_Intersection trabaja con unos pocos cientos de vértices. Los
+ * trozos no se solapan, así que sumar áreas por `fid` da el área exacta.
+ *
  * Node 22 (`nvm use`): el Pool usa el WebSocket global de Node.
  */
 
@@ -47,6 +54,8 @@ const PRECISION = 0.000001;
  * y no el driver HTTP, que no acepta cuerpos de ese tamaño.
  */
 const BATCH_BYTES = 8_000_000;
+/** Vértices máximos por trozo (ST_Subdivide). 256 es el punto dulce habitual. */
+const MAX_VERTICES = 256;
 
 const log = (...a) => console.log('[load-postgis]', ...a);
 
@@ -205,6 +214,7 @@ async function load(pool, key) {
     await client.query(
       `CREATE TABLE ${staging} (
          id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+         fid integer NOT NULL,
          ${colDefs},
          geom geometry(MultiPolygon, 4326) NOT NULL
        )`,
@@ -216,35 +226,37 @@ async function load(pool, key) {
       // autointersecciones y anillos tocándose; sin repararlos, ST_Intersection
       // falla («TopologyException») justo en la consulta del usuario.
       await client.query(
-        `INSERT INTO ${staging} (${colNames}, geom)
-         SELECT ${colValues}, g
+        `INSERT INTO ${staging} (fid, ${colNames}, geom)
+         SELECT fid, ${colValues}, ST_Multi(ST_Subdivide(g, ${MAX_VERTICES}))
          FROM (
-           SELECT f, ST_Multi(ST_CollectionExtract(ST_MakeValid(
-                    ST_SetSRID(ST_GeomFromGeoJSON(f->'geometry'), 4326)), 3)) AS g
-           FROM jsonb_array_elements($1::jsonb) AS f
+           SELECT $2::int + ord::int AS fid, f,
+                  ST_CollectionExtract(ST_MakeValid(
+                    ST_SetSRID(ST_GeomFromGeoJSON(f->'geometry'), 4326)), 3) AS g
+           FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS e(f, ord)
            WHERE jsonb_typeof(f->'geometry') = 'object'
          ) s
          WHERE NOT ST_IsEmpty(g)`,
-        [`[${batch.join(',')}]`],
+        [`[${batch.join(',')}]`, leidas],
       );
       leidas += batch.length;
       process.stdout.write(`\r[load-postgis] ${key}: ${leidas} features enviadas`);
     }
     process.stdout.write('\n');
 
-    ({ rows: [{ n }] } = await client.query(`SELECT count(*)::int AS n FROM ${staging}`));
+    ({ rows: [{ n }] } = await client.query(`SELECT count(DISTINCT fid)::int AS n FROM ${staging}`));
     if (n === 0) throw new Error(`[${key}] 0 filas cargadas; se conserva la tabla vigente`);
     if (n < leidas * 0.95) {
       throw new Error(`[${key}] solo ${n} de ${leidas} features con geometría válida; revisar la fuente`);
     }
 
     await client.query(`CREATE INDEX ${capa.table}__carga_geom_idx ON ${staging} USING gist (geom)`);
+    await client.query(`CREATE INDEX ${capa.table}__carga_fid_idx ON ${staging} (fid)`);
     await client.query(`GRANT SELECT ON ${staging} TO web_readonly`);
 
     const procesamiento =
       `mapshaper ${capa.reproject ? '-proj wgs84 ' : ''}-filter-fields ` +
       `${capa.columns.map(([src]) => src).join(',')} precision=${PRECISION} (sin simplificar); ` +
-      'PostGIS ST_MakeValid + ST_CollectionExtract(3)';
+      `PostGIS ST_MakeValid + ST_CollectionExtract(3) + ST_Subdivide(${MAX_VERTICES})`;
 
     await client.query(`CREATE TABLE IF NOT EXISTS capas.fuentes (
                           capa text PRIMARY KEY,
@@ -260,6 +272,7 @@ async function load(pool, key) {
     await client.query(`DROP TABLE IF EXISTS ${t}`);
     await client.query(`ALTER TABLE ${staging} RENAME TO ${capa.table}`);
     await client.query(`ALTER INDEX capas.${capa.table}__carga_geom_idx RENAME TO ${capa.table}_geom_idx`);
+    await client.query(`ALTER INDEX capas.${capa.table}__carga_fid_idx RENAME TO ${capa.table}_fid_idx`);
     await client.query(`ALTER TABLE ${t} RENAME CONSTRAINT ${capa.table}__carga_pkey TO ${capa.table}_pkey`);
     await client.query(
       `INSERT INTO capas.fuentes (capa, fuente, url, licencia, descargado, cargado, n, procesamiento)
@@ -291,7 +304,7 @@ async function load(pool, key) {
   const {
     rows: [{ mb }],
   } = await pool.query(`SELECT round(pg_total_relation_size('${t}') / 1048576.0, 1)::float AS mb`);
-  log(`${key}: ${n} polígonos en ${t} (${mb} MB con índice)`);
+  log(`${key}: ${n} polígonos en ${t} (${mb} MB con índices)`);
 }
 
 async function databaseUrl() {
