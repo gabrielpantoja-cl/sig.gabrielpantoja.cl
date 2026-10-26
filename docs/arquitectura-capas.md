@@ -177,7 +177,7 @@ El **Relieve (Copernicus GLO-30)** sigue el patrón de NDVI (lo calcula nuestro
 servidor desde COG públicos) pero entra por `useViewportRaster`. Su diseño
 (mosaico en la grilla de Copernicus, gradiente de Horn antes de remuestrear,
 clases de pendiente SAG, PNG indexado, aviso de licencia obligatorio) está en
-`AGENTS.md` y en `src/lib/relieve-raster.ts`.
+`docs/design-notes.md` y en `src/lib/relieve-raster.ts`.
 
 Además existen las **capas KML del usuario** (subidas en el panel Capas,
 parseadas 100 % en el navegador — `src/lib/kml.ts` — nunca suben a un
@@ -276,7 +276,7 @@ el ejemplo más reciente y completo de cada paso.
 7. **Verificar y documentar**: `npm run data:build:<capa>` (revisar conteo y
    peso), probar en `localhost:3000` (activar la capa junto a las demás,
    popups clicables, orden de apilado, modo claro y oscuro), `npm run lint`,
-   y actualizar la tabla de este documento + AGENTS.md (comandos, key files,
+   y actualizar la tabla de este documento + AGENTS.md (comandos) + design-notes.md (key files,
    bullet de arquitectura). Si la capa debe ir en el enlace compartido,
    agregarla a `src/lib/permalink.ts` (el tipo `layerFlags` de `page.tsx`
    obliga a hacerlo).
