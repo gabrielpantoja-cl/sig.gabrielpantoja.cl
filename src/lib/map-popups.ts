@@ -28,7 +28,7 @@ import {
   type CatastroFruticolaProps,
 } from '@/lib/catastro-fruticola';
 import { VEGETACIONAL_ATTRIBUTION, speciesPairs, type VegetacionalProps } from '@/lib/vegetacional';
-import { destinoLabel, hexEdgeLabel, type HexbinMeta, type HexbinProps } from '@/lib/hexbins';
+import { destinoLabel, fmtValorM2, hexEdgeLabel, unidadM2Label, type HexbinMeta, type HexbinProps } from '@/lib/hexbins';
 import { SUELOS_ATTRIBUTION, suelosClassColor } from '@/lib/suelos';
 import {
   clasePendiente,
@@ -740,8 +740,9 @@ export function buildKmlPopup(props: KmlFeatureProps, layer: KmlLayer): string {
  * transacciones reales, no el resultado del suavizado.
  */
 export function buildHexbinPopup(props: HexbinProps, meta: HexbinMeta): string {
-  const money = (v: number | null): string =>
-    v == null || !Number.isFinite(v) ? '—' : formatCLP(Math.round(v));
+  const unidad = meta.unidad ?? 'clp';
+  const porM2 = unidadM2Label(unidad);
+  const money = (v: number | null): string => fmtValorM2(v, unidad);
   const rows: [string, string][] = [
     ['Rango intercuartil', `${money(props.p25)} – ${money(props.p75)} /m²`],
     ['Transacciones', `${props.n.toLocaleString('es-CL')} en la celda`],
@@ -752,11 +753,11 @@ export function buildHexbinPopup(props: HexbinProps, meta: HexbinMeta): string {
   const body = popupRows(rows);
   return (
     `<div style="font-size:0.8rem;line-height:1.45;min-width:230px">` +
-    `<div style="font-weight:600;font-size:.92rem">$/m² típico de la celda</div>` +
+    `<div style="font-weight:600;font-size:.92rem">${porM2} típico de la celda</div>` +
     `<div style="font-size:1.15rem;font-weight:700;margin:.15rem 0 .35rem">${money(props.mediana_ppm2)}</div>` +
     `<table style="border-collapse:collapse">${body}</table>` +
     `<div style="margin-top:.35rem;font-size:.62rem;opacity:.5">` +
-    `Mediana de $/m² de terreno. Señal de mercado, no tasación.</div>` +
+    `Mediana de ${porM2} de terreno. Señal de mercado, no tasación.</div>` +
     `</div>`
   );
 }

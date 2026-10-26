@@ -7,6 +7,7 @@ import type { FeatureCollection, Point } from 'geojson';
 import {
   DESTINO_DEFAULT,
   HEXBINS_ATTRIBUTION,
+  HEXBIN_UNIDAD_DEFAULT,
   HEXBINS_URL,
   HEXBIN_MIN_N_DEFAULT,
   quantileBreaks,
@@ -14,6 +15,7 @@ import {
   type HexbinProps,
   type HexbinRampId,
   type HexbinStatus,
+  type HexbinUnidad,
 } from '@/lib/hexbins';
 import { quantileScale, renderHeatSurface, type HeatSample } from '@/lib/heat-surface';
 import { TRANSPARENT_PIXEL } from '@/lib/suelos';
@@ -56,6 +58,7 @@ export function useHexbinLayer({
   showHexbins,
   hexbinDestino,
   hexbinMinN,
+  hexbinUnidad,
   hexbinFiltersQs,
   hexbinRamp,
   onHexbinStatusRef,
@@ -67,6 +70,7 @@ export function useHexbinLayer({
   showHexbins: boolean;
   hexbinDestino: string | undefined;
   hexbinMinN: number | undefined;
+  hexbinUnidad: HexbinUnidad | undefined;
   hexbinFiltersQs: string;
   hexbinRamp: HexbinRampId;
   onHexbinStatusRef: RefObject<((status: HexbinStatus) => void) | undefined>;
@@ -124,6 +128,7 @@ export function useHexbinLayer({
       params.set('z', String(map.getZoom()));
       params.set('destino', hexbinDestino ?? DESTINO_DEFAULT);
       params.set('min_n', String(hexbinMinN ?? HEXBIN_MIN_N_DEFAULT));
+      params.set('unidad', hexbinUnidad ?? HEXBIN_UNIDAD_DEFAULT);
 
       try {
         const response = await fetch(`${HEXBINS_URL}?${params}`, { signal: ctrl.signal });
@@ -246,6 +251,7 @@ export function useHexbinLayer({
     showHexbins,
     hexbinDestino,
     hexbinMinN,
+    hexbinUnidad,
     hexbinFiltersQs,
     hexbinRamp,
     reorderOverlays,

@@ -31,7 +31,8 @@ versionado.
   `*_uf` con sus propios denominadores; nunca convierte entre unidades.
   El filtro de monto también es en UF por defecto (`uf_min`/`uf_max` en la
   API y el permalink, selector UF/Pesos); los enlaces con `monto_min` siguen
-  funcionando en pesos.
+  funcionando en pesos. El mapa de calor abre en UF/m² con selector UF/m² ·
+  $/m² (`/api/hexbins?unidad=uf`; sin el parámetro sigue en pesos).
 - **Filtro por destino SII** en el panel de filtros: selección múltiple con
   los destinos de la comuna elegida y su conteo (Agrícola, Habitacional, Sitio
   Eriazo…). Filtra puntos, estadísticas y exportación, viaja en el permalink

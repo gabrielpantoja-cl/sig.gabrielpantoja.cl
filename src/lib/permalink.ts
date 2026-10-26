@@ -26,6 +26,7 @@
 
 import type { BasemapId } from '@/lib/basemap';
 import { parseDestinos, serializeDestinos } from '@/lib/destinos';
+import { esHexbinUnidad, type HexbinUnidad } from '@/lib/hexbins';
 import { esRelieveModo, type RelieveModo } from '@/lib/relieve';
 
 /** Capas que viajan en el enlace. Mismos nombres que `layer_on`. */
@@ -92,6 +93,8 @@ export interface PermalinkState {
   relieve: RelieveModo;
   destino: string;
   minN: number;
+  /** Unidad del mapa de calor (`unidad=clp`); se escribe solo si difiere. */
+  unidad: HexbinUnidad;
   filters: PermalinkFilters;
 }
 
@@ -118,6 +121,7 @@ export interface PermalinkDefaults {
   relieve: RelieveModo;
   destino: string;
   minN: number;
+  unidad: HexbinUnidad;
 }
 
 /** Rangos admitidos para el encuadre. Generosos: cubren Chile insular y
@@ -207,6 +211,8 @@ export function parsePermalink(search: string, defaults: PermalinkDefaults): Per
   const relieve = esRelieveModo(relieveUrl) ? relieveUrl : defaults.relieve;
 
   const destino = pattern(params, 'destino', DESTINO_RE) || defaults.destino;
+  const unidadUrl = params.get('unidad');
+  const unidad = esHexbinUnidad(unidadUrl) ? unidadUrl : defaults.unidad;
   const minNRaw = Number(params.get('min_n'));
   const minN = Number.isInteger(minNRaw) && minNRaw >= 1 && minNRaw <= 50 ? minNRaw : defaults.minN;
 
@@ -223,6 +229,7 @@ export function parsePermalink(search: string, defaults: PermalinkDefaults): Per
     relieve,
     destino,
     minN,
+    unidad,
     filters: {
       comuna: text(params, 'comuna') || 'todas',
       anioMin,
@@ -273,6 +280,7 @@ export function serializePermalink(state: PermalinkState, defaults: PermalinkDef
   if (layers.includes('mapa_calor')) {
     if (state.destino !== defaults.destino) params.set('destino', state.destino);
     if (state.minN !== defaults.minN) params.set('min_n', String(state.minN));
+    if (state.unidad !== defaults.unidad) params.set('unidad', state.unidad);
   }
 
   const f = state.filters;

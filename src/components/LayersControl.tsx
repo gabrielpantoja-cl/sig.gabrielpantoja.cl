@@ -52,8 +52,11 @@ import {
   HEXBINS_DISCLAIMER,
   HEXBIN_RAMPS,
   destinoLabel,
+  fmtValorM2,
   hexEdgeLabel,
+  unidadM2Label,
   type HexbinStatus,
+  type HexbinUnidad,
 } from '@/lib/hexbins';
 import { rampPosition } from '@/lib/heat-surface';
 import {
@@ -549,18 +552,6 @@ function InlineEditableKmlName({
   );
 }
 /**
- * $/m² en notación compacta para la leyenda del mapa de calor. Los cortes de
- * cuantiles llegan con decimales ($348.997,42) y en una tira de seis clases no
- * cabe el número completo; el valor exacto queda en el `title`.
- */
-function fmtPpm2Compact(value: number): string {
-  if (!Number.isFinite(value)) return '—';
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1).replace('.', ',')}M`;
-  if (value >= 1_000) return `$${Math.round(value / 1_000)}k`;
-  return `$${Math.round(value)}`;
-}
-
-/**
  * Leyenda del mapa de calor de valor.
  *
  * Declara explícitamente sobre qué se calculó lo que se está viendo —
@@ -593,6 +584,8 @@ function HexbinLegend({ status }: { status: HexbinStatus }) {
 
   const colors = HEXBIN_RAMPS[status.ramp];
   const { meta, breaks, scale } = status;
+  const unidad = meta.unidad ?? 'clp';
+  const porM2 = unidadM2Label(unidad);
   // La barra es un degradado continuo, igual que el raster. Cada marca se
   // sitúa en la posición que `rampPosition` le da a ese valor — la MISMA
   // función que colorea el mapa — así el color bajo la etiqueta es
@@ -617,20 +610,20 @@ function HexbinLegend({ status }: { status: HexbinStatus }) {
             key={mark.value}
             className="absolute -translate-x-1/2 whitespace-nowrap"
             style={{ left: mark.left }}
-            title={`${Math.round(mark.value).toLocaleString('es-CL')} $/m²`}
+            title={`${fmtValorM2(mark.value, unidad)}/m²`}
           >
-            {fmtPpm2Compact(mark.value)}
+            {fmtValorM2(mark.value, unidad, true)}
           </span>
         ))}
       </div>
       {/* El sentido de la rampa cambia con el tema (claro→oscuro sobre fondo
           claro, oscuro→claro sobre fondo oscuro), así que hay que rotularlo. */}
       <div className="flex justify-between text-[0.55rem] uppercase tracking-wide opacity-45">
-        <span>menor $/m²</span>
-        <span>mayor $/m²</span>
+        <span>menor {porM2}</span>
+        <span>mayor {porM2}</span>
       </div>
       <p className="text-[0.6rem] leading-snug opacity-60">
-        Superficie interpolada desde las medianas de $/m² de terreno de celdas de{' '}
+        Superficie interpolada desde las medianas de {porM2} de terreno de celdas de{' '}
         {hexEdgeLabel(meta.edge_m)}. Los cortes de color son cuantiles recalculados sobre
         lo visible. La opacidad indica cobertura de dato: donde no hay transacciones
         cerca, la superficie se desvanece en vez de estimar.
@@ -659,6 +652,8 @@ export function LayersControl({
   hexbinStatus,
   hexbinDestino,
   onHexbinDestino,
+  hexbinUnidad,
+  onHexbinUnidad,
   hexbinMinN,
   onHexbinMinN,
   showProtected,
@@ -727,6 +722,8 @@ export function LayersControl({
   onHexbinDestino: (code: string) => void;
   hexbinMinN: number;
   onHexbinMinN: (n: number) => void;
+  hexbinUnidad: HexbinUnidad;
+  onHexbinUnidad: (u: HexbinUnidad) => void;
   showProtected: boolean;
   onToggleProtected: (v: boolean) => void;
   showUrbanLimit: boolean;
@@ -916,7 +913,7 @@ export function LayersControl({
           checked={showHexbins}
           onChange={onToggleHexbins}
           layerId="hexbins"
-          label="Mapa de calor de valor ($/m²)"
+          label="Mapa de calor de valor (por m²)"
           swatch={
             <span
               className="inline-block h-2.5 w-2.5 rounded-sm"
@@ -953,6 +950,21 @@ export function LayersControl({
                 ))}
               </select>
             </label>
+
+            <div role="group" aria-label="Unidad del valor por m²" className="flex items-center gap-2">
+              <span className="text-[0.6rem] font-medium uppercase tracking-wide opacity-60">Unidad</span>
+              {(['uf', 'clp'] as const).map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  aria-pressed={hexbinUnidad === u}
+                  onClick={() => onHexbinUnidad(u)}
+                  className={`rounded border px-1.5 py-0.5 text-[0.65rem] ${hexbinUnidad === u ? 'border-[#b12a90] font-semibold' : 'border-black/15 opacity-60 hover:opacity-100 dark:border-white/20'}`}
+                >
+                  {unidadM2Label(u)}
+                </button>
+              ))}
+            </div>
 
             <label className="block">
               <span className="text-[0.6rem] font-medium uppercase tracking-wide opacity-60">

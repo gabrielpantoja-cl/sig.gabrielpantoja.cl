@@ -361,9 +361,14 @@ $224k / $440k / $776k, popup con la celda real al hacer clic.
 - **El 97,3% de la base es 2025.** El mapa es una foto de un año. Cualquier
   lectura de «el barrio subió» es inválida sin filtro temporal explícito, y hoy
   no hay serie suficiente para hacerla.
-- **`montoUf` existe** (67.692 filas) y no se usa. Para comparar entre años, UF
-  es la unidad correcta, no CLP. Vale la pena exponerla como métrica alternativa
-  antes que cualquier análisis temporal.
+- **UF por defecto** *(2026-10-26)*. `/api/hexbins?unidad=uf` agrega
+  `"montoUf" / superficie`; `unidad=clp` (o sin el parámetro, para no romper el
+  contrato) agrega `monto`. La UI abre en UF/m² con un selector UF/m² · $/m²
+  y el permalink lleva `unidad=clp` solo si difiere. Medido: Coyhaique
+  agrícola a zoom 9 pasa de 70 transacciones agregadas en pesos a 2.040 en
+  UF, porque casi todo Aysén antes de 2025 trae solo UF. Los cortes son
+  cuantiles sobre lo visible, así que la rampa no necesita recalibrarse por
+  unidad. Nunca se convierte una unidad en la otra.
 - **PII**: el endpoint agrega, así que no hay riesgo nuevo — pero la consulta
   debe seguir seleccionando solo `monto`, `superficieTerreno`, `destino`, `lat`,
   `lng`. Nunca `comprador`, `vendedor`, `rut`, `userId`, `observaciones`.

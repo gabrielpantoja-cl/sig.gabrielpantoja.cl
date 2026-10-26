@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { DEFAULT_BASEMAP_ID } from '@/lib/basemap';
-import { DESTINO_DEFAULT, HEXBIN_MIN_N_DEFAULT } from '@/lib/hexbins';
+import { DESTINO_DEFAULT, HEXBIN_MIN_N_DEFAULT, HEXBIN_UNIDAD_DEFAULT } from '@/lib/hexbins';
 import {
   serializePermalink,
   type PermalinkDefaults,
@@ -18,6 +18,7 @@ export const PERMALINK_DEFAULTS: PermalinkDefaults = {
   relieve: RELIEVE_DEFAULT_MODO,
   destino: DESTINO_DEFAULT,
   minN: HEXBIN_MIN_N_DEFAULT,
+  unidad: HEXBIN_UNIDAD_DEFAULT,
 };
 
 /** Espera tras el último cambio antes de reescribir la URL. */
