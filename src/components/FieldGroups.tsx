@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { Facets, Stats } from '@/lib/types';
 import { normalizePropiedadRuralRol, type PropiedadRuralSearchMatch } from '@/lib/propiedades-rurales';
 import { track } from '@/lib/analytics';
@@ -551,6 +552,9 @@ function YearRangeField({
  *     distintivo cuando se aparta ≥2x de la mediana.
  *  3. Cada bloque declara SOBRE CUÁNTAS filas se calculó: los NULL de `monto`
  *     y de `superficieTerreno` hacen que los tres denominadores difieran.
+ *  4. La UF es la unidad por defecto: la trae el 92,7 % de la base (los pesos,
+ *     el 79,5 %) y es la que compara años. «Pesos» queda como referencia; cada
+ *     unidad usa su propia columna y su propio denominador, sin convertir.
  */
 export function StatsFields({
   loading,
@@ -563,30 +567,48 @@ export function StatsFields({
   fmtCLP: (v: number | null | undefined) => string;
   fmtInt: (v: number) => string;
 }) {
-  const clp = (v: number | null | undefined) => (loading ? '…' : fmtCLP(v));
+  const [unidad, setUnidad] = useState<'uf' | 'clp'>('uf');
+  const enUf = unidad === 'uf';
+  const fmt = enUf ? fmtUF : fmtCLP;
+  const money = (v: number | null | undefined) => (loading ? '…' : fmt(v));
+  const porM2 = enUf ? 'UF/m²' : '$/m²';
 
   const count = stats?.count ?? 0;
-  const countMonto = stats?.count_monto ?? 0;
-  const countM2 = stats?.count_precio_m2 ?? 0;
+  const countMonto = (enUf ? stats?.count_uf : stats?.count_monto) ?? 0;
+  const countM2 = (enUf ? stats?.count_uf_m2 : stats?.count_precio_m2) ?? 0;
 
   // Asimetría promedio/mediana: por encima de 2x la media deja de describir al
   // conjunto y pasa a describir a sus outliers.
-  const avg = stats?.avg ?? null;
-  const mediana = stats?.mediana ?? null;
+  const avg = (enUf ? stats?.avg_uf : stats?.avg) ?? null;
+  const mediana = (enUf ? stats?.mediana_uf : stats?.mediana) ?? null;
   const skew = avg != null && mediana != null && mediana !== 0 ? avg / mediana : null;
   const skewed = skew != null && (skew >= 2 || skew <= 0.5);
 
   return (
     <div className="flex flex-col gap-3">
+      <div role="group" aria-label="Unidad de los montos" className="flex self-start rounded-md border border-black/15 p-0.5 text-xs dark:border-white/20">
+        {(['uf', 'clp'] as const).map((u) => (
+          <button
+            key={u}
+            type="button"
+            aria-pressed={unidad === u}
+            onClick={() => setUnidad(u)}
+            className={`rounded px-2 py-0.5 ${unidad === u ? 'bg-black/10 font-medium dark:bg-white/15' : 'opacity-60 hover:opacity-100'}`}
+          >
+            {u === 'uf' ? 'UF' : 'Pesos'}
+          </button>
+        ))}
+      </div>
+
       {/* 1. Mediana: el estadístico robusto va primero y en grande. */}
       <div>
         <span className="text-xs uppercase tracking-wide opacity-50">Mediana del monto</span>
         <div className="text-xl font-semibold leading-tight tabular-nums">
-          {clp(mediana)}
+          {money(mediana)}
         </div>
         <Coverage
           loading={loading}
-          text={`Valor central de ${fmtInt(countMonto)} de ${fmtInt(count)} transacciones con monto informado.`}
+          text={`Valor central de ${fmtInt(countMonto)} de ${fmtInt(count)} transacciones con monto en ${enUf ? 'UF' : 'pesos'} informado.`}
         />
       </div>
 
@@ -594,7 +616,7 @@ export function StatsFields({
       <dl className="flex flex-col gap-1.5 border-t border-black/10 pt-3 dark:border-white/10">
         <Row
           label="Promedio"
-          value={clp(avg)}
+          value={money(avg)}
           note={
             skewed && !loading
               ? `${skew.toLocaleString('es-CL', { maximumFractionDigits: 1 })}× la mediana`
@@ -602,22 +624,22 @@ export function StatsFields({
           }
           noteTitle="El promedio se aparta de la mediana: unas pocas transacciones de monto extremo dominan el resultado. Usa la mediana como referencia."
         />
-        <Row label="Mínimo" value={clp(stats?.min)} />
-        <Row label="Máximo" value={clp(stats?.max)} />
+        <Row label="Mínimo" value={money(enUf ? stats?.min_uf : stats?.min)} />
+        <Row label="Máximo" value={money(enUf ? stats?.max_uf : stats?.max)} />
       </dl>
 
-      {/* 3. $/m²: denominador propio, y dos lecturas distintas del mismo dato. */}
+      {/* 3. Valor por m²: denominador propio, y dos lecturas distintas del mismo dato. */}
       <div className="border-t border-black/10 pt-3 dark:border-white/10">
         {/* <dl> solo admite dt/dd/div, así que la nota va fuera de la lista. */}
         <dl className="flex flex-col gap-1.5">
           <Row
-            label="$/m² típico"
-            value={clp(stats?.precio_m2_mediana)}
+            label={`${porM2} típico`}
+            value={money(enUf ? stats?.uf_m2_mediana : stats?.precio_m2_mediana)}
             noteTitle="Mediana de monto/superficie calculada transacción por transacción."
           />
           <Row
-            label="$/m² del conjunto"
-            value={clp(stats?.precio_m2)}
+            label={`${porM2} del conjunto`}
+            value={money(enUf ? stats?.uf_m2 : stats?.precio_m2)}
             noteTitle="Suma de montos dividida por suma de superficies: pondera cada predio por su tamaño."
           />
         </dl>
@@ -625,13 +647,24 @@ export function StatsFields({
           loading={loading}
           text={
             countM2 === 0
-              ? `Sin superficie de terreno informada en las ${fmtInt(count)} transacciones de la selección.`
+              ? `Sin monto en ${enUf ? 'UF' : 'pesos'} y superficie de terreno en las ${fmtInt(count)} transacciones de la selección.`
               : `Calculado sobre ${fmtInt(countM2)} de ${fmtInt(count)} transacciones (${pct(countM2, count)}) con monto y superficie.`
           }
         />
       </div>
     </div>
   );
+}
+
+/**
+ * Monto en UF en formato es-CL. Los decimales dependen de la magnitud: un
+ * valor por m² rural ronda 0,05 UF y con cero decimales se leería «UF 0».
+ */
+function fmtUF(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const abs = Math.abs(v);
+  const digits = abs >= 100 ? 0 : abs >= 1 ? 2 : 4;
+  return `UF ${v.toLocaleString('es-CL', { maximumFractionDigits: digits })}`;
 }
 
 /** Porcentaje de cobertura con un decimal, en formato es-CL. */
