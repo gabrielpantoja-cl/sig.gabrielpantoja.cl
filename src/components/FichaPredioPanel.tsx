@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { track } from '@/lib/analytics';
 import { destinoLabel } from '@/lib/hexbins';
 import { formatoDistancia, formatoSuperficie } from '@/lib/medicion';
@@ -14,6 +14,8 @@ import {
 import {
   ANALISIS_PREDIO_URL,
   RADIO_DEFAULT_M,
+  consultaFicha,
+  validarPoligono,
   type FichaPredio,
   type PoligonoGeoJson,
   type Seccion,
@@ -88,6 +90,14 @@ export function FichaPredioPanel({
   onCerrar: () => void;
 }) {
   const [radioM, setRadioM] = useState(RADIO_DEFAULT_M);
+  const [similar, setSimilar] = useState(false);
+  // Superficie del predio ya en el navegador (la misma validación del servidor),
+  // para pedir comparables de tamaño parecido sin esperar la primera respuesta.
+  const superficieHa = useMemo(() => {
+    const v = validarPoligono(geometry);
+    return v.ok ? v.superficieHa : null;
+  }, [geometry]);
+  const qs = consultaFicha(radioM, similar ? superficieHa : null);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const idTitulo = useId();
   const onFichaRef = useRef(onFicha);
@@ -96,7 +106,7 @@ export function FichaPredioPanel({
   }, [onFicha]);
 
   const cuerpo = JSON.stringify({ geometry });
-  const clave = `${radioM}:${cuerpo}`;
+  const clave = `${qs}:${cuerpo}`;
   // Resultado de otra consulta = no vigente: «cargando» derivado, sin setState en el effect.
   const vigente = resultado !== null && resultado.clave === clave ? resultado : null;
 
@@ -105,7 +115,7 @@ export function FichaPredioPanel({
     onFichaRef.current(null);
     (async () => {
       try {
-        const res = await fetch(`${ANALISIS_PREDIO_URL}?radio_m=${radioM}`, {
+        const res = await fetch(`${ANALISIS_PREDIO_URL}?${qs}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: cuerpo,
@@ -132,7 +142,7 @@ export function FichaPredioPanel({
       }
     })();
     return () => controller.abort();
-  }, [clave, cuerpo, radioM]);
+  }, [clave, cuerpo, qs]);
 
   const ficha = vigente?.tipo === 'ok' ? vigente.ficha : null;
 
@@ -305,6 +315,22 @@ export function FichaPredioPanel({
                 ))}
               </select>
             </label>
+            {superficieHa !== null && (
+              <label className="mb-1 flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={similar}
+                  onChange={(e) => setSimilar(e.target.checked)}
+                  className="accent-[hsl(153_28%_35%)]"
+                />
+                <span>
+                  Solo superficie similar{' '}
+                  <span className="opacity-60">
+                    ({ha(superficieHa / 2)} – {ha(superficieHa * 2)})
+                  </span>
+                </span>
+              </label>
+            )}
             <Estado seccion={ficha.comparables} />
             {ficha.comparables.estado === 'ok' &&
               (ficha.comparables.datos.total === 0 ? (

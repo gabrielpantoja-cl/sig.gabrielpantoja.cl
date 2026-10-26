@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  consultaFicha,
   MAX_SUPERFICIE_HA,
   MAX_VERTICES,
   RADIO_DEFAULT_M,
@@ -174,5 +175,12 @@ describe('poligonoDeFeatures', () => {
   it('returns a plain Polygon for one feature and null for none', () => {
     expect(poligonoDeFeatures({ features: [{ geometry: { type: 'Polygon', coordinates: [cuadrado(100)] } }] })?.type).toBe('Polygon');
     expect(poligonoDeFeatures({ features: [{ geometry: { type: 'Point', coordinates: [-73, -39] } }] })).toBeNull();
+  });
+});
+
+describe('consultaFicha', () => {
+  it('carries the radius and, on request, half to double the parcel surface in m²', () => {
+    expect(consultaFicha(5000, null)).toBe('radio_m=5000');
+    expect(consultaFicha(3000, 1.5)).toBe('radio_m=3000&sup_min=7500&sup_max=30000');
   });
 });
