@@ -177,3 +177,16 @@ export function radioCelda(n: number, nMax: number, min = 2, max = 11): number {
   if (nMax <= 0 || n <= 0) return min;
   return min + (max - min) * Math.sqrt(Math.min(n, nMax) / nMax);
 }
+
+/** Zoom desde el que los círculos se dibujan a tamaño completo. */
+export const ZOOM_RADIO_COMPLETO = 7;
+
+/**
+ * Factor del radio según el zoom: las celdas miden ~10 km, pero el radio está
+ * en px, así que al alejar se enciman y Chile entero queda como una mancha.
+ * Se achica con la raíz de la escala del mapa (×0,5 cada 2 niveles), con piso
+ * 0,3 para que sigan siendo visibles.
+ */
+export function escalaPorZoom(zoom: number): number {
+  return Math.min(1, Math.max(0.3, 2 ** ((zoom - ZOOM_RADIO_COMPLETO) / 2)));
+}

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   barrasPorAnio,
   barrasPorRegion,
+  escalaPorZoom,
   fechaChile,
   historialDiario,
   normalizarGrilla,
@@ -135,5 +136,12 @@ describe('grilla del respaldo', () => {
     expect(radioCelda(0, 100)).toBe(2);
     expect(radioCelda(500, 100)).toBe(11);
     expect(radioCelda(5, 0)).toBe(2);
+  });
+
+  it('el radio se achica al alejar, con piso', () => {
+    expect(escalaPorZoom(7)).toBe(1);
+    expect(escalaPorZoom(10)).toBe(1);
+    expect(escalaPorZoom(5)).toBe(0.5);
+    expect(escalaPorZoom(1)).toBe(0.3);
   });
 });
