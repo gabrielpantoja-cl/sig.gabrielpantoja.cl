@@ -1156,8 +1156,7 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
       Vercel.
 - [ ] 🟡 **Sin monitoreo de errores ni de las fuentes remotas** *(nuevo)*.
       Si CIREN, CONAF o Earth Search caen, nadie se entera hasta que un
-      usuario lo ve. Un chequeo programado (GitHub Actions o el n8n que ya
-      lee la analítica) que haga **una** petición liviana por servicio al día
+      usuario lo ve. Un chequeo programado (por ejemplo GitHub Actions) que haga **una** petición liviana por servicio al día
       y registre el estado basta; publicarlo en una página `/estado` sería un
       plus para los usuarios.
 - [x] **Next.js 16.3.8 con avisos críticos** (RCE en Image Optimization con
@@ -1172,8 +1171,8 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
       `statement_timeout` (~10 s) y `CONNECTION LIMIT`. Así una credencial
       filtrada de Vercel no expone PII ni puede lanzar consultas eternas.
       Requiere el rol owner de Neon. Revisar también que no haya `GRANT …
-      TO PUBLIC` en `public` (lo verían `etl_writer` y
-      `n8n_analytics_reader`).
+      TO PUBLIC` en `public` (lo verían `etl_writer` y los demás roles
+      de la base).
 - [ ] 🟡 **`analytics_writer` solo con `INSERT`** *(revisión 2026-10-26)*.
       Hoy también tiene `SELECT` y `DELETE` porque la purga de retención
       corre dentro de la web. Moverla a un cron con otro rol.
