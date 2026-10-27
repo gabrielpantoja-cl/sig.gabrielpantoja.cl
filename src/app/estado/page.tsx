@@ -10,6 +10,7 @@ import {
   type NivelEstado,
 } from '@/lib/estado';
 import { leerEstado } from '@/lib/estado-server';
+import EstadoMapa from '@/components/EstadoMapa';
 
 /**
  * /estado — salud de los datos de transacciones CBR: si el respaldo diario se
@@ -153,6 +154,13 @@ export default async function EstadoPage() {
           />
         </section>
       )}
+
+      <section className="mt-8">
+        <h2 className="text-xs font-semibold uppercase tracking-wide opacity-50">
+          Copia restaurada en el mapa
+        </h2>
+        <EstadoMapa />
+      </section>
 
       <section className="mt-8">
         <h2 className="text-xs font-semibold uppercase tracking-wide opacity-50">

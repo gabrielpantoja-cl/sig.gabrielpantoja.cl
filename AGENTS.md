@@ -46,7 +46,7 @@ Browser → /api/{ndvi,relieve}/* → public COGs on AWS, rendered by our server
 Browser → POST /api/analisis/predio → Neon PostGIS (capas.* + referenciales) + Copernicus COGs
 Browser → /api/geocode → Nominatim/OSM (Chile only, cached proxy)
 Browser → /api/analytics (sendBeacon) → Neon analytics.events (analytics_writer, INSERT)
-Browser → /estado, monitors → /api/health → public daily backup-verification table (NOT Neon)
+Browser → /estado, monitors → /api/health, /api/estado/grilla → public daily backup-verification table + grid of the restored copy (NOT Neon)
 Any client → src/proxy.ts (before CDN cache) on /api/{points,export} → api_* analytics events
 ```
 
@@ -70,7 +70,7 @@ key-files table lives there too. Invariants that are easy to break:
 - Transmission lines are referential axes: never derive servidumbres with buffers. Catastro frutícola `vintage` is the survey year, never the planting year. Relieve is a DSM and its Copernicus licence notice is mandatory.
 - Do NOT add CARTO or Stadia basemaps (they require API keys). The basemap preference is read via `useSyncExternalStore`, not `useState` + `useEffect`.
 - `/api/version` is the only route that skips `enforce()` and must stay `no-store`.
-- `/estado` and `/api/health` must never query Neon: a monitor polling every few minutes would keep its compute awake and burn the transfer quota.
+- `/estado`, `/api/health` and `/api/estado/grilla` must never query Neon: a monitor polling every few minutes would keep its compute awake and burn the transfer quota.
 
 ## Environment
 
