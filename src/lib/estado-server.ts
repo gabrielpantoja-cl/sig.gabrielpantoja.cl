@@ -1,5 +1,10 @@
 import 'server-only';
-import { COLUMNAS_VERIFICACION, type Verificacion } from '@/lib/estado';
+import {
+  COLUMNAS_VERIFICACION,
+  normalizarGrilla,
+  type GrillaRespaldo,
+  type Verificacion,
+} from '@/lib/estado';
 
 /**
  * Lee las verificaciones diarias del respaldo (ver `estado.ts`). Es una tabla
@@ -33,6 +38,37 @@ export async function obtenerVerificaciones(limite = 60): Promise<Verificacion[]
     return (await res.json()) as Verificacion[];
   } catch (error) {
     console.error('Error leyendo estado_respaldo:', error);
+    return null;
+  }
+}
+
+/** La copia cambia una vez al día; una hora de caché basta para el visor. */
+export const REVALIDAR_GRILLA_S = 3600;
+
+/**
+ * Grilla de la copia restaurada (ver `normalizarGrilla`), por la función
+ * `estado_respaldo_grilla` de la misma base y con la misma clave publicable.
+ * La función agrupa del lado de la base: nunca viajan filas de transacciones.
+ * `null` si falta configuración, la función no existe o la forma no calza.
+ */
+export async function obtenerGrilla(): Promise<GrillaRespaldo | null> {
+  const base = process.env.ESTADO_SUPABASE_URL;
+  const clave = process.env.ESTADO_SUPABASE_KEY;
+  if (!base || !clave) return null;
+
+  const url = `${base.replace(/\/$/, '')}/rest/v1/rpc/estado_respaldo_grilla`;
+  try {
+    const res = await fetch(url, {
+      headers: { apikey: clave },
+      next: { revalidate: REVALIDAR_GRILLA_S },
+    });
+    if (!res.ok) {
+      console.error('estado_respaldo_grilla respondió', res.status);
+      return null;
+    }
+    return normalizarGrilla(await res.json());
+  } catch (error) {
+    console.error('Error leyendo estado_respaldo_grilla:', error);
     return null;
   }
 }

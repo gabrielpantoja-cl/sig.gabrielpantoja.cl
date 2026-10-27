@@ -4,6 +4,8 @@ import {
   barrasPorRegion,
   fechaChile,
   historialDiario,
+  normalizarGrilla,
+  radioCelda,
   resumirEstado,
   type Verificacion,
 } from '@/lib/estado';
@@ -95,5 +97,43 @@ describe('barras', () => {
       'Maule',
       'Ñuble',
     ]);
+  });
+});
+
+describe('grilla del respaldo', () => {
+  it('convierte [lat, lng, n] y descarta celdas inválidas', () => {
+    expect(
+      normalizarGrilla({
+        total: 12,
+        celdas: [
+          [-45.5, -72.1, 10],
+          ['-39.8', '-73.2', '2'],
+          [-45.5, -72.1],
+          [-95, -72, 3],
+          [-33.4, -70.6, 0],
+          'x',
+        ],
+      }),
+    ).toEqual({
+      total: 12,
+      celdas: [
+        { lat: -45.5, lng: -72.1, n: 10 },
+        { lat: -39.8, lng: -73.2, n: 2 },
+      ],
+    });
+  });
+
+  it('una forma inesperada es null', () => {
+    expect(normalizarGrilla(null)).toBeNull();
+    expect(normalizarGrilla({ total: '5', celdas: [] })).toBeNull();
+    expect(normalizarGrilla({ total: 5 })).toBeNull();
+  });
+
+  it('el radio crece con la raíz del conteo y respeta los topes', () => {
+    expect(radioCelda(100, 100)).toBe(11);
+    expect(radioCelda(25, 100)).toBeCloseTo(6.5);
+    expect(radioCelda(0, 100)).toBe(2);
+    expect(radioCelda(500, 100)).toBe(11);
+    expect(radioCelda(5, 0)).toBe(2);
   });
 });

@@ -133,3 +133,47 @@ export function barrasPorRegion(porRegion: Record<string, number> | null): Barra
     .map(([etiqueta, valor]) => ({ etiqueta, valor }))
     .sort((a, b) => b.valor - a.valor || a.etiqueta.localeCompare(b.etiqueta, 'es'));
 }
+
+/**
+ * Grilla de la copia restaurada para el micro visor de `/estado`: la copia
+ * agrupada en celdas de 0,1° (~10 km) con su conteo. Solo coordenadas
+ * redondeadas y conteos: menos detalle que el mapa principal.
+ */
+export interface CeldaRespaldo {
+  lat: number;
+  lng: number;
+  n: number;
+}
+
+export interface GrillaRespaldo {
+  total: number;
+  celdas: CeldaRespaldo[];
+}
+
+/**
+ * Valida lo que devuelve la función de la base (`{ total, celdas: [[lat, lng, n], …] }`).
+ * Descarta celdas mal formadas o fuera de rango; `null` si la forma no calza.
+ */
+export function normalizarGrilla(raw: unknown): GrillaRespaldo | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const { total, celdas } = raw as { total?: unknown; celdas?: unknown };
+  if (typeof total !== 'number' || !Array.isArray(celdas)) return null;
+  const salida: CeldaRespaldo[] = [];
+  for (const c of celdas) {
+    if (!Array.isArray(c) || c.length !== 3) continue;
+    const [lat, lng, n] = c.map(Number);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(n) || n <= 0) continue;
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) continue;
+    salida.push({ lat, lng, n });
+  }
+  return { total, celdas: salida };
+}
+
+/**
+ * Radio en px de una celda: área proporcional al conteo (raíz), entre `min` y
+ * `max`. Con radio lineal una celda de Santiago taparía regiones enteras.
+ */
+export function radioCelda(n: number, nMax: number, min = 2, max = 11): number {
+  if (nMax <= 0 || n <= 0) return min;
+  return min + (max - min) * Math.sqrt(Math.min(n, nMax) / nMax);
+}
