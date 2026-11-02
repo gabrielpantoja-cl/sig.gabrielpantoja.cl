@@ -72,3 +72,11 @@ AGENTS.local.md
 research/
 # El prototipo de medición de NDVI sí se versiona: sus cifras sostienen § 5.2.
 !scripts/research/
+
+# OpenNext
+.open-next
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
