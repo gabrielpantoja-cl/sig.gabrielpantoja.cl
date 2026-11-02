@@ -1,0 +1,65 @@
+{
+  "nombre": "Registro de transacciones de suelo (CBR Chile) — corte público",
+  "version_corte": 1,
+  "generado_en": "2026-11-02T07:58:12.353Z",
+  "fuente": "https://sig.gabrielpantoja.cl",
+  "licencia": "CC-BY-4.0",
+  "columnas": [
+    "id",
+    "lat",
+    "lng",
+    "monto",
+    "montoUf",
+    "anio",
+    "comuna",
+    "predio",
+    "superficie",
+    "rol",
+    "destino",
+    "fechaEscritura",
+    "fechaInscripcion",
+    "fojas",
+    "numero",
+    "conservador"
+  ],
+  "sin_pii": [
+    "comprador",
+    "vendedor",
+    "rut",
+    "userId",
+    "observaciones"
+  ],
+  "conteos": {
+    "transacciones": 122241,
+    "georreferenciadas": 122241,
+    "conservadores": 100,
+    "comunas": 260,
+    "anio_min": 1994,
+    "anio_max": 2026
+  },
+  "merkle": {
+    "algoritmo": "SHA-256",
+    "canonicalizacion": "columnas en orden fijo, separador TAB, NULL = \\N, escape de \\ y separadores",
+    "duplica_impar": true,
+    "n_hojas": 122241,
+    "raiz": "098076a3c6239ebe95a29543638cfd9ad36f5c8dec3ef10ca9369b1637d9db96"
+  },
+  "archivos": {
+    "referenciales.csv": {
+      "bytes": 17672555,
+      "sha256": "c91ad20d5d3913089aeb4b51baa0bfb39b7f7819223bc09a846a808af846d770"
+    },
+    "referenciales.geojson": {
+      "bytes": 48206101,
+      "sha256": "333786bb0a04ec5b24027bcb6b62a7a30795b44bc3a9d57459205377e3983697"
+    },
+    "conservadores.csv": {
+      "bytes": 4082,
+      "sha256": "c4ea3aaa073d0bd24c078b6b01caafef10169468c9a180c523d58e68298e214d"
+    },
+    "hojas.txt": {
+      "bytes": 7945665,
+      "sha256": "69bb6d6f776a6677823421ae6e3fd5ff2e995103d0192fa026a2a0a9b216ed35"
+    }
+  }
+}

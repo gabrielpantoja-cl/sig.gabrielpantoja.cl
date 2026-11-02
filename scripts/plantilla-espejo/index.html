@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Registro de transacciones de suelo — copia de respaldo</title>
+<meta name="description" content="Copia de respaldo verificable del registro de transacciones de suelo del CBR de Chile. Funciona sin servidor ni base de datos.">
+<!-- Todas las rutas son RELATIVAS: las gateways de IPFS sirven bajo /ipfs/<cid>/ -->
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./vendor/leaflet.css">
+<style>
+  :root {
+    --fondo: #fbfaf8; --texto: #1c1917; --suave: #78716c; --linea: #e7e5e4;
+    --panel: #ffffff; --acento: #e11d48;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --fondo:#0c0a09; --texto:#f5f5f4; --suave:#a8a29e; --linea:#292524; --panel:#1c1917; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; }
+  body {
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--fondo); color: var(--texto);
+    display: flex; flex-direction: column;
+  }
+  header { padding: 14px 18px; border-bottom: 1px solid var(--linea); }
+  h1 { margin: 0 0 3px; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+  .sub { color: var(--suave); font-size: 13px; }
+  .sub b { color: var(--texto); font-weight: 600; font-variant-numeric: tabular-nums; }
+  main { flex: 1; display: flex; min-height: 0; }
+  #mapa { flex: 1; background: var(--fondo); }
+  aside {
+    width: 300px; border-left: 1px solid var(--linea); padding: 16px;
+    overflow-y: auto; background: var(--panel);
+  }
+  @media (max-width: 820px) {
+    main { flex-direction: column; }
+    #mapa { height: 55vh; flex: none; }
+    aside { width: auto; border-left: 0; border-top: 1px solid var(--linea); }
+  }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+       color: var(--suave); margin: 0 0 8px; font-weight: 600; }
+  section + section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--linea); }
+  label { display:block; font-size:12px; color: var(--suave); margin: 10px 0 3px; }
+  select, input[type=search] {
+    width: 100%; padding: 6px 8px; font: inherit; font-size: 13px;
+    background: var(--fondo); color: var(--texto);
+    border: 1px solid var(--linea); border-radius: 5px;
+  }
+  input[type=range] { width: 100%; accent-color: var(--acento); }
+  .rango { display:flex; justify-content:space-between; font-size:12px;
+           color: var(--suave); font-variant-numeric: tabular-nums; }
+  .hash {
+    font: 11px/1.5 ui-monospace, "JetBrains Mono", Consolas, monospace;
+    word-break: break-all; user-select: all; color: var(--suave);
+    background: var(--fondo); border:1px solid var(--linea);
+    border-radius:5px; padding:7px 8px;
+  }
+  a { color: var(--acento); }
+  .desc { display:block; padding: 7px 0; font-size: 13px; }
+  .desc small { color: var(--suave); font-variant-numeric: tabular-nums; }
+  code { font: 11.5px ui-monospace, Consolas, monospace;
+         background: var(--fondo); padding: 1px 4px; border-radius: 3px;
+         border: 1px solid var(--linea); }
+  .nota { font-size: 12px; color: var(--suave); }
+  .leaflet-popup-content { font-size: 13px; margin: 10px 12px; }
+  .leaflet-popup-content dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:2px 10px; }
+  .leaflet-popup-content dt { color:#78716c; }
+  .leaflet-popup-content dd { margin:0; font-variant-numeric: tabular-nums; }
+  .leaflet-container { background: var(--fondo); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Registro de transacciones de suelo · copia de respaldo</h1>
+  <div class="sub">
+    <b id="mostrados">—</b> de <b id="total">—</b> inscripciones ·
+    corte del <b id="fecha">—</b> ·
+    <span id="estado">cargando…</span>
+  </div>
+</header>
+
+<main>
+  <div id="mapa"></div>
+  <aside>
+    <section>
+      <h2>Filtros</h2>
+      <label for="destino">Destino</label>
+      <select id="destino"><option value="">todos</option></select>
+      <label for="comuna">Comuna</label>
+      <select id="comuna"><option value="">todas</option></select>
+      <label for="desde">Año desde <span id="desdeVal"></span></label>
+      <input type="range" id="desde">
+      <label for="hasta">Año hasta <span id="hastaVal"></span></label>
+      <input type="range" id="hasta">
+      <div class="rango"><span id="anioMin"></span><span id="anioMax"></span></div>
+    </section>
+
+    <section>
+      <h2>Descargas</h2>
+      <a class="desc" href="./datos/referenciales.csv" download>
+        referenciales.csv <small id="pesoCsv"></small>
+      </a>
+      <a class="desc" href="./datos/conservadores.csv" download>conservadores.csv</a>
+      <a class="desc" href="./datos/MANIFIESTO.json" download>MANIFIESTO.json</a>
+    </section>
+
+    <section>
+      <h2>Integridad</h2>
+      <p class="nota" style="margin-top:0">Raíz de Merkle del corte:</p>
+      <div class="hash" id="raiz">—</div>
+      <p class="nota">
+        Para comprobar que el archivo que descargaste es el publicado:
+        <code>sha256sum referenciales.csv</code> y compara con
+        <code>MANIFIESTO.json</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Qué es esto</h2>
+      <p class="nota" style="margin-top:0">
+        Copia estática y verificable del registro. No hay servidor ni base de
+        datos detrás: todo se calcula en tu navegador desde los archivos de esta
+        misma carpeta. Por eso sigue funcionando aunque el sitio principal no
+        esté disponible.
+      </p>
+      <p class="nota">
+        Datos públicos de los Conservadores de Bienes Raíces. No contiene datos
+        personales: nunca comprador, vendedor ni RUT. El rol es el identificador
+        público del SII.
+      </p>
+      <p class="nota">Licencia CC BY 4.0.</p>
+    </section>
+  </aside>
+</main>
+
+<script src="./vendor/leaflet.js"></script>
+<script>
+(async function () {
+  var estado = document.getElementById('estado');
+
+  var D;
+  try {
+    var r = await fetch('./datos/puntos.json');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    D = await r.json();
+  } catch (e) {
+    estado.textContent = 'no se pudieron cargar los datos (' + e.message + ')';
+    return;
+  }
+
+  var n = D.n;
+  document.getElementById('total').textContent = n.toLocaleString('es-CL');
+  document.getElementById('fecha').textContent =
+    new Date(D.generado_en).toLocaleDateString('es-CL');
+  document.getElementById('raiz').textContent = D.merkle_raiz;
+  estado.textContent = 'sin servidor';
+
+  var mapa = L.map('mapa', { preferCanvas: true, zoomControl: true })
+    .setView([-38.5, -72.5], 6);
+
+  // El mapa base es la única pieza que viene de la red. Si no carga, los puntos
+  // igual se dibujan sobre el fondo neutro: el respaldo no depende de ella.
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18, attribution: '&copy; OpenStreetMap'
+  }).addTo(mapa);
+
+  // --- poblar los filtros ---
+  function poblar(sel, dic) {
+    var orden = dic.map(function (v, i) { return [v, i]; })
+      .filter(function (p) { return p[0] !== ''; })
+      .sort(function (a, b) { return a[0].localeCompare(b[0], 'es'); });
+    orden.forEach(function (p) {
+      var o = document.createElement('option');
+      o.value = p[1]; o.textContent = p[0];
+      sel.appendChild(o);
+    });
+  }
+  poblar(document.getElementById('destino'), D.dic.destino);
+  poblar(document.getElementById('comuna'), D.dic.comuna);
+
+  var anios = D.anio.filter(function (a) { return a != null; });
+  var aMin = Math.min.apply(null, anios), aMax = Math.max.apply(null, anios);
+  var desde = document.getElementById('desde'), hasta = document.getElementById('hasta');
+  [desde, hasta].forEach(function (s) { s.min = aMin; s.max = aMax; });
+  desde.value = aMin; hasta.value = aMax;
+  document.getElementById('anioMin').textContent = aMin;
+  document.getElementById('anioMax').textContent = aMax;
+
+  // --- capa de puntos en canvas ---
+  // 122k marcadores DOM congelan el navegador. Se dibuja a mano sobre un canvas
+  // y solo lo que cae dentro del encuadre actual.
+  var CapaPuntos = L.Layer.extend({
+    onAdd: function (m) {
+      this._m = m;
+      this._c = L.DomUtil.create('canvas', 'leaflet-zoom-animated');
+      m.getPanes().overlayPane.appendChild(this._c);
+      m.on('moveend zoomend resize', this._pintar, this);
+      this._pintar();
+    },
+    onRemove: function (m) {
+      m.getPanes().overlayPane.removeChild(this._c);
+      m.off('moveend zoomend resize', this._pintar, this);
+    },
+    _pintar: function () {
+      var m = this._m, tam = m.getSize(), esq = m.containerPointToLayerPoint([0, 0]);
+      L.DomUtil.setPosition(this._c, esq);
+      var dpr = window.devicePixelRatio || 1;
+      this._c.width = tam.x * dpr; this._c.height = tam.y * dpr;
+      this._c.style.width = tam.x + 'px'; this._c.style.height = tam.y + 'px';
+
+      var ctx = this._c.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, tam.x, tam.y);
+
+      var b = m.getBounds(), s = b.getSouth(), nn = b.getNorth(),
+          w = b.getWest(), e = b.getEast();
+      var radio = m.getZoom() < 8 ? 1.6 : (m.getZoom() < 11 ? 2.6 : 4);
+      ctx.fillStyle = 'rgba(225,29,72,.72)';
+
+      this._vis = [];
+      var vis = this._vis, dibujados = 0;
+      for (var i = 0; i < n; i++) {
+        if (!visible[i]) continue;
+        var la = D.lat[i], ln = D.lng[i];
+        if (la < s || la > nn || ln < w || ln > e) continue;
+        var p = m.latLngToContainerPoint([la, ln]);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radio, 0, 6.283);
+        ctx.fill();
+        vis.push([p.x, p.y, i]);
+        if (++dibujados > 200000) break;
+      }
+    },
+    enPunto: function (px, py) {
+      var mejor = -1, dm = 100;
+      for (var k = 0; k < this._vis.length; k++) {
+        var dx = this._vis[k][0] - px, dy = this._vis[k][1] - py, d = dx * dx + dy * dy;
+        if (d < dm) { dm = d; mejor = this._vis[k][2]; }
+      }
+      return mejor;
+    }
+  });
+
+  var visible = new Uint8Array(n).fill(1);
+  var capa = new CapaPuntos().addTo(mapa);
+
+  // --- filtrado ---
+  var clp = new Intl.NumberFormat('es-CL');
+  function aplicar() {
+    var fd = document.getElementById('destino').value,
+        fc = document.getElementById('comuna').value,
+        a1 = +desde.value, a2 = +hasta.value;
+    if (a1 > a2) { a2 = a1; hasta.value = a1; }
+    document.getElementById('desdeVal').textContent = a1;
+    document.getElementById('hastaVal').textContent = a2;
+
+    var cuenta = 0;
+    for (var i = 0; i < n; i++) {
+      var ok = 1;
+      if (fd !== '' && D.destino[i] !== +fd) ok = 0;
+      else if (fc !== '' && D.comuna[i] !== +fc) ok = 0;
+      else { var a = D.anio[i]; if (a == null || a < a1 || a > a2) ok = 0; }
+      visible[i] = ok; cuenta += ok;
+    }
+    document.getElementById('mostrados').textContent = cuenta.toLocaleString('es-CL');
+    capa._pintar();
+  }
+  ['destino', 'comuna'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', aplicar);
+  });
+  [desde, hasta].forEach(function (s) { s.addEventListener('input', aplicar); });
+  aplicar();
+
+  // --- consulta por clic ---
+  mapa.on('click', function (ev) {
+    var i = capa.enPunto(ev.containerPoint.x, ev.containerPoint.y);
+    if (i < 0) return;
+    var filas = [
+      ['Comuna', D.dic.comuna[D.comuna[i]] || '—'],
+      ['Rol', D.rol[i] || '—'],
+      ['Año', D.anio[i] != null ? D.anio[i] : '—'],
+      ['Monto', D.monto[i] != null ? '$' + clp.format(D.monto[i]) : '—'],
+      ['Destino', D.dic.destino[D.destino[i]] || '—']
+    ];
+    L.popup()
+      .setLatLng([D.lat[i], D.lng[i]])
+      .setContent('<dl>' + filas.map(function (f) {
+        return '<dt>' + f[0] + '</dt><dd>' + f[1] + '</dd>';
+      }).join('') + '</dl>')
+      .openOn(mapa);
+  });
+
+  // Peso real del CSV, leido con una peticion de rango: no descarga el archivo.
+  fetch('./datos/referenciales.csv', { method: 'HEAD' }).then(function (r) {
+    var t = r.headers.get('content-length');
+    if (t) document.getElementById('pesoCsv').textContent =
+      '(' + (t / 1048576).toFixed(1) + ' MB)';
+  }).catch(function () {});
+})();
+</script>
+</body>
+</html>

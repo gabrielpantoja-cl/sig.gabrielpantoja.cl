@@ -1,0 +1,101 @@
+id,nombre,comuna,region
+cbr-01101,Iquique,Iquique,Tarapacá
+cbr-02101,Antofagasta,Antofagasta,Antofagasta
+cbr-02201,Calama,Calama,Antofagasta
+cbr-03101,Copiapó,Copiapó,Atacama
+cbr-04101,La Serena,La Serena,Coquimbo
+cbr-04201,Illapel,Illapel,Coquimbo
+cbr-04301,Ovalle,Ovalle,Coquimbo
+cbr-05101,Valparaíso,Valparaíso,Valparaíso
+cbr-05109,Viña del Mar,Viña del Mar,Valparaíso
+cbr-05111,Concón,Concón,Valparaíso
+cbr-05201,La Ligua,La Ligua,Valparaíso
+cbr-05202,Petorca,Petorca,Valparaíso
+cbr-05301,Los Andes,Los Andes,Valparaíso
+cbr-05303,Villa Alemana,Villa Alemana,Valparaíso
+cbr-05304,Quilpué,Quilpué,Valparaíso
+cbr-05306,Quintero,Quintero,Valparaíso
+cbr-05501,Quillota,Quillota,Valparaíso
+cbr-05502,La Calera,La Calera,Valparaíso
+cbr-05506,Limache,Limache,Valparaíso
+cbr-05601,San Antonio,San Antonio,Valparaíso
+cbr-05602,Casablanca,Casablanca,Valparaíso
+cbr-05603,El Quisco,El Quisco,Valparaíso
+cbr-05701,San Felipe,San Felipe,Valparaíso
+cbr-06101,Rancagua,Rancagua,O'Higgins
+cbr-06112,Peumo,Peumo,O'Higgins
+cbr-06115,Rengo,Rengo,O'Higgins
+cbr-06117,San Vicente,San Vicente de Tagua Tagua,O'Higgins
+cbr-06201,Pichilemu,Pichilemu,O'Higgins
+cbr-06301,San Fernando,San Fernando,O'Higgins
+cbr-06302,Santa Cruz,Santa Cruz,O'Higgins
+cbr-07301,Curicó,Curicó,Maule
+cbr-07304,Molina,Molina,Maule
+cbr-07401,Talca,Talca,Maule
+cbr-07402,Constitución,Constitución,Maule
+cbr-07501,Cauquenes,Cauquenes,Maule
+cbr-07801,Linares,Linares,Maule
+cbr-07804,Parral,Parral,Maule
+cbr-07806,San Javier,San Javier,Maule
+cbr-08101,Concepción,Concepción,Biobío
+cbr-08102,Coronel,Coronel,Biobío
+cbr-08103,Chiguayante,Chiguayante,Biobío
+cbr-08104,Florida,Florida,Biobío
+cbr-08110,Santa Juana,Santa Juana,Biobío
+cbr-08111,Talcahuano,Talcahuano,Biobío
+cbr-08201,Lebu,Lebu,Biobío
+cbr-08202,Arauco,Arauco,Biobío
+cbr-08203,Cañete,Cañete,Biobío
+cbr-08205,Curanilahue,Curanilahue,Biobío
+cbr-08301,Los Ángeles,Los Ángeles,Biobío
+cbr-09101,Temuco,Temuco,La Araucanía
+cbr-09102,Carahue,Carahue,La Araucanía
+cbr-09108,Lautaro,Lautaro,La Araucanía
+cbr-09109,Loncoche,Loncoche,La Araucanía
+cbr-09111,Nueva Imperial,Nueva Imperial,La Araucanía
+cbr-09114,Pitrufquén,Pitrufquén,La Araucanía
+cbr-09118,Toltén,Toltén,La Araucanía
+cbr-09120,Villarrica,Villarrica,La Araucanía
+cbr-09201,Angol,Angol,La Araucanía
+cbr-09202,Collipulli,Collipulli,La Araucanía
+cbr-09203,Curacautín,Curacautín,La Araucanía
+cbr-09208,Purén,Purén,La Araucanía
+cbr-09210,Traiguén,Traiguén,La Araucanía
+cbr-09211,Victoria,Victoria,La Araucanía
+cbr-10101,Puerto Montt,Puerto Montt,Los Lagos
+cbr-10109,Puerto Varas,Puerto Varas,Los Lagos
+cbr-10201,Castro,Castro,Los Lagos
+cbr-10202,Ancud,Ancud,Los Lagos
+cbr-10206,Quellón,Quellón,Los Lagos
+cbr-10208,Quinchao,Quinchao,Los Lagos
+cbr-10301,Osorno,Osorno,Los Lagos
+cbr-10303,Río Negro,Río Negro,Los Lagos
+cbr-10501,Chaitén,Chaitén,Los Lagos
+cbr-11101,Coyhaique,Coyhaique,Aysén
+cbr-11201,Puerto Aysén,Puerto Aysén,Aysén
+cbr-11202,Cisnes,Puerto Cisnes,Aysén
+cbr-11301,Cochrane,Cochrane,Aysén
+cbr-11401,Chile Chico,Chile Chico,Aysén
+cbr-12101,Punta Arenas,Punta Arenas,Magallanes
+cbr-12201,Puerto Williams,Puerto Williams,Magallanes
+cbr-12301,Porvenir,Porvenir,Magallanes
+cbr-12401,Puerto Natales,Puerto Natales,Magallanes
+cbr-13101,Santiago,"Santiago, Las Condes",Metropolitana
+cbr-13201,Puente Alto,Puente Alto,Metropolitana
+cbr-13501,Melipilla,Melipilla,Metropolitana
+cbr-13601,Talagante,Talagante,Metropolitana
+cbr-14101,Valdivia,Valdivia,Los Ríos
+cbr-14102,Mariquina,San José de la Mariquina,Los Ríos
+cbr-14104,Los Lagos,Los Lagos,Los Ríos
+cbr-14201,La Unión,La Unión,Los Ríos
+cbr-14203,Río Bueno,Río Bueno,Los Ríos
+cbr-14204,Paillaco,Paillaco,Los Ríos
+cbr-14205,Panguipulli,Panguipulli,Los Ríos
+cbr-15101,Arica,ARICA,Arica y Parinacota
+cbr-16101,Chillán,Chillán,Ñuble
+cbr-16102,Bulnes,Bulnes,Ñuble
+cbr-16109,Yungay,Yungay,Ñuble
+cbr-16202,Coelemu,Coelemu,Ñuble
+cbr-16205,Quirihue,Quirihue,Ñuble
+cbr-16301,San Carlos,San Carlos,Ñuble
+copiapo-cbr,"Copiapó (legacy ID, migrado a cbr-03101)",Copiapó,Atacama
