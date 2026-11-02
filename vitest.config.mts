@@ -15,6 +15,9 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    // Los scripts de construccion de datos tambien llevan pruebas: la
+    // canonicalizacion y el arbol de Merkle del corte publico son logica pura
+    // que no puede romperse en silencio (docs/preservacion-datos.md).
+    include: ['src/**/*.test.ts', 'scripts/**/*.test.mjs'],
   },
 });
