@@ -1,6 +1,6 @@
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
@@ -41,6 +41,7 @@ CI (`.github/workflows/lint.yml`) runs lint → typecheck → test → build on
 
 ```
 Browser → /api/{points,stats,export,facets,hexbins,conservadores} → Neon (web_readonly, SELECT)
+Browser → /api/dataset → Neon (huella del conjunto: count + max timestamp; `s-maxage=30`)
 Browser → /api/{suelos,vegetacional,humedales,propiedades-rurales}/* → official ArcGIS (validated proxy)
 Browser → /api/{ndvi,relieve}/* → public COGs on AWS, rendered by our server
 Browser → POST /api/analisis/predio → Neon PostGIS (capas.* + referenciales) + Copernicus COGs
@@ -70,6 +71,7 @@ key-files table lives there too. Invariants that are easy to break:
 - Transmission lines are referential axes: never derive servidumbres with buffers. Catastro frutícola `vintage` is the survey year, never the planting year. Relieve is a DSM and its Copernicus licence notice is mandatory.
 - Do NOT add CARTO or Stadia basemaps (they require API keys). The basemap preference is read via `useSyncExternalStore`, not `useState` + `useEffect`.
 - `/api/version` is the only route that skips `enforce()` and must stay `no-store`.
+- The CBR data routes are keyed by the dataset token: `useCbrData` resolves `/api/dataset` FIRST and attaches `?ds=<token>` to points, stats, facets and hexbins. Without it the CDN serves the pre-load copy for up to a day while any filter shows the new data — the bug that made the map look like it hid the old years. The param is `ds`, never `v` (`v` is the permalink viewport).
 - `/estado`, `/api/health` and `/api/estado/grilla` must never query Neon: a monitor polling every few minutes would keep its compute awake and burn the transfer quota.
 
 ## Environment
