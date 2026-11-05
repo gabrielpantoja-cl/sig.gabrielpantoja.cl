@@ -44,6 +44,7 @@ import { track } from '@/lib/analytics';
 import { buildExportMetadata } from '@/lib/export-metadata';
 import { serializeDestinos } from '@/lib/destinos';
 import { extensionRobusta } from '@/lib/encuadre';
+import { withDataset } from '@/lib/dataset';
 import { useCbrData } from '@/hooks/useCbrData';
 import { useCloseOnBack } from '@/hooks/useCloseOnBack';
 import { useKmlLayers } from '@/hooks/useKmlLayers';
@@ -275,7 +276,16 @@ function SigApp({ initial }: { initial: PermalinkState }) {
 
   const debouncedQs = useDebounced(queryString, 400);
 
-  const { facets, points, stats, loading, error } = useCbrData(debouncedQs, {
+  const {
+    facets,
+    points,
+    stats,
+    loading,
+    error,
+    datasetToken,
+    datosNuevos,
+    recargarDatos,
+  } = useCbrData(debouncedQs, {
     onDownloadProgress: (frac) => {
       if (booting.current) setBootProgress(5 + Math.round(frac * 55));
     },
@@ -293,6 +303,14 @@ function SigApp({ initial }: { initial: PermalinkState }) {
       setBootDone(true);
     },
   });
+
+  // El mapa de calor agrega la MISMA tabla en Neon por viewport y se cachea
+  // igual en el borde: sin el token del conjunto quedaría mostrando medianas
+  // de la carga anterior cuando los puntos ya son los nuevos.
+  const hexbinFiltersQs = useMemo(
+    () => withDataset(debouncedQs, datasetToken),
+    [debouncedQs, datasetToken],
+  );
 
   // Encuadre de la comuna elegida: se deriva cuando los puntos cargados ya son
   // los de esa comuna, así el vuelo usa la selección real y no la anterior.
@@ -626,8 +644,13 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     lastFilterKeys.current = keys;
     if (keys) track('filter', { fields: keys });
   }, [debouncedQs]);
-  const exportHref = (format: 'csv' | 'geojson') =>
-    `/api/export?${debouncedQs ? `${debouncedQs}&` : ''}format=${format}`;
+  // El token del conjunto va también en la descarga: así el CSV/GeoJSON
+  // corresponde exactamente a lo que el usuario tiene en pantalla, aunque
+  // alguna capa de caché decidiera guardar esta respuesta.
+  const exportHref = (format: 'csv' | 'geojson') => {
+    const qs = withDataset(debouncedQs, datasetToken);
+    return `/api/export?${qs ? `${qs}&` : ''}format=${format}`;
+  };
 
   const searchFields = (
     <div className="flex flex-col gap-3">
@@ -922,7 +945,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               hexbinDestino={hexbinDestino}
               hexbinMinN={hexbinMinN}
               hexbinUnidad={hexbinUnidad}
-              hexbinFiltersQs={debouncedQs}
+              hexbinFiltersQs={hexbinFiltersQs}
               onHexbinStatus={setHexbinStatus}
               kmlLayers={kmlLayers}
               basemap={basemap}
@@ -1097,6 +1120,37 @@ function SigApp({ initial }: { initial: PermalinkState }) {
                 onResaltado={handleNdviResaltado}
                 onCerrar={cerrarNdvi}
               />
+            </div>
+          )}
+
+          {/* Datos nuevos en el servidor. Se OFRECE, nunca se aplica solo:
+              recargar el conjunto en medio de una lectura cambiaría los
+              puntos bajo el cursor. Al aceptar se vuelve a pedir en sitio —
+              filtros, encuadre y capas KML quedan intactos, a diferencia del
+              aviso de despliegue nuevo (`UpdateNotice`), que sí recarga. */}
+          {datosNuevos && !loading && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="absolute bottom-20 left-1/2 z-[655] flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-[hsl(153_28%_35%)]/60 bg-[var(--background)]/97 py-1.5 pl-3.5 pr-1.5 text-xs shadow-lg backdrop-blur md:bottom-9"
+            >
+              <span>
+                Hay datos nuevos
+                <span className="ml-1 tabular-nums opacity-70">
+                  ({datosNuevos.hasta > datosNuevos.desde ? '+' : ''}
+                  {fmtInt(datosNuevos.hasta - datosNuevos.desde)} transacciones)
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  track('data_refresh');
+                  recargarDatos();
+                }}
+                className="rounded-full bg-[hsl(153_28%_30%)] px-3 py-1 text-xs font-medium text-white transition-opacity hover:opacity-90"
+              >
+                Actualizar
+              </button>
             </div>
           )}
 

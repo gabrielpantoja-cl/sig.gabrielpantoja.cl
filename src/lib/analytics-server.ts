@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { neon } from '@neondatabase/serverless';
 import { userAgent } from 'next/server';
 import { clientIp } from '@/lib/security';
+import { DATASET_PARAM } from '@/lib/dataset';
 import { BUILD_ID } from '@/lib/version';
 import {
   ANALYTICS_OPT_OUT_COOKIE,
@@ -142,7 +143,7 @@ function hostOf(value: string | null): string | null {
 }
 
 /** Parámetros de la API que no son filtros: no van en `fields`. */
-const NOT_FILTERS = new Set(['format', 'part', 'parts']);
+const NOT_FILTERS = new Set(['format', 'part', 'parts', DATASET_PARAM]);
 
 /**
  * Registra una consulta a la API de datos (`/api/points`, `/api/export`).

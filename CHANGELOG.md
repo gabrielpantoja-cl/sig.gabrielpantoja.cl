@@ -23,6 +23,14 @@ versionado.
 
 ### Añadido
 
+- **Aviso «Hay datos nuevos» con recarga en sitio.** Mientras la pestaña está
+  visible, el mapa comprueba cada minuto si cambió el conjunto de
+  transacciones y ofrece actualizarlo sin recargar la página: los filtros,
+  el encuadre y las capas KML cargadas desde el equipo quedan intactos. Pensado
+  para quien está ingresando datos y quiere verlos en producción al tiro.
+  Nunca se actualiza solo — cambiar los puntos bajo el cursor en medio de una
+  lectura sería peor que el retraso.
+
 - **Página `/estado` y `/api/health`.** Muestra si el respaldo diario de las
   transacciones se pudo restaurar y verificar (historial de 30 días), el
   volumen, el período y el último ingreso, con gráficos por año y por región.
@@ -112,6 +120,23 @@ versionado.
 
 ### Corregido
 
+- **El mapa sin filtros mostraba un conjunto anterior al último ingreso de
+  datos.** `/api/points` se sirve cacheado en el borde (`s-maxage=3600` más
+  un día de `stale-while-revalidate`) porque el conjunto completo pesa ~31 MB;
+  tras una carga nueva, la ruta sin filtros seguía entregando la copia
+  anterior mientras CUALQUIER filtro —otra clave de caché— consultaba la
+  tabla viva. En Panguipulli eso eran 1.185 transacciones contra 9.456, y en
+  un encuadre cualquiera 116 puntos de 2024-2026 contra 325 de 2012-2026: el
+  mapa parecía esconder los años antiguos hasta que se filtraba por año.
+  Ahora el cliente resuelve primero la huella del conjunto en `/api/dataset`
+  y la adjunta como `?ds=<token>` a puntos, estadísticas, facetas y mapa de
+  calor: mientras los datos no cambian todo se sigue sirviendo desde el
+  borde, y una carga nueva mueve sola la clave de caché de las cuatro rutas.
+  Sin purgas manuales y sin perder la caché.
+- **`npm run lint` y el CI de `main` estaban en rojo** por el Leaflet
+  vendorizado del espejo estático (`espejo/sitio/vendor/`) y por la salida
+  local de `open-next`: código de terceros y artefactos de build, ahora
+  ignorados por ESLint.
 - **La capa CONAF informa su estado en la leyenda.** Era la única capa remota
   que callaba: si el servicio caía o faltaba zoom, quedaba vacía sin
   explicación. Ahora muestra «acerca el mapa», «consultando», «listo»,

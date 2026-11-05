@@ -19,6 +19,14 @@ const eslintConfig = defineConfig([
     // proyecto externo descomprimido ahí el lint local reportaba cientos de
     // errores ajenos. En CI la carpeta no existe.
     ".research/**",
+    // Salida de `open-next` (gitignorada): bundles minificados que disparaban
+    // ~19k problemas y dejaban inservible el `npm run lint` previo al push.
+    // En CI la carpeta no existe.
+    ".open-next/**",
+    // Leaflet vendorizado en el espejo estático: código de terceros, copiado
+    // tal cual a propósito para que el corte público no dependa de un CDN.
+    // Lintearlo dejaba `main` en rojo (un `no-this-alias` dentro del bundle).
+    "espejo/sitio/vendor/**",
   ]),
 ]);
 
