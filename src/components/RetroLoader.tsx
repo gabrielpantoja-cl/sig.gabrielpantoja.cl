@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 const BAR_BLOCKS = 24;
 const FILL_CHAR = '▓';
 const EMPTY_CHAR = '░';
+/** Caracteres reservados para el contador de transacciones («000.000»). */
+const COUNTER_MIN_CHARS = 7;
 
 /**
  * Pantalla de carga retro controlada por progreso REAL (0–100), no por un
@@ -109,9 +111,12 @@ export function RetroLoader({
   const hasTotal = total != null && total > 0;
   const counted = hasTotal ? Math.max(1, Math.round((total * shown) / 100)) : 0;
   const counterText = hasTotal ? counted.toLocaleString('es-CL') : '';
-  // Ancho fijo = ancho del total formateado, así la barra no baila mientras
-  // el número crece de 1 a decenas de miles.
-  const counterWidth = hasTotal ? `${total.toLocaleString('es-CL').length}ch` : undefined;
+  // Ranura de ancho FIJO para el contador, reservada desde el primer frame
+  // (antes de conocer el total) para que el recuadro nunca cambie de tamaño.
+  // Mínimo 7 caracteres = «000.000»: cubre hasta 999.999 transacciones. El
+  // span no hereda letter-spacing; con él, 7ch quedaba corto apenas el número
+  // pasaba a 7 caracteres (99.999 → 100.000) y el recuadro se ensanchaba.
+  const counterChars = Math.max(COUNTER_MIN_CHARS, hasTotal ? total.toLocaleString('es-CL').length : 0);
 
   // Cubre TODA la pantalla (cabecera incluida): una viñeta que desenfoca y
   // oscurece los bordes y deja nítido el centro, donde está la barra. La página
@@ -160,19 +165,19 @@ export function RetroLoader({
           }}
         >
           <span>[{bar}]</span>
-          {hasTotal && (
-            <span
-              aria-hidden="true"
-              style={{
-                minWidth: counterWidth,
-                textAlign: 'right',
-                fontVariantNumeric: 'tabular-nums',
-                color: 'hsl(153 40% 42%)',
-              }}
-            >
-              {counterText}
-            </span>
-          )}
+          <span
+            aria-hidden="true"
+            style={{
+              width: `${counterChars}ch`,
+              flexShrink: 0,
+              letterSpacing: 0,
+              textAlign: 'right',
+              fontVariantNumeric: 'tabular-nums',
+              color: 'hsl(153 40% 42%)',
+            }}
+          >
+            {counterText}
+          </span>
         </div>
         <div style={{ fontSize: '0.65rem', opacity: 0.55, letterSpacing: '0.08em' }}>
           {percent}% · CONSERVADORES DE BIENES RAÍCES
