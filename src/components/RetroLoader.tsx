@@ -17,12 +17,19 @@ const EMPTY_CHAR = '░';
 export function RetroLoader({
   progress,
   done,
+  total = null,
   skipped = false,
   onSkip,
   onGone,
 }: {
   progress: number;
   done: boolean;
+  /**
+   * Total de transacciones del conjunto (de `/api/dataset`). Si se conoce, al
+   * final de la barra corre un contador de 1 hasta el total, atado al mismo
+   * avance que la barra: llega al total justo cuando la barra llega al 100%.
+   */
+  total?: number | null;
   /** El usuario eligió explorar mientras carga: el loader se desvanece ya. */
   skipped?: boolean;
   onSkip?: () => void;
@@ -99,6 +106,12 @@ export function RetroLoader({
   const filled = Math.round((percent / 100) * BAR_BLOCKS);
   const empty = BAR_BLOCKS - filled;
   const bar = FILL_CHAR.repeat(filled) + EMPTY_CHAR.repeat(empty);
+  const hasTotal = total != null && total > 0;
+  const counted = hasTotal ? Math.max(1, Math.round((total * shown) / 100)) : 0;
+  const counterText = hasTotal ? counted.toLocaleString('es-CL') : '';
+  // Ancho fijo = ancho del total formateado, así la barra no baila mientras
+  // el número crece de 1 a decenas de miles.
+  const counterWidth = hasTotal ? `${total.toLocaleString('es-CL').length}ch` : undefined;
 
   // Cubre TODA la pantalla (cabecera incluida): una viñeta que desenfoca y
   // oscurece los bordes y deja nítido el centro, donde está la barra. La página
@@ -135,8 +148,31 @@ export function RetroLoader({
         <div style={{ fontSize: '0.8rem', letterSpacing: '0.12em', marginBottom: '1rem' }}>
           CARGANDO TRANSACCIONES...
         </div>
-        <div style={{ fontSize: '0.85rem', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
-          [{bar}]
+        <div
+          style={{
+            fontSize: '0.85rem',
+            letterSpacing: '0.05em',
+            marginBottom: '0.5rem',
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: '0.6rem',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <span>[{bar}]</span>
+          {hasTotal && (
+            <span
+              aria-hidden="true"
+              style={{
+                minWidth: counterWidth,
+                textAlign: 'right',
+                fontVariantNumeric: 'tabular-nums',
+                color: 'hsl(153 40% 42%)',
+              }}
+            >
+              {counterText}
+            </span>
+          )}
         </div>
         <div style={{ fontSize: '0.65rem', opacity: 0.55, letterSpacing: '0.08em' }}>
           {percent}% · CONSERVADORES DE BIENES RAÍCES
