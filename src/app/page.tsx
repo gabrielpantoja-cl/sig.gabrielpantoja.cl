@@ -283,6 +283,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     loading,
     error,
     datasetToken,
+    datasetCount,
     datosNuevos,
     recargarDatos,
   } = useCbrData(debouncedQs, {
@@ -709,6 +710,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     <RetroLoader
       progress={bootProgress}
       done={bootDone}
+      total={datasetCount}
       skipped={loaderSkipped}
       onSkip={handleSkipLoader}
       onGone={handleLoaderGone}

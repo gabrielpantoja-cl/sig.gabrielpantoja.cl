@@ -265,6 +265,8 @@ export function useCbrData(debouncedQs: string, callbacks: CbrDataCallbacks = {}
     error,
     /** Token de la versión en pantalla; `null` si el sondeo falló. */
     datasetToken: token,
+    /** Transacciones geolocalizadas del conjunto en pantalla; `null` si el sondeo falló. */
+    datasetCount: aplicada?.count ?? null,
     /** Diferencia pendiente de aplicar, o `null` si estamos al día. */
     datosNuevos,
     recargarDatos,
