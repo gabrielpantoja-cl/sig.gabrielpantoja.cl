@@ -71,6 +71,25 @@ export type BasemapDef = {
 export const MAP_MAX_ZOOM = 19;
 
 /**
+ * Zoom mínimo: a 4 Chile continental entra completo en una pantalla vertical
+ * de teléfono. Más afuera el mapa era un planisferio repetido varias veces
+ * en una franja sobre fondo gris, sin nada que leer: los datos son de Chile.
+ */
+export const MAP_MIN_ZOOM = 4;
+
+/**
+ * Límite de paneo `[[sur, oeste], [norte, este]]`: Chile continental e
+ * insular (Rapa Nui a ~109° O, Juan Fernández) con margen, más Argentina y
+ * Bolivia como contexto. El usuario no puede arrastrar el mapa fuera de aquí,
+ * así un tirón no lo deja mirando el Pacífico vacío o la siguiente copia del
+ * mundo.
+ */
+export const MAP_BOUNDS: [[number, number], [number, number]] = [
+  [-62, -112],
+  [-10, -50],
+];
+
+/**
  * Tile de muestra de las miniaturas: Santiago nororiente, z11 — trama urbana
  * densa contra el piedemonte andino. Se eligió comparando los tres
  * proveedores sobre el mismo punto: es el encuadre donde callejero, ortoimagen

@@ -14,7 +14,9 @@ import {
   isDarkCanvas,
   prefersDark,
   DEFAULT_BASEMAP_ID,
+  MAP_BOUNDS,
   MAP_MAX_ZOOM,
+  MAP_MIN_ZOOM,
   type BasemapId,
 } from '@/lib/basemap';
 import type { Feature, Geometry } from 'geojson';
@@ -558,7 +560,11 @@ export default function MapView({
     const map = L.map(container, {
       center: start ? [start.lat, start.lng] : MAP_CENTER,
       zoom: start?.zoom ?? 7,
+      minZoom: MAP_MIN_ZOOM,
       maxZoom: MAP_MAX_ZOOM,
+      maxBounds: MAP_BOUNDS,
+      // 1 = borde rígido: el mapa no se estira fuera del límite y rebota.
+      maxBoundsViscosity: 1,
       preferCanvas: true,
       scrollWheelZoom: true,
     });
