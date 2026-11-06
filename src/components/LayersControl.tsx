@@ -105,6 +105,8 @@ import {
   countLayerMatches,
   groupMatches,
   layerMatches,
+  layerSummary,
+  layerThumbSrc,
   normalizeLayerQuery,
   type CatalogLayerId,
   type LayerGroupId,
@@ -167,6 +169,15 @@ function OpacityControl({ value, onChange, fillOnly = false }: {
 }
 
 /**
+ * Nombre de la capa en el catálogo, sin la sigla final entre paréntesis: la
+ * fuente ya va en el subtítulo y repetirla parte el nombre en dos líneas.
+ * «Capas activas», la búsqueda y la analítica siguen usando el nombre entero.
+ */
+function catalogueLabel(label: string): string {
+  return label.replace(/\s*\([^)]*\)$/, '');
+}
+
+/**
  * Fila de capa estilo Google Earth Pro: triángulo de despliegue (▸/▾) +
  * checkbox + swatch + nombre. El triángulo abre los DETALLES de la capa
  * (fuente y atribución) de forma independiente del checkbox. Al activar una
@@ -213,51 +224,73 @@ function LayerRow({
   // `countLayerMatches`, so the empty state cannot disagree with these rows.
   if (!layerMatches(layerId, query)) return null;
 
+  // Catálogo sobrio, estilo Google Earth: la vista previa REAL de la capa
+  // (captura del mapa, `scripts/build-layer-thumbs.mjs`) carga el color; la
+  // fila en sí es monocroma. El swatch queda solo para «Capas activas», donde
+  // acompaña a la escala.
   return (
     <div>
-      <div className="flex items-center gap-1">
+      <div
+        className={`group flex items-center gap-1 rounded-md transition-colors ${checked ? 'bg-black/[0.04] dark:bg-white/[0.06]' : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'}`}
+      >
+        <label
+          className={`flex min-w-0 flex-1 items-center gap-2.5 p-1 ${readOnly ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- miniatura estática de 112×80: next/image no aporta nada aquí */}
+          <img
+            src={layerThumbSrc(layerId)}
+            alt=""
+            width={56}
+            height={40}
+            loading="lazy"
+            decoding="async"
+            className={`h-10 w-14 shrink-0 rounded object-cover ring-1 transition ${checked ? 'opacity-100 ring-2 ring-[hsl(153_28%_35%)]' : 'opacity-80 ring-black/10 group-hover:opacity-100 dark:ring-white/15'}`}
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[0.8rem] font-medium leading-tight">{catalogueLabel(label)}</span>
+            <span className="mt-0.5 block truncate text-[0.68rem] leading-tight opacity-55">
+              {layerSummary(layerId)}
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={checked}
+            readOnly={readOnly}
+            onChange={readOnly ? undefined : (e) => onChange?.(e.target.checked)}
+            className="shrink-0 accent-[hsl(153_28%_35%)]"
+          />
+        </label>
+
         {children ? (
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
             aria-expanded={open}
             aria-label={`${open ? 'Ocultar' : 'Mostrar'} detalles de ${label}`}
-            className="flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-50 hover:opacity-100"
+            className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-40 hover:bg-black/5 hover:opacity-100 focus-visible:opacity-100 dark:hover:bg-white/10"
           >
             <svg
-              width="9"
-              height="9"
+              width="10"
+              height="10"
               viewBox="0 0 10 10"
-              fill="currentColor"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
               aria-hidden="true"
-              className={`transition-transform ${open ? 'rotate-90' : ''}`}
+              className={`transition-transform ${open ? 'rotate-180' : ''}`}
             >
-              <path d="M2.5 1l5 4-5 4z" />
+              <path d="M2 3.5l3 3 3-3" />
             </svg>
           </button>
         ) : (
-          <span className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="mr-1 h-6 w-6 shrink-0" aria-hidden="true" />
         )}
-
-        <label
-          className={`flex flex-1 items-center gap-2 ${readOnly ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
-        >
-          <input
-            type="checkbox"
-            checked={checked}
-            readOnly={readOnly}
-            onChange={readOnly ? undefined : (e) => onChange?.(e.target.checked)}
-            className="accent-[hsl(153_28%_35%)]"
-          />
-          <span className="inline-flex items-center gap-1.5">
-            {swatch}
-            {label}
-          </span>
-        </label>
       </div>
 
       {open && children && (
-        <div className="ml-5 mt-1.5 border-l border-black/10 pb-1 pl-2.5 dark:border-white/10">
+        <div className="mb-1 ml-[4.25rem] mr-2 mt-1 border-l border-black/10 pb-1 pl-2.5 dark:border-white/10">
           {checked ? <p className="text-xs opacity-70">Escala y controles en «Capas activas».</p> : children}
         </div>
       )}
@@ -857,7 +890,7 @@ export function LayersControl({
     showRedVial, showRedDrenaje, showLineasTransmision, showSuelos, showBioclima,
     showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showNdviVisual, showRelieve].filter(Boolean).length;
   const catalogue = (
-      <div className="space-y-2">
+      <div className="space-y-0.5">
         <LayerGroupHeader id="cbr" />
         <LayerRow
           checked={showPoints}
