@@ -30,6 +30,8 @@
 export interface LayerCatalogEntry {
   id: string;
   label: string;
+  /** One short line under the name in the catalogue: source · what it shows. */
+  summary: string;
   description: string;
 }
 
@@ -51,16 +53,19 @@ export const LAYER_CATALOG = [
       {
         id: 'points',
         label: 'Transacciones CBR',
+        summary: 'Compraventas inscritas',
         description: 'Escrituras del Conservador de Bienes Raíces: predio, rol, monto, destino SII, comuna',
       },
       {
         id: 'conservadores',
         label: 'Conservadores de Bienes Raíces',
+        summary: 'Oficinas y su jurisdicción',
         description: 'Oficina de cada conservador con dirección y contacto; al hacer clic resalta su jurisdicción, las comunas que atiende',
       },
       {
         id: 'hexbins',
         label: 'Mapa de calor de valor ($/m²)',
+        summary: 'Mediana de $/m² por destino SII',
         description: 'Mediana de valor por celda hexagonal, interpolada; escalonado por destino y cobertura de dato',
       },
     ],
@@ -73,36 +78,43 @@ export const LAYER_CATALOG = [
       {
         id: 'protected',
         label: 'Áreas protegidas (RNAP)',
+        summary: 'MMA · parques y reservas',
         description: 'Registro Nacional de Áreas Protegidas: parques, reservas y categorías del MMA',
       },
       {
         id: 'urbanLimit',
         label: 'Límite urbano (PRC)',
+        summary: 'MINVU · planes reguladores',
         description: 'Límite urbano de los Planes Reguladores Comunales, MINVU',
       },
       {
         id: 'comunas',
         label: 'Límites comunales (DPA)',
+        summary: 'SUBDERE · comunas y regiones',
         description: 'División político administrativa SUBDERE: comuna, provincia, región, código CUT',
       },
       {
         id: 'redVial',
         label: 'Red caminera (MOP)',
+        summary: 'MOP Vialidad · caminos y su rol',
         description: 'Dirección de Vialidad MOP: caminos, rol de vialidad, toponimia oficial',
       },
       {
         id: 'redDrenaje',
         label: 'Red de drenaje (DGA)',
+        summary: 'DGA · ríos y esteros',
         description: 'Ríos y esteros del Banco Nacional de Aguas: cuenca, subcuenca, jerarquía BNA',
       },
       {
         id: 'lineasTransmision',
         label: 'Líneas de transmisión eléctrica',
+        summary: 'Energía / CEN · ejes referenciales',
         description: 'Ejes de líneas de tensión del Ministerio de Energía / CEN: kilovolts, circuito, estado',
       },
       {
         id: 'catastroFruticola',
         label: 'Catastro frutícola (CIREN)',
+        summary: 'CIREN-ODEPA · huertos',
         description: 'Productores de fruta por especie, ROL del predio y año del levantamiento CIREN-ODEPA',
       },
     ],
@@ -115,26 +127,31 @@ export const LAYER_CATALOG = [
       {
         id: 'suelos',
         label: 'Suelos agrológicos (CIREN)',
+        summary: 'CIREN · capacidad de uso I a VIII',
         description: 'Clases de aptitud de suelo I a VIII, servidas por CIREN; consulta por punto',
       },
       {
         id: 'vegetacional',
         label: 'Recursos vegetacionales (CONAF)',
+        summary: 'CONAF · uso del suelo',
         description: 'Usos del suelo y especies vegetacionales, año regional del catastro CONAF',
       },
       {
         id: 'humedales',
         label: 'Humedales (MMA)',
+        summary: 'MMA · inventario nacional',
         description: 'Inventario Nacional de Humedales y humedales urbanos declarados (Ley 21.202), con su resolución',
       },
       {
         id: 'propiedadesRurales',
         label: 'Propiedades rurales (CIREN)',
+        summary: 'CIREN · predios con ROL',
         description: 'Polígonos prediales con ROL y comuna; búsqueda por ROL, 14 regiones',
       },
       {
         id: 'ndviVisual',
         label: 'NDVI Visual (Sentinel-2)',
+        summary: 'Sentinel-2 · vigor vegetal',
         description: 'Raster continuo de vigor vegetal por viewport, Sentinel-2 L2A con máscara de nubes SCL; escala divergente',
       },
     ],
@@ -147,6 +164,7 @@ export const LAYER_CATALOG = [
       {
         id: 'relieve',
         label: 'Relieve (Copernicus GLO-30)',
+        summary: 'Copernicus GLO-30 · 30 m',
         description: 'Sombreado, pendiente en clases SAG A–I y exposición de laderas; cota y pendiente por punto a 30 m',
       },
     ],
@@ -159,6 +177,7 @@ export const LAYER_CATALOG = [
       {
         id: 'bioclima',
         label: 'Bioclima (WorldClim)',
+        summary: 'WorldClim 2.1 · 1970–2000',
         description: 'Temperatura media anual y precipitación anual, WorldClim 2.1, climatología 1970-2000',
       },
     ],
@@ -196,8 +215,26 @@ const SEARCH_TEXT = new Map<string, string>();
 for (const group of LAYER_CATALOG) {
   const groupText = normalizeLayerQuery(`${group.title} ${group.keywords}`);
   for (const layer of group.layers) {
-    SEARCH_TEXT.set(layer.id, normalizeLayerQuery(`${layer.label} ${layer.description}`) + ' ' + groupText);
+    SEARCH_TEXT.set(layer.id, normalizeLayerQuery(`${layer.label} ${layer.summary} ${layer.description}`) + ' ' + groupText);
   }
+}
+
+const SUMMARY = new Map<string, string>();
+for (const group of LAYER_CATALOG) {
+  for (const layer of group.layers) SUMMARY.set(layer.id, layer.summary);
+}
+
+/** Short subtitle of a layer for its catalogue row. */
+export function layerSummary(id: CatalogLayerId): string {
+  return SUMMARY.get(id) ?? '';
+}
+
+/**
+ * Preview image of a layer: a real capture of the map with only that layer
+ * on, generated by `scripts/build-layer-thumbs.mjs`. File name = layer id.
+ */
+export function layerThumbSrc(id: CatalogLayerId): string {
+  return `/layer-thumbs/${id}.webp`;
 }
 
 /** True when `id` matches the raw query. Empty query matches everything. */

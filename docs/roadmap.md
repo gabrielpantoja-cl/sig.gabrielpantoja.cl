@@ -1259,6 +1259,13 @@ economía del suelo, conservación). Se reparten luego en los horizontes H1–H5
       regulador cuando hay peligro de remoción en masa.
 - [ ] Peso real de DuckDB-WASM en el arranque frente al JSON actual de
       `/api/points` (21 MB).
+- [ ] ESA WorldCover: ubicación de los COG públicos, licencia vigente y si
+      la v200 (2021) es la última versión (ver
+      [Ideas desde Google Earth](#ideas-desde-google-earth-web-revisión-2026-11-06)).
+- [ ] JRC Global Surface Water: licencia, años que cubre y si se sirve como
+      COG legible por rangos HTTP.
+- [ ] *Embeddings* AlphaEarth (Satellite Embedding): si existen fuera de
+      Earth Engine como COG, sus años, su licencia y su peso para Chile.
 
 ## Ruta GIS de largo plazo (horizontes H1–H5)
 
@@ -1383,6 +1390,32 @@ analítica o un usuario las justifique.
 - Integración con QGIS: publicar las capas derivadas como servicio OGC
   (WMS/WFS/OGC API Features) de solo lectura.
 - Alertas: «avísame si aparece una transacción nueva en esta comuna».
+
+### Ideas desde Google Earth Web *(revisión 2026-11-06)*
+
+Recorrido de Google Earth Web (plan gratuito) sobre Mulchén, para contrastar
+herramientas. Muchas ya existen aquí (relieve con pendiente y exposición,
+medir, dibujar o importar un polígono, NDVI, ficha del predio, coordenadas
+bajo el cursor). Solo se anotan las que faltan o las que conviene copiar en
+la forma. Las fuentes de datos marcadas «por verificar» van a
+[Por verificar antes de actuar](#por-verificar-antes-de-actuar).
+
+| Idea | Qué hace Google Earth | Cómo encaja aquí | Horizonte |
+|---|---|---|---|
+| **Cobertura terrestre 10 m** | Capa *WorldCover* v100 (2020) y v200 (2021) de la ESA, en el plan gratuito | Mismo patrón que NDVI y Relieve: COG público → PNG por viewport + clase en «¿Qué hay aquí?» y % por clase en la ficha. Complementa al catastro CONAF donde está desactualizado | H2 |
+| **Historial de inundación** | % del tiempo con agua 1999–2020 por píxel | Candidato: *Global Surface Water* (JRC), global y ya calculado. Cubre el hueco de § 5.3b sin esperar a la DGA. Para tasación: riesgo de anegamiento del predio | H2 / Fase 5 |
+| **Detectar cambio** con UX acotada | Elegir área + año de referencia + año de comparación + umbral «grado de cambio» + opacidad; se basa en *embeddings* AlphaEarth | Le da forma concreta al ítem de detección de cambio de H4: el usuario fija área y dos años, no un mapa nacional precalculado. Primer paso posible: la diferencia de NDVI que ya tenemos | H4 |
+| **Clasificar por similitud** | «Clasificar»: marcar ejemplos y que el modelo encuentre zonas parecidas | Con *embeddings* anuales de 10 m: «predios con cobertura parecida a este», útil para buscar comparables por paisaje y no solo por distancia | H5 |
+| **Curvas de nivel y pendiente bajo demanda** | Se dibuja un área, se elige intervalo (20/40 m) o resolución y se genera la capa solo ahí | Alternativa a una capa nacional de curvas: generarlas sobre el polígono de la ficha a partir de GLO-30 (marching squares). Más barato y suficiente para un anexo | H3 |
+| **Línea de tiempo de imágenes** | Barra con las fechas de captura disponibles y salto entre ellas | Selector temporal de H4 con fechas reales (escenas Sentinel-2 ya indexadas para NDVI). La fecha de la imagen visible se muestra siempre en la barra inferior: vale la pena hacer lo mismo con el mosaico satelital y el NDVI | H4 |
+| **Proyectos** | Guardar marcadores, polígonos y capas en un «proyecto» y retomarlo | Sin cuentas: guardar en `localStorage` varios predios con su ficha y exportarlos/importarlos como KML/GeoJSON. Extiende el permalink, que hoy guarda una sola vista | H3 |
+| **Seleccionar elementos** | Selección de varios objetos del mapa a la vez | Selección por rectángulo/lazo de transacciones CBR → estadística y export de solo esas | H3 |
+| **Avisos de novedad por herramienta** | Punto rojo y «¡Nuevo!» en el botón de cada herramienta nueva, más un diálogo de novedades | Barato: marcar la capa o herramienta recién publicada en el control de capas hasta que el usuario la abra (estado en `localStorage`). Complementa a `UpdateNotice` | H1 |
+| **Consulta en lenguaje natural** | «Ask Google Earth» (búsqueda conversacional) | Traducir «terrenos agrícolas sobre 10 ha en Mulchén desde 2022» a filtros existentes, no a SQL libre. Solo si la analítica muestra que los filtros cuestan | Banco de ideas |
+
+No se copian: diseños de edificios y viabilidad solar (fuera del público
+del SIG), desmonte y terraplén, y las capas solo para EE. UU. (zonificación,
+accesos vehiculares, ingresos, puntos de carga).
 
 ## Riesgos transversales (revisar al cerrar cada fase)
 
