@@ -69,6 +69,43 @@ allowed-tools: Bash(npx tsc:*)   # Claude Code: lets the `!` steps run unprompte
 Don't put a `README.md` inside `commands/` — both tools would expose it as a
 `/README` command.
 
+## Skills (shared knowledge) vs agents (OpenCode wrappers)
+
+Domain knowledge lives in skills, which both tools load in the main session.
+The read-only OpenCode specialists in `../.opencode/agents/` only say "load
+skill X, review, report" — never restate a rule in an agent; edit the skill.
+
+| Skill | Covers | Used by agent |
+|---|---|---|
+| `api-pii-review` | PII (Ley 19.628), SQL, `enforce()`, cache keys, analytics | `neon-data-engineer-agent` |
+| `leaflet-canvas-sync` | React ↔ Leaflet, cleanup, `reorderOverlays`, perf budgets | `gis-architect-agent` |
+| `map-export` | PNG capture pipeline, CORS/taint, cajetín, attributions | `canvas-export-agent` |
+| `spatial-data-parsing` | KML/GeoJSON parsing, caps, Worker roadmap | `gis-architect-agent` |
+
+In Claude Code, a second opinion = the global `code-reviewer` agent told to use
+the relevant skill.
+
+Cite code by **symbol name** (`drawOverlayPaneToCanvas`, `reorderOverlays()`),
+never by line number: line refs were the first thing to rot in these files.
+
+## MCP servers: no `.mcp.json` on purpose
+
+A project `.mcp.json` would take precedence over each developer's own
+definition of the same server, and there is no portable way to write an `npx`
+server: native Windows needs `cmd /c npx …`, macOS/Linux need plain `npx …`.
+Whichever we committed would break the other half. OpenCode doesn't read
+`.mcp.json` anyway. Add the servers per machine instead:
+
+```sh
+# Claude Code — macOS/Linux (on native Windows prefix the command with: cmd /c)
+claude mcp add --scope user playwright -- npx -y @playwright/mcp@latest --headless
+claude mcp add --scope user context7 -- npx -y @upstash/context7-mcp
+```
+
+OpenCode: the same commands under `mcp` in `~/.config/opencode/opencode.json`.
+Never add a database MCP (e.g. Neon) at project scope: it runs with write
+access.
+
 ## Writing a skill
 
 One folder per skill; `name` must match the folder (kebab-case). Front-load

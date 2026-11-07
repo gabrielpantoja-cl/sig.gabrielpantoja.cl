@@ -18,7 +18,7 @@ Any time you edit a file that:
 ## Hard rules
 
 ### 1. SSR boundary
-Leaflet requires `window`. ANY component that imports `leaflet` MUST be loaded via `dynamic(() => import(...), { ssr: false })`. Server-side bundles throw `window is not defined`. See `src/app/page.tsx:14-17` and `src/components/MapView.tsx` (consumer side).
+Leaflet requires `window`. ANY component that imports `leaflet` MUST be loaded via `dynamic(() => import(...), { ssr: false })`. Server-side bundles throw `window is not defined`. See the `dynamic(() => import('@/components/MapView'), …)` in `src/app/page.tsx`.
 
 ```tsx
 // page.tsx
@@ -45,7 +45,7 @@ useEffect(() => {
 ```
 
 ### 3. React → Leaflet data bridge
-Add layers in SEPARATE useEffects with dependency arrays. NEVER reconstruct layers on every render. See `src/components/MapView.tsx:474-574` for the cluster-build effect.
+Add layers in SEPARATE useEffects with dependency arrays. NEVER reconstruct layers on every render. See the cluster-build effect in `src/components/MapView.tsx` (the one that sets `chunkedLoading`).
 
 ```ts
 useEffect(() => {
@@ -72,7 +72,7 @@ return () => {
 ```
 
 ### 5. Visibility toggle ≠ rebuild
-Separating "build the marker cluster" from "show the cluster on the map" lets the perito toggle a 74k-marker layer instantly. See `src/components/MapView.tsx:511-573`:
+Separating "build the marker cluster" from "show the cluster on the map" lets the perito toggle a 74k-marker layer instantly. The pattern, as used in `MapView.tsx`:
 
 ```ts
 // Effect A: builds+adds cluster when `points` changes (deferred via cluster's
@@ -102,36 +102,25 @@ Visibility toggles NEVER invalidate `points` itself.
 All vectors (areas protegidas, PRC, DPA, red vial, drenaje, catastro, KML user) need a canvas renderer with `preferCanvas: true` set on the map. With that flag, paths share the map's `_renderer` (a single `L.Canvas` instance created lazily on first path add). No per-layer `renderer` option is needed.
 
 ### 7. Z-order convention
-Stable bottom→top stacking for layers:
-```
-tiles → comunas → protected → urban-limit → catastro-fruticola → red-vial → red-drenaje → kml-user → cluster-markers (CBR)
-```
-Implemented by `reorderOverlays()` in `src/components/MapView.tsx:511-573`. Each thematic layer's effect must call it after attaching. KML user layers are added via `mapRef`'s `kmlLayers` and added to `overlayPane` between the GeoJSON layers and the cluster.
+`reorderOverlays()` in `src/components/MapView.tsx` is the ONLY source of truth
+for stacking — read it, don't copy its order into docs. The shape it keeps:
+continuous rasters at the bottom (bioclima → NDVI → relieve), then context
+polygons (comunas, protected), thematic polygons, line networks, the heat map,
+and the perito's operational layers on top (KML, CBR points stay clickable).
+Every layer effect/hook calls `reorderOverlays()` after attaching; a new layer
+gets an explicit slot there with a comment saying why.
 
-### 8. overlayPane canvas extraction for export
-`map._pathRoot` does NOT exist in Leaflet 1.9.x — the renderer creates its own `<canvas>` inside the overlayPane. To capture the vector content for the PNG export:
-
-```ts
-const overlayPane = map.getPanes().overlayPane;
-const canvases = Array.from(overlayPane.querySelectorAll('canvas')) as HTMLCanvasElement[];
-const canvas = canvases.find((c) => c.width > 0 && c.height > 0) ?? null;
-if (!canvas) return; // no vectors loaded yet — exit silently
-const containerRect = map.getContainer().getBoundingClientRect();
-const canvasRect = canvas.getBoundingClientRect();
-const dx = canvasRect.left - containerRect.left;
-const dy = canvasRect.top - containerRect.top;
-ctx.drawImage(canvas, dx, dy, canvasRect.width, canvasRect.height);
-```
-
-Reference: `src/lib/map-export.ts:drawPathRootToCanvas`.
-
-The `c.width > 0` filter defends against StrictMode's "ghost canvas" left over from the previous mount.
+### 8. overlayPane capture for export
+Owned by the **`map-export` skill**: `drawOverlayPaneToCanvas` draws every
+`<canvas>` and `<img>` in the overlayPane in DOM order, honouring computed
+opacity/visibility. `map._pathRoot` does NOT exist in Leaflet 1.9.x — never
+reach for it.
 
 ### 9. CSS transforms in tiled panes
 Leaflet uses `transform: translate3d(...)` on `tilePane`, `overlayPane`, and per-layer canvases during pan/zooming. **The bounding rect AFTER transforms is the source of truth** — never use `L.DomUtil.getPosition` or `_pathRoot`-based math for the export. Use `getBoundingClientRect()` and subtract the container's rect.
 
 ### 10. Per-layer loading gating
-Don't `addLayer` until both the data and the parent effect have decided what to load. See `src/components/MapView.tsx` layer effects (~line 580-1100) for the canonical pattern with `[showX, reorderOverlays]` deps.
+Don't `addLayer` until both the data and the parent effect have decided what to load. New layers live in their own hook under `src/components/map/` (`useStaticGeoJsonLayer` for static files, `useViewportRaster` for per-viewport PNGs); follow `docs/arquitectura-capas.md` § recipe. The gating pattern, with `[showX, reorderOverlays]` deps:
 
 ```ts
 useEffect(() => {
@@ -151,6 +140,25 @@ This pattern lets the perito toggle a layer on/off without re-fetching the GeoJS
 ### 11. StrictMode handling: state-flavoured ref persistence
 Don't rely on `useRef` being kept through StrictMode double-mounts in any way other than checking `mapRef.current || !containerRef.current` before re-initializing. The `useRef(...)` instance survives, but the DOM target it pointed to may not — re-assign on every mount.
 
+## Performance budgets & renderer choice
+
+Targets for review (not CI-enforced), on a mid-tier laptop in Chrome:
+
+- CBR pins (~85k, chunked clustering): first paint < 2 s; panning ≥ 30 fps
+  with the usual layers on.
+- Vector overlay paint: < 1 s for layers under 500 features.
+- PNG export: hard ceiling `EXPORT_TIMEOUT_MS` (8 s).
+
+Renderer decision:
+
+- **Canvas** (`preferCanvas: true`, global): every GeoJSON polygon/line and the
+  cluster bubbles. SVG only for a handful (<100) of rich-HTML markers.
+- **Vector tiling** (`geojson-vt` + a canvas tile renderer) is the next step
+  only when one static layer exceeds ~5 MB on the wire or ~10k features after
+  the `scripts/build-*.mjs` simplification — not before.
+- **OffscreenCanvas / Worker rendering**: only for ≥30 Hz updates; the app
+  has none.
+
 ## Anti-patterns (NEVER do this)
 
 - Wrapping Leaflet in `react-leaflet` for >100 features. The wrapper triggers a full React reconciliation cycle on every map event.
@@ -164,6 +172,7 @@ Don't rely on `useRef` being kept through StrictMode double-mounts in any way ot
 
 ## Reference files in this repo
 - `src/components/MapView.tsx` — the canonical example.
-- `src/lib/map-export.ts:drawPathRootToCanvas` — overlayPane canvas extraction.
+- `src/components/map/` — one hook per thematic layer.
+- `map-export` skill — everything about the PNG capture.
 - `docs/arquitectura-capas.md` — layer spec, including which layers go in which pane.
 - `AGENTS.md` — project-level rules this skill must respect (no `react-leaflet`, no client-side DB, semicolons, etc.).
