@@ -1,6 +1,9 @@
 ---
 description: Strict lint + spatial sanity checks on src/lib/. Diagnostics only — no auto-fix. Use before any PR that touches map export, KML parsing, or layer toggles.
+# Dual config: `agent` is read by OpenCode, `allowed-tools` by Claude Code
+# (lets the `!` steps run without a permission prompt). Each ignores the other.
 agent: build
+allowed-tools: Bash(npx eslint:*), Bash(npx tsc:*), Bash(node -e:*)
 ---
 
 Run the GIS pre-flight checks against the map core (`src/lib/`) and surface failures. Do NOT auto-fix anything; the human reviews the diagnostics and decides.

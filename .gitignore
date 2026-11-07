@@ -66,6 +66,9 @@ next-env.d.ts
 CLAUDE.local.md
 AGENTS.local.md
 .claude/settings.local.json
+# Enlaces de la config dual Claude Code/OpenCode (junctions: git no los
+# versiona). Se crean con `npm run agents:link`; ver .claude/README.md.
+/.opencode/commands
 
 # Directorios de investigación y referencias (no versionados)
 .research/

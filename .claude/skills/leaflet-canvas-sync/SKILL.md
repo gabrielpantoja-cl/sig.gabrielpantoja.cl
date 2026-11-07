@@ -2,7 +2,7 @@
 name: leaflet-canvas-sync
 description: Procedural rules for interfacing Leaflet 1.9 imperative API with React 19 in this SIG — `useRef`-based map initialization, async layer effects, StrictMode-safe cleanup, visibility toggle without rebuilding markers, and overlayPane canvas extraction. Invoke this skill BEFORE editing src/components/MapView.tsx or any component that creates `L.Map`, `L.GeoJSON`, `L.TileLayer`, `L.MarkerClusterGroup`, or `L.Marker`.
 license: MIT
-compatibility: opencode
+compatibility: claude-code, opencode
 metadata:
   category: doctrine
   data-tier: B
