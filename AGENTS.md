@@ -145,6 +145,11 @@ so Claude Code and OpenCode read the same files:
 - `.claude/commands/*.md` — `/slash` commands; OpenCode reaches them through
   the `.opencode/commands` junction. Run `npm run agents:link` once per clone
   (gitignored, idempotent).
+- Permissions: `.claude/settings.json` and `opencode.json` carry the SAME
+  rules in each tool's syntax — edit both together. They deny reading/editing
+  `.env*` / `.dev.vars*` (except the `.example` templates) and force-push,
+  ask before build, deploy, `data:*` and Vercel/Wrangler production commands,
+  and allow lint/typecheck/test.
 
 `.opencode/agents/` stays OpenCode-only (its `permission:` frontmatter is not
 Claude's `tools:`): `orchestrator.md` (primary coordinator, deny-by-default

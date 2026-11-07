@@ -4,14 +4,47 @@
     "AGENTS.md",
     "AGENTS.local.md"
   ],
-  "permission": {
-    "edit": {
-      "*": "allow",
-      "*.env": "ask",
-      "*.env.*": "ask",
-      "*.env.example": "allow"
-    }
-  },
+  "permissions": [
+    { "action": "shell", "resource": "npm run lint *", "effect": "allow" },
+    { "action": "shell", "resource": "npm run typecheck *", "effect": "allow" },
+    { "action": "shell", "resource": "npm test *", "effect": "allow" },
+    { "action": "shell", "resource": "npm run test *", "effect": "allow" },
+    { "action": "shell", "resource": "npm run agents:link", "effect": "allow" },
+    { "action": "shell", "resource": "npx eslint *", "effect": "allow" },
+    { "action": "shell", "resource": "npx tsc *", "effect": "allow" },
+    { "action": "shell", "resource": "npx vitest *", "effect": "allow" },
+
+    { "action": "shell", "resource": "npm run build *", "effect": "ask" },
+    { "action": "shell", "resource": "npm run preview *", "effect": "ask" },
+    { "action": "shell", "resource": "npm run deploy *", "effect": "ask" },
+    { "action": "shell", "resource": "npm run upload *", "effect": "ask" },
+    { "action": "shell", "resource": "npm run data:build*", "effect": "ask" },
+    { "action": "shell", "resource": "npm run data:load*", "effect": "ask" },
+    { "action": "shell", "resource": "npx opennextjs-cloudflare *", "effect": "ask" },
+    { "action": "shell", "resource": "npx wrangler deploy*", "effect": "ask" },
+    { "action": "shell", "resource": "wrangler deploy*", "effect": "ask" },
+    { "action": "shell", "resource": "npx vercel deploy*", "effect": "ask" },
+    { "action": "shell", "resource": "npx vercel *--prod*", "effect": "ask" },
+    { "action": "shell", "resource": "vercel deploy*", "effect": "ask" },
+    { "action": "shell", "resource": "vercel *--prod*", "effect": "ask" },
+
+    { "action": "shell", "resource": "git push *--force*", "effect": "deny" },
+    { "action": "shell", "resource": "git push -f*", "effect": "deny" },
+    { "action": "shell", "resource": "git push * -f*", "effect": "deny" },
+
+    { "action": "read", "resource": "*.env", "effect": "deny" },
+    { "action": "read", "resource": "*.env.*", "effect": "deny" },
+    { "action": "read", "resource": "*.dev.vars*", "effect": "deny" },
+    { "action": "read", "resource": "*.env.example", "effect": "allow" },
+    { "action": "read", "resource": "*.dev.vars.example", "effect": "allow" },
+
+    { "action": "edit", "resource": "*", "effect": "allow" },
+    { "action": "edit", "resource": "*.env", "effect": "deny" },
+    { "action": "edit", "resource": "*.env.*", "effect": "deny" },
+    { "action": "edit", "resource": "*.dev.vars*", "effect": "deny" },
+    { "action": "edit", "resource": "*.env.example", "effect": "allow" },
+    { "action": "edit", "resource": "*.dev.vars.example", "effect": "allow" }
+  ],
   "share": "manual",
   "snapshot": true
 }
