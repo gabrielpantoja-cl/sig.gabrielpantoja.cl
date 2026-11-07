@@ -1,0 +1,33 @@
+#!/bin/sh
+# Pre-push: the same gate CI runs (lint → typecheck → test), minus `build`
+# (too heavy for every push; CI still runs it). Blocks the push on failure so
+# a broken commit never reaches `main`, whoever pushes it: a human, Claude Code
+# or OpenCode. Enabled per clone by `npm run agents:link`
+# (core.hooksPath=.githooks). Emergency bypass for humans only:
+# `git push --no-verify` — agents are denied that flag in their permissions.
+
+# Pushing only a deletion (`git push origin :branch`) has nothing to check.
+has_commits=0
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  case "$local_sha" in
+    *[!0]*) has_commits=1 ;;
+  esac
+done
+[ "$has_commits" -eq 0 ] && exit 0
+
+# The checks run on the working tree; uncommitted changes could hide or cause
+# a failure that the pushed commits don't have. Warn, don't block.
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  echo "pre-push: aviso — hay cambios sin commitear; los checks corren sobre el árbol de trabajo." >&2
+fi
+
+for step in lint typecheck test; do
+  echo "pre-push: npm run $step" >&2
+  if ! npm run -s "$step" >&2; then
+    echo "" >&2
+    echo "pre-push: ✗ falló \`npm run $step\` — push cancelado. Corrígelo y vuelve a empujar." >&2
+    exit 1
+  fi
+done
+
+echo "pre-push: ✓ lint, typecheck y test OK" >&2
