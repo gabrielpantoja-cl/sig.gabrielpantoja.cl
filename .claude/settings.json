@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm run lint *)",
+      "Bash(npm run typecheck *)",
+      "Bash(npm test *)",
+      "Bash(npm run test *)",
+      "Bash(npm run agents:link)",
+      "Bash(npx eslint *)",
+      "Bash(npx tsc *)",
+      "Bash(npx vitest *)"
+    ],
+    "ask": [
+      "Bash(npm run build *)",
+      "Bash(npm run preview *)",
+      "Bash(npm run deploy *)",
+      "Bash(npm run upload *)",
+      "Bash(npm run data:build*)",
+      "Bash(npm run data:load*)",
+      "Bash(npx opennextjs-cloudflare *)",
+      "Bash(npx wrangler deploy*)",
+      "Bash(wrangler deploy*)",
+      "Bash(npx vercel deploy*)",
+      "Bash(npx vercel *--prod*)",
+      "Bash(vercel deploy*)",
+      "Bash(vercel *--prod*)",
+      "mcp__Neon__run_sql*"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(!.env.example)",
+      "Read(.dev.vars*)",
+      "Read(!.dev.vars.example)",
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Edit(!.env.example)",
+      "Edit(.dev.vars*)",
+      "Edit(!.dev.vars.example)",
+      "Bash(git push *--force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * -f*)",
+      "mcp__Neon__delete_*",
+      "mcp__Neon__reset_*"
+    ]
+  }
+}

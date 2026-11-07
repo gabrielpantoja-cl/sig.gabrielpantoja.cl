@@ -7,6 +7,7 @@ Edit here; never duplicate a file into `.opencode/`.
 |---|---|---|---|
 | `skills/<name>/SKILL.md` | ✅ | ✅ | Both read `.claude/skills/` natively |
 | `commands/*.md` | ✅ `/name` | ✅ `/name` | OpenCode via the `.opencode/commands` junction |
+| `settings.json` (permissions) | ✅ | ✅ | Mirrored by hand in `../opencode.json` (different syntax) |
 | `settings.local.json` | ✅ | — | Personal, gitignored |
 | `../.opencode/agents/*.md` | — | ✅ | OpenCode-only format (`permission:`) |
 
@@ -20,6 +21,25 @@ Creates `.opencode/commands → .claude/commands` (a junction on Windows, no adm
 needed; a symlink elsewhere). Git does not track links, so the link is
 gitignored and the script is idempotent. Skills need no link: a link there would
 register every skill twice in OpenCode.
+
+## Permissions (`settings.json` ↔ `opencode.json`)
+
+Neither tool reads the other's permission file, so the rules live twice and
+must change together:
+
+| Claude Code (`settings.json`) | OpenCode (`opencode.json`, V2 `permissions`) |
+|---|---|
+| `Bash(npm run build *)` in `ask` | `{ "action": "shell", "resource": "npm run build *", "effect": "ask" }` |
+| `Read(.env.*)` in `deny` | `{ "action": "read", "resource": "*.env.*", "effect": "deny" }` |
+| `Read(!.env.example)` in `deny` (carve-out) | a later `allow` rule for `*.env.example` |
+
+Precedence differs: Claude evaluates deny → ask → allow across every settings
+scope (a project `ask` beats a personal `allow`); OpenCode applies the **last**
+matching rule, and project rules load after the global config. So in
+`opencode.json` keep broad rules first and exceptions after them.
+
+Neon MCP rules (`mcp__Neon__*`) exist only on the Claude side: they deny the
+destructive tools and ask before `run_sql`.
 
 ## Writing a command that works in both
 
