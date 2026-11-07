@@ -2,7 +2,7 @@
 name: spatial-data-parsing
 description: Rules for parsing and cleaning user-provided spatial data (KML, GeoJSON) in this Next.js SIG — file size caps, feature caps, name/color/style extraction, sanitization, displayName initialization, and the Web Worker migration roadmap. Invoke BEFORE editing src/lib/kml.ts, scripts/build-*.mjs, or any pipeline that consumes user uploads or external geo-datasets (MMA, MINVU, SUBDERE, MOP, DGA, CIREN-ODEPA).
 license: MIT
-compatibility: opencode
+compatibility: claude-code, opencode
 metadata:
   category: doctrine
   data-tier: A

@@ -138,8 +138,17 @@ live in the gitignored `AGENTS.local.md`. `CLAUDE.md` / `CLAUDE.local.md` are
 shims that import them. `opencode.json` is committed with permissions and
 instruction wiring only — no model, which stays a per-machine choice.
 
-`.opencode/` holds the shared assets: `agents/orchestrator.md` (primary
-coordinator, deny-by-default delegation), read-only specialists
-`agents/*-agent.md` (keep them read-only), `commands/*.md` and
-`skills/<name>/SKILL.md`. This is a public repo: agent prompts must never
-contain credentials, private appraisal content or machine-specific secrets.
+**Dual config: `.claude/` is canonical** for everything both tools can share,
+so Claude Code and OpenCode read the same files:
+
+- `.claude/skills/<name>/SKILL.md` — read natively by both (no link needed).
+- `.claude/commands/*.md` — `/slash` commands; OpenCode reaches them through
+  the `.opencode/commands` junction. Run `npm run agents:link` once per clone
+  (gitignored, idempotent).
+
+`.opencode/agents/` stays OpenCode-only (its `permission:` frontmatter is not
+Claude's `tools:`): `orchestrator.md` (primary coordinator, deny-by-default
+delegation) and read-only specialists `*-agent.md` (keep them read-only).
+Layout details in [`.claude/README.md`](./.claude/README.md). This is a public
+repo: agent prompts must never contain credentials, private appraisal content
+or machine-specific secrets.

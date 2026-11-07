@@ -1,30 +1,22 @@
 # `.opencode/` — shared AI tooling
 
-This directory holds shared (committed) OpenCode assets: custom agents, slash
-commands, and on-demand skills. Per-machine personal assets go in
-`~/.config/opencode/` (NOT committed; lives in each developer's home
-directory and is therefore isolated between machines).
+This directory holds the **OpenCode-only** assets. Skills and commands are
+shared with Claude Code and live canonically in [`../.claude/`](../.claude/README.md):
+OpenCode reads `.claude/skills/` natively and reaches `.claude/commands/`
+through the gitignored `commands` junction created by `npm run agents:link`.
+Per-machine personal assets go in `~/.config/opencode/` (NOT committed).
 
 ## Layout
 
 | Path | Purpose |
 |---|---|
-| `agents/*.md` | Custom agents (markdown form) |
-| `commands/*.md` | Custom `/slash` commands (markdown form) |
-| `skills/<name>/SKILL.md` | On-demand skills (one folder per skill) |
-
-The discovery order is documented at
-https://opencode.ai/docs/config/#precedence-order — project-local
-`.opencode/` is loaded after the global config and before
-`CLAUDE.md` imports.
+| `agents/*.md` | Custom agents (OpenCode format, not shared) |
+| `commands` → `../.claude/commands` | Junction — edit the target, never here |
 
 ## Conventions
 
-- Skill names: kebab-case, must match their directory name
-  (1–64 chars, lowercase alphanumeric + single hyphens).
-- Frontmatter: only `name` and `description` are required.
-- Test locally before committing: open a session and use the
-  `skill` tool to verify each new skill resolves.
+- Skill and command conventions: see [`../.claude/README.md`](../.claude/README.md).
+- Agent names: keep the `-agent` suffix on read-only specialists.
 
 ## Current roster
 
