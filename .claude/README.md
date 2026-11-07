@@ -10,6 +10,7 @@ Edit here; never duplicate a file into `.opencode/`.
 | `settings.json` (permissions) | ✅ | ✅ | Mirrored by hand in `../opencode.json` (different syntax) |
 | `settings.local.json` | ✅ | — | Personal, gitignored |
 | `../.opencode/agents/*.md` | — | ✅ | OpenCode-only format (`permission:`) |
+| `../.githooks/pre-push` | ✅ | ✅ | Git hook, tool-agnostic (also guards human pushes) |
 
 ## Setup (once per clone)
 
@@ -21,6 +22,17 @@ Creates `.opencode/commands → .claude/commands` (a junction on Windows, no adm
 needed; a symlink elsewhere). Git does not track links, so the link is
 gitignored and the script is idempotent. Skills need no link: a link there would
 register every skill twice in OpenCode.
+
+It also sets `core.hooksPath=.githooks`, enabling the `pre-push` gate (lint →
+typecheck → test, the CI steps minus `build`; ~25 s). It won't overwrite a
+`core.hooksPath` you already set elsewhere.
+
+## Why a git hook and not a Claude/OpenCode hook
+
+A tool hook (`PreToolUse` in Claude, a plugin in OpenCode) would need two
+implementations, and OpenCode's plugin API has no documented way to block a
+call. A git hook is one file, runs for every client, and its stderr reaches the
+agent as the failed command's output — enough for it to fix and retry.
 
 ## Permissions (`settings.json` ↔ `opencode.json`)
 
