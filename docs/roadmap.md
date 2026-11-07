@@ -1270,6 +1270,31 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
       ni los mensajes ni las descripciones de PR llevan datos de tasaciones,
       clientes, rutas locales ni credenciales — la historia es pública y
       reescribirla es caro.
+- [x] **Sin coautores automáticos** (2026-11-07). La historia se reescribió
+      otra vez para quitar los trailers `Co-Authored-By`/`Claude-Session` de
+      Claude Code y la autoría del único commit de Dependabot (#7), con lo que
+      `gabrielpantoja-cl` queda como único contribuidor. Mismos 199 commits,
+      autores, fechas y árboles; solo cambian los SHA (tags `v0.1.0`/`v0.2.0`
+      reetiquetados). `.claude/settings.json` fija `attribution` vacío para que
+      Claude Code no vuelva a añadirlos; se eliminó `.mailmap` (GitHub lo
+      ignora). Si reaparece un trailer, sumar un hook
+      `.githooks/prepare-commit-msg` que lo rechace.
+- [ ] 🟢 **Decidir qué hacer con Dependabot**: cada PR suya que se fusiona
+      (squash o rebase, por la historia lineal) deja a `dependabot[bot]` como
+      autor y lo devuelve a la lista de contribuidores. Opciones:
+      1. **Mantener las PR** y aceptar que aparezca. Lo más simple; las PR
+         agrupadas (`runtime-minor`, `dev`) ya corren CI completo.
+      2. **Usarlas solo como aviso**: no fusionarlas; aplicar el bump a mano
+         (`npm update` / `npx npm@11 install …`) en un commit propio y
+         cerrar la PR.
+      3. **Solo alertas de seguridad**: quitar las actualizaciones de versión
+         de `.github/dependabot.yml` (o `open-pull-requests-limit: 0`) y
+         dejar *Dependabot security updates* activo; los bumps de rutina se
+         hacen a mano al cerrar cada versión.
+      Criterio: con un solo mantenedor, que ya revisa cada bump (ver
+      vulnerabilidades de desarrollo arriba), la opción 2 o la 3 cuesta poco.
+      Si el proyecto suma colaboradores o las actualizaciones se acumulan,
+      conviene volver a la 1. Revisar cuando llegue la próxima tanda de PR.
 
 ### Arquitectura del frontend
 
