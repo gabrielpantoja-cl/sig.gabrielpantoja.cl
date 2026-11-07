@@ -1,6 +1,6 @@
 # Roadmap del SIG de suelo — `sig.gabrielpantoja.cl`
 
-> Documento vivo. Última actualización: 2026-10-18.
+> Documento vivo. Última actualización: 2026-11-07.
 > Próxima revisión sugerida: trimestral o cuando se cierre una fase.
 >
 > **¿Retomas el proyecto?** Lee primero [«Por dónde retomar»](#por-dónde-retomar):
@@ -113,6 +113,7 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | 10 | 🟢 Riqueza de especies GBIF con esfuerzo de muestreo | Biodiversidad sin confundir «sin muestreo» con «sin especies» | [Investigación](#investigación-y-datos-abiertos) |
 | 11 | 🟡 `db/web.sql`: `web_readonly` con SELECT por columna, solo lectura y `statement_timeout` | Revisión de seguridad 2026-10-26: los permisos del rol no están en el repo y una credencial filtrada expondría PII. Requiere el rol owner de Neon | [Deuda › Seguridad](#seguridad-y-operación) |
 | 12 | 🟡 Objetivos táctiles de 48 dp y service worker para terreno | Prueba en Android 2026-10-26: 43 controles miden menos de 40 px; la PWA ya se instala pero no funciona sin señal | [Accesibilidad y mobile](#accesibilidad-y-mobile-auditoría-2026-08-28) |
+| 13 | 🟢 Láminas de informe: modo lámina por URL, `window.sig`, script de captura y MCP local | Hoy las láminas se capturan desde fuera con *monkey-patching* de Leaflet; la fase 1 trae además la señal `sig:listo` que necesita el humo E2E (#6) | [Láminas de informe](#láminas-de-informe-y-control-automatizado-propuesta-2026-11-07) |
 
 ## Criterios de priorización
 
@@ -773,6 +774,229 @@ que amplían el uso diario del perito:
       ruta sin que nada los ejercitara. Desde el 2026-10-05 el cajetín
       (`src/lib/export-metadata.ts`) tiene tests unitarios; la rasterización
       sigue sin cobertura.
+
+### Láminas de informe y control automatizado *(propuesta 2026-11-07)*
+
+**Origen.** Uso real del perito: generar láminas de ubicación (sector de
+tasación + referenciales) para pegarlas en informes de expropiación en
+Excel. Hoy se hace desde fuera con Playwright, capturando la instancia de
+`L.Map` por *monkey-patching* de `L.Map.prototype`: funciona, pero se rompe
+con cualquier cambio de Leaflet, del orden de carga o del *bundle*. La meta
+es dejar el SIG preparado para control automatizado y para producir
+láminas de calidad de informe **sin cambiar en nada el uso actual**: sin
+`modo=lamina` el SIG se ve y se comporta igual que hoy, incluidos `?v=`,
+`capas=` y `fondo=`.
+
+**Prioridad.** Valor tasación: alto (horas de gabinete por informe).
+Ecoinformática: medio (láminas de sitios de muestreo, mismo mecanismo).
+Accesibilidad del dato: alta (no hay dato nuevo). Costo: M por fase, L en
+total. Horizonte H3 («del visor al análisis del predio»). La fase 1 trae
+de regalo la señal que le falta al ítem 🟢 «Humo E2E con Playwright» de
+[Tests](#tests): `sig:listo` permite capturar sin esperas fijas.
+
+#### Regla de privacidad (no negociable)
+
+Los puntos del usuario (nombres, roles, montos de un expediente) **nunca**
+llegan al servidor, ni a logs, ni a la analítica, ni a una base de datos.
+Todo su procesamiento ocurre en el navegador, igual que las capas KML
+(`src/lib/kml.ts`). Consecuencias de diseño, verificadas contra el código
+el 2026-11-07:
+
+- **Los puntos viajan en el fragmento** (`#p=`), nunca en la query: el
+  navegador no envía el fragmento en la petición HTTP, así que no llega a
+  Vercel, a `src/proxy.ts` ni a la CDN. `usePermalink` ya conserva el
+  `hash` al reescribir la query con `replaceState`
+  (`src/hooks/usePermalink.ts`), así que ambos conviven.
+- **La analítica ya es compatible**: `src/lib/analytics.ts` envía solo
+  `location.pathname`, y `Analytics.tsx` lee de `location.search` solo los
+  `utm_*`. Si se mide el uso, agregar al catálogo de `analytics-events.ts`
+  un evento `lamina_generada` con props de NOMBRES (fondo, tamaño, cantidad
+  de puntos por tipo), nunca coordenadas ni textos.
+- **Fugas residuales que hay que cerrar o asumir por escrito**:
+  1. `?v=` en la query revela al servidor el centro de la lámina, que
+     coincide con el sector tasado. En modo lámina aceptar también el
+     encuadre en el fragmento (`#v=`) y que el script lo use por defecto
+     (o que omita `v` y deje el encuadre automático).
+  2. Los proveedores de teselas (OSM, Esri) ven qué teselas `z/x/y` se
+     piden. Es inevitable y ocurre igual al navegar hoy; se documenta en
+     el README de la herramienta, no se oculta.
+- **«Copiar enlace»** (`handleShare` en `page.tsx`) copia
+  `window.location.href`, que incluiría el `#p=`. Es correcto (el enlace
+  reproduce la lámina), pero al salir del modo lámina hay que limpiar el
+  fragmento para no arrastrar puntos de un expediente a un enlace normal.
+- **El MCP local** no persiste puntos, no escribe su contenido en logs y no
+  abre puertos (stdio). `buscar_transacciones` **no** debe mandar la
+  coordenada del sector al servidor: hoy `/api/points` no filtra por
+  `bbox` (sirve el conjunto completo en partes cacheables, ver
+  `src/lib/filters.ts`), así que la búsqueda de referenciales descarga
+  esas partes (cacheadas por la CDN con `?ds=`) y filtra en local. Un
+  parámetro `bbox` en la API sería más barato en red, pero revelaría la
+  ubicación del predio tasado: descartado por esta regla.
+
+#### Fase 1: modo lámina por URL
+
+Parámetros nuevos (todos opcionales; sin `modo=lamina` se ignoran):
+
+| Parámetro | Valores | Por defecto en lámina | Nota |
+|---|---|---|---|
+| `modo` | `lamina` | (no aplica) | Oculta cabecera, buscador, filtros, estadísticas, panel de capas, zoom, selector de fondo, regla, geolocalización, coordenadas del cursor y `UpdateNotice` |
+| `capas` | lista existente | vacía (todo apagado) | **Reusar el `capas=` actual** en vez de inventar `ninguna\|cbr`: `capas=` vacío ya significa «todo apagado» y `capas=puntos` enciende las transacciones (`src/lib/permalink.ts`). Solo cambia el valor por defecto en lámina |
+| `fondo` | `osm`, `neutro`, `satelital`, `topografico`, `ninguno` | `satelital` | Los ids reales son `satelital` y `topografico` (`src/lib/basemap.ts`); aceptar `satelite` y `topo` como alias de entrada, nunca escribirlos |
+| `ancho`, `alto` | px enteros | `1260` × `630` (2:1) | Acotar (p. ej. 200 a 4000) y validar como toda entrada del permalink; contenedor exacto, sin márgenes |
+| `norte` | `1` | apagado | Flecha discreta; reutilizar `drawCompass` de `src/lib/map-export.ts` |
+| `leyenda` | `1` | apagado | Compacta, solo con los tipos presentes |
+| `#p=` | JSON en base64url | (ninguno) | En el fragmento; formato abajo |
+| `#v=` | `lat,lng,zoom` | encuadre automático | Alternativa privada a `?v=` |
+
+Formato de `#p=` (antes de codificar):
+
+```json
+[{"lat":-39.60998,"lon":-72.23798,"t":"Sector de tasación","tipo":"sector"},
+ {"lat":-39.608027,"lon":-72.2433,"t":"Ref. 1","tipo":"cbr"},
+ {"lat":-39.57685,"lon":-72.162323,"t":"Ref. 4 (oferta)","tipo":"oferta"}]
+```
+
+Opcionales por punto: `lado` (`izq|der|arriba|abajo`) y `color`. Validar
+todo: lat/lon finitos y en rango; `t` acotado en largo y dibujado como
+texto, nunca como HTML; `color` solo `#rrggbb`; tope de puntos (p. ej.
+200) y de largo del fragmento. Un fragmento inválido no rompe la página:
+muestra el mapa sin puntos y un aviso discreto.
+
+Estilo por tipo (sobrio, legible sobre ortoimagen, apto para informe
+pericial): `sector` azul `#1a73e8`, `cbr` verde `#34a853`, `oferta`
+amarillo `#fbbc04`, `lote` rojo `#d93025`. Marcador circular con borde
+blanco de 3 px; etiqueta en recuadro blanco semitransparente, borde fino
+oscuro, sans 15 px en negrita.
+
+Comportamiento:
+
+- **Encuadre automático** si no viene `v`: extensión de **todos** los
+  puntos. No usar `extensionRobusta` (`src/lib/encuadre.ts`), que con 20 o
+  más puntos recorta el 2 % de cada borde: en una lámina ningún
+  referencial puede quedar fuera. Margen en píxeles calculado con el
+  tamaño real de las etiquetas, para que ninguna quede cortada.
+- **Anticolisión de etiquetas**: si dos recuadros se solapan, probar los
+  otros lados para los puntos sin `lado` explícito. Un algoritmo voraz en
+  orden de prioridad (`sector` primero) basta para decenas de puntos.
+  Función pura en `src/lib/` con tests (cajas en píxeles de entrada, lados
+  elegidos de salida). El encuadre y la anticolisión se resuelven juntos:
+  cambiar un lado puede exigir más margen.
+- **Señal de listo**: cuando cargaron todas las teselas visibles (evento
+  `load` de cada `L.TileLayer` activo, más los PNG por viewport de
+  `useViewportRaster` si hay capas remotas) y se dibujaron los puntos, el
+  elemento raíz recibe `data-sig-listo="1"` y se emite
+  `window.dispatchEvent(new Event('sig:listo'))`. Un `movestart` posterior
+  lo vuelve a `0` hasta el siguiente listo. Con tope de tiempo (como los
+  8 s del export PNG): al vencer se marca `data-sig-listo="parcial"` en vez
+  de colgarse, para que el script lo informe.
+- **Atribución**: se mantiene la mínima obligatoria de las teselas,
+  pequeña, abajo a la derecha (OSM y Esri la exigen; en satelital es
+  «Esri · Maxar · Earthstar Geographics»), más la barra de escala.
+
+Dónde vive: `src/lib/lamina.ts` puro (parseo y validación de
+`modo/ancho/alto/norte/leyenda/#p=/#v=`, base64url, estilos por tipo,
+encuadre, anticolisión) con su `lamina.test.ts`; un hook
+`src/components/map/useLaminaLayer.ts` que dibuja los puntos (skill
+`leaflet-canvas-sync`); y en `page.tsx` un único condicional que no monta
+la interfaz. Antes de tocar el mapa: `docs/design-notes.md` y la skill
+`map-export`.
+
+#### Fase 2: API de control `window.sig`
+
+Tipada en `src/lib/sig-api.ts` (declaración global de `Window['sig']`) y
+montada por `MapView` cuando el mapa existe. Reemplaza el
+*monkey-patching*.
+
+| Miembro | Qué hace |
+|---|---|
+| `sig.map` | La instancia de `L.Map` |
+| `sig.setBase(nombre)` | `osm`, `neutro`, `satelital`, `topografico`, `ninguno` (más los alias de la fase 1). Pasa por el mismo store que `BasemapSwitcher` (`basemap-store.ts`), no toca Leaflet por fuera |
+| `sig.setCapas(lista)` | Mismos nombres que `PERMALINK_LAYERS`; un nombre desconocido se ignora y se informa en el valor de retorno |
+| `sig.puntos(lista)` | Reemplaza los puntos del usuario (mismo formato que `#p=`) |
+| `sig.cargarKML(texto)` | Parsea en el navegador los `Placemark` `Point` (`name`, `styleUrl` o color) y los agrega como puntos del usuario. Reutiliza `src/lib/kml.ts` (topes y sanitización de la skill `spatial-data-parsing`). Arrastrar y soltar un `.kml` sobre el mapa hace lo mismo |
+| `sig.encuadrar({margen})` | El encuadre automático de la fase 1 |
+| `sig.listo()` | `Promise` que se resuelve con el siguiente `sig:listo`, o de inmediato si ya está listo |
+| `sig.vistaURL()` | URL reproducible de la vista actual, con los puntos en el fragmento |
+
+Decisiones abiertas:
+
+- ¿`window.sig` siempre o solo en modo lámina? Recomendado: siempre. Es
+  inocuo (todo lo que expone ya vive en el cliente) y no ofrece nada que
+  el usuario no pueda hacer con la interfaz.
+- Los «puntos del usuario» son una capa nueva de marcadores con etiqueta,
+  distinta de las capas KML que ya existen. Si `cargarKML` recibe
+  polígonos (el sector de tasación suele serlo), mandarlos a la capa KML
+  existente y solo los `Point` a la capa de lámina.
+
+#### Fase 3: script de captura y servidor MCP local
+
+`tools/lamina/capturar.mjs` (Node 22 + Playwright, Chromium *headless*):
+
+```
+node tools/lamina/capturar.mjs --puntos puntos.json | --kml archivo.kml
+  --fondo satelital --ancho 1260 --alto 630 --salida lamina.png
+  [--escala 2] [--norte] [--leyenda] [--url http://localhost:3000]
+  [--lote laminas.json]
+```
+
+- Arma la URL en modo lámina (por defecto `https://sig.gabrielpantoja.cl`),
+  espera `sig.listo()` y captura **solo** el contenedor del mapa.
+  `--escala 2` usa `deviceScaleFactor: 2` (PNG nítido para impresión).
+- `--lote`: varias láminas en una pasada (una por referencial más la
+  general), con el mismo navegador.
+- El KML se lee en el script y se inyecta con `sig.cargarKML` dentro de la
+  página: nunca se sube.
+- Playwright y el SDK de MCP son dependencias de `tools/`, con su propio
+  `package.json`, para no engordar la instalación de CI ni el *build* del
+  sitio.
+
+`tools/mcp-sig/` (TypeScript, `@modelcontextprotocol/sdk`, stdio), que
+reutiliza el módulo de captura:
+
+| Herramienta | Devuelve |
+|---|---|
+| `generar_lamina(puntos, fondo, ancho, alto, salida, opciones)` | Ruta del PNG + URL reproducible |
+| `generar_laminas_lote(definiciones)` | Lista de rutas + URLs |
+| `vista_url(puntos, fondo)` | Solo la URL, sin capturar |
+| `buscar_transacciones(bbox \| centro+radio, filtros)` | Referenciales cercanos, solo lectura, filtrados **en local** (ver regla de privacidad) y con los campos de `MapPoint`, ni uno más |
+
+README de `tools/mcp-sig/` con la configuración para Claude Code
+(`.mcp.json`) y OpenCode (`opencode.json`), por ejemplo
+`{"mcpServers":{"sig":{"command":"node","args":["tools/mcp-sig/dist/index.js"]}}}`.
+Si se registra en la configuración del repo, respetar la regla de
+configuración dual de `AGENTS.md` (editar ambos archivos a la vez).
+
+#### Calidad y pruebas
+
+- **Unitarias** (Vitest, en `src/lib/`): parseo y validación de `#p=`
+  (incluidos textos hostiles y fragmentos truncados), ida y vuelta de
+  base64url, encuadre con margen, anticolisión y alias de fondo.
+- **Playwright** con una lámina de 5 puntos ficticios: `data-sig-listo`
+  presente, ningún elemento de interfaz visible, PNG del tamaño exacto
+  (por la escala), ninguna etiqueta fuera del contenedor y ningún
+  solapamiento entre recuadros (`getBoundingClientRect`). En CI contra
+  teselas grabadas o fondo `ninguno`, nunca contra proveedores en vivo.
+- **No regresión**: la misma prueba abre `/` y `/?v=…&fondo=satelital` sin
+  `modo` y verifica que la interfaz completa sigue ahí.
+- **Privacidad**: con `#p=` cargado, interceptar todas las peticiones de
+  la página y verificar que ninguna URL ni cuerpo contiene las
+  coordenadas ni los textos de los puntos.
+- **Documentación**: sección «Control automatizado y láminas» en el README
+  (URLs de ejemplo, `window.sig`, script y MCP), entrada en
+  `docs/design-notes.md` y en `CHANGELOG.md`. Es capacidad visible para
+  el usuario: sube la versión MENOR.
+- **Textos de interfaz** en español de Chile, sin guion largo ni
+  semilargo como separador (coma, dos puntos o paréntesis) y con formato
+  numérico chileno (punto de miles, coma decimal).
+
+#### Orden de trabajo
+
+Antes de la fase 1, un plan breve tras leer `MapView.tsx`, `page.tsx`,
+`permalink.ts`, `usePermalink.ts`, `basemap.ts` y `map-export.ts`. Luego un
+commit por fase y, al cerrar cada una, una lámina de ejemplo más el
+resumen de cambios antes de seguir. Como el script llega en la fase 3, en
+las fases 1 y 2 la lámina de ejemplo sale de un Playwright mínimo que ya
+use `sig:listo`.
 
 ### Herramientas mínimas de SIG que faltan (auditoría 2026-08-28)
 
