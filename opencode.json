@@ -31,6 +31,8 @@
     { "action": "shell", "resource": "git push *--force*", "effect": "deny" },
     { "action": "shell", "resource": "git push -f*", "effect": "deny" },
     { "action": "shell", "resource": "git push * -f*", "effect": "deny" },
+    { "action": "shell", "resource": "git push *--no-verify*", "effect": "deny" },
+    { "action": "shell", "resource": "git * core.hooksPath*", "effect": "deny" },
 
     { "action": "read", "resource": "*.env", "effect": "deny" },
     { "action": "read", "resource": "*.env.*", "effect": "deny" },

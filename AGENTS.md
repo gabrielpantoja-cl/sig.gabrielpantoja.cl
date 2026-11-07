@@ -91,7 +91,7 @@ Optional analytics: `ANALYTICS_DATABASE_URL` (role `analytics_writer`, see
 
 ## Data & privacy
 
-Exposed per point: `lat, lng, monto, anio, comuna, predio, superficie, rol, destino, fojas, numero, conservador`.
+Exposed per point: `lat, lng, monto, montoUf, anio, comuna, predio, superficie, rol, destino, fechaEscritura, fechaInscripcion, fojas, numero, conservador` (contract: `MapPoint` in `src/lib/types.ts`).
 `rol` IS intentionally public (SII identifier, not PII under Ley 19.628).
 
 ## Versioning
@@ -123,7 +123,7 @@ The update monitor triggers on `BUILD_ID`, so un-bumped deploys still notify.
 
 ## HARD RULES
 
-- **NEVER expose** `comprador`, `vendedor`, `rut`, `user_id`, `observaciones` (PII under Ley 19.628) — stripped at the API level (`src/lib/security.ts`)
+- **NEVER expose** `comprador`, `vendedor`, `rut`, `user_id`, `observaciones` (PII under Ley 19.628) — never SELECTed: each route lists its columns explicitly. Checklist before touching `src/app/api/`: the `api-pii-review` skill
 - **NEVER use `NEXT_PUBLIC_`** for database credentials
 - **NEVER add client-side DB access**
 - **NEVER commit `.env.local`** or any real `.env*` file; editing them needs explicit approval (tracked templates like `.env.example` are fine)
@@ -150,6 +150,10 @@ so Claude Code and OpenCode read the same files:
   `.env*` / `.dev.vars*` (except the `.example` templates) and force-push,
   ask before build, deploy, `data:*` and Vercel/Wrangler production commands,
   and allow lint/typecheck/test.
+- Git `pre-push` hook (`.githooks/pre-push`, enabled by `npm run agents:link`
+  via `core.hooksPath`): runs lint → typecheck → test and cancels the push on
+  failure, for humans and every agent alike. Agents are denied
+  `--no-verify` and touching `core.hooksPath`.
 
 `.opencode/agents/` stays OpenCode-only (its `permission:` frontmatter is not
 Claude's `tools:`): `orchestrator.md` (primary coordinator, deny-by-default

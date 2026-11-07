@@ -1,0 +1,3 @@
+# Los hooks de git los ejecuta sh: con CRLF el shebang se lee como
+# "/bin/sh\r" y el hook falla. Siempre LF, también en checkouts de Windows.
+.githooks/* text eol=lf
