@@ -72,6 +72,8 @@ export async function GET(req: Request) {
     STYLES: '',
   }).toString();
 
+  console.log('Upstream SII:', upstream.toString());
+
   const { response, body, timedOut, bodyError } = await fetchArcGis(
     upstream,
     'image/png',
@@ -87,7 +89,20 @@ export async function GET(req: Request) {
     );
   }
   if (!response.ok) {
-    console.error('SII predios WMS returned an upstream error:', response.status);
+    const ct = response.headers.get('content-type') ?? '';
+    let sample = '';
+    try {
+      sample = await response.text();
+      sample = sample.slice(0, 300);
+    } catch {}
+    console.error(
+      'SII predios WMS upstream error:',
+      response.status,
+      'content-type:',
+      ct,
+      'body sample:',
+      sample,
+    );
     return siiPrediosProxyError(req, 502, 'UPSTREAM_HTTP_ERROR', OPERATION);
   }
   if (mediaType(response) !== 'image/png') {
