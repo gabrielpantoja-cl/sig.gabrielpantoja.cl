@@ -72,8 +72,6 @@ export async function GET(req: Request) {
     STYLES: '',
   }).toString();
 
-  console.log('Upstream SII:', upstream.toString());
-
   const { response, body, timedOut, bodyError } = await fetchArcGis(
     upstream,
     'image/png',
