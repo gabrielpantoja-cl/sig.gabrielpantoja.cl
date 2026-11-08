@@ -402,17 +402,16 @@ el código:
 
 ## Fase 3 — Densificación
 
-### 3.1 SII cartografía predial
+### 3.1 SII cartografía predial — ⚠️ SIN CAPA DE POLÍGONOS FUNCIONANTE
 
-- **Fuente**: <https://mapas.sii.cl/> (consulta público de roles,
-  avalúos y áreas homogéneas por manzana).
-- **Qué agrega**: la fuente oficial del ROL. Permite **validar el
-  destino SII** del predio contra el destino declarado en el CBR y
-  referenciar el avalúo fiscal desde el popup (no exponemos el
-  monto; sí un "Ver avalúo fiscal en SII →").
-- **Tipo**: **link-out** en popup + opcional enriquecimiento servidor
-  via API pública si la hay.
-- **Esfuerzo**: **S-M**.
+> **Estado al 2026-11-08:** ninguna de las dos fuentes de polígonos prediales da una capa usable hoy. CIREN `propiedades_rurales` (a ratos se cae y está desactualizada) y el WMS del SII (requiere sesión autenticada) entre las dos no sirven por separado. Véase el análisis profundo en el repo privado (`C:\Users\gabri\Developer\infra\privado\personal\sig.gabrielpantoja.cl/analisis-capa-predios-sii.md`).
+
+- **Prueba descartada (2026-11-08):** "Deslindes prediales (SII)" como WMS dinámico por viewport (`src/app/api/sii-predios/export/route.ts`, proxy con `Referer` + `User-Agent`, WMS 1.1.1 + `SRS=EPSG:4326`, validación PNG). El endpoint `https://www4.sii.cl/mapasui/services/ui/wmsProxyService/call` **no permite acceso anónimo**: incluso `GetCapabilities` devuelve HTTP 400 (text/html, JBoss "syntactically incorrect"). El visor `https://www4.sii.cl/mapasui/` redirige a `http://vulcano.sii.cl/AUTFUN/IngresoRutClaveOItoken.html` (login con RUT + clave). Sin una `JSESSIONID` válida no hay PNG. La capa queda **registrada** en el catálogo, el permalink (`sii_predios`), `LayersControl` y `MapView`, pero devuelve 502 / banner rojo al activarla hasta que se inyecte una cookie de sesión (no apto para un repo público MIT sin credenciales provistas por el usuario).
+- **CIREN `propiedades_rurales`** (capas dinámica remota, `IDEMINAGRI/PROPIEDADES_RURALES`, 14 sublayers regionales): sigue en producción pero es frágil — a ratos se cae y está desactualizada según región. Coexiste con el intento SII; ninguna de las dos da polígonos fiables hoy.
+- **Opción en evaluación:** transformar los **raster del mapa SII** (PNG por viewport del WMS) en **datos vectoriales** (trazado/georreferenciación o extracción de contornos) y servirlos como capa estática o derivada en `public/data/`, evitando la dependencia de sesión del WMS. Pendiente de análisis de viabilidad y licencia del SII.
+- **Fuente (para cuando haya sesión o fuente alternativa):** <https://mapas.sii.cl/> (consulta pública de roles, avalúos y áreas homogéneas por manzana). Permitiría validar el destino SII del predio contra el destino declarado en el CBR y referenciar el avalúo fiscal desde el popup (no exponemos el monto; sí un "Ver avalúo fiscal en SII →").
+- **Tipo:** **link-out** en popup + opcional enriquecimiento servidor vía API pública si la hay.
+- **Esfuerzo:** **L** (pendiente de resolver la barrera de autenticación o conseguir fuente vectorial pública alternativa).
 
 ### 3.2 CONAF — Catastro vegetacional — ✅ en producción (2026-08-22)
 
