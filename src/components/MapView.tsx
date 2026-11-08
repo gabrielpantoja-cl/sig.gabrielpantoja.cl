@@ -101,6 +101,13 @@ import {
   type PropiedadesRuralesStatus,
   type PropiedadRuralFeatureResponse,
 } from '@/lib/propiedades-rurales';
+import {
+  SII_PREDIOS_ATTRIBUTION,
+  SII_PREDIOS_EXPORT_URL,
+  SII_PREDIOS_MIN_ZOOM,
+  SII_PREDIOS_SERVICE_NAME,
+  type SiiPrediosStatus,
+} from '@/lib/sii-predios';
 
 /**
  * Imperative Leaflet map with marker clustering.
@@ -147,6 +154,8 @@ export default function MapView({
   showRelieve = false,
   relieveModo = RELIEVE_DEFAULT_MODO,
   onRelieveStatus,
+  showSiiPredios = false,
+  onSiiPrediosStatus,
   onVegetacionalStatus,
   showHexbins = false,
   hexbinDestino,
@@ -206,6 +215,10 @@ export default function MapView({
   showRelieve?: boolean;
   relieveModo?: RelieveModo;
   onRelieveStatus?: (status: RemoteRasterStatus) => void;
+  /** Deslindes prediales SII: PNG por viewport vía WMS del SII. */
+  showSiiPredios?: boolean;
+  /** Disponibilidad operacional de la capa remota de predios SII para la leyenda. */
+  onSiiPrediosStatus?: (status: SiiPrediosStatus) => void;
   /** Disponibilidad operacional de la capa remota CONAF para la leyenda. */
   onVegetacionalStatus?: (status: RemoteRasterStatus) => void;
   /** Mapa de calor de valor: hexbins de $/m² agregados en Neon por viewport. */
@@ -293,6 +306,7 @@ export default function MapView({
   const ndviVisualRef = useRef<L.ImageOverlay | null>(null);
   const relieveRef = useRef<L.ImageOverlay | null>(null);
   const propiedadesRuralesRef = useRef<L.ImageOverlay | null>(null);
+  const siiPrediosRef = useRef<L.ImageOverlay | null>(null);
   const propiedadRuralHighlightRef = useRef<L.GeoJSON | null>(null);
   const hexbinsRef = useRef<L.ImageOverlay | null>(null);
   // Punto consultado por la herramienta NDVI: marcador de cruceta en el
@@ -318,6 +332,7 @@ export default function MapView({
     if (previous.ndviVisual !== layerOpacity.ndviVisual) ndviVisualRef.current?.setOpacity(layerOpacity.ndviVisual);
     if (previous.relieve !== layerOpacity.relieve) relieveRef.current?.setOpacity(layerOpacity.relieve);
     if (previous.propiedadesRurales !== layerOpacity.propiedadesRurales) propiedadesRuralesRef.current?.setOpacity(layerOpacity.propiedadesRurales);
+    if (previous.siiPredios !== layerOpacity.siiPredios) siiPrediosRef.current?.setOpacity(layerOpacity.siiPredios);
   }, [layerOpacity]);
   // Muestras de la superficie vigente. El raster no es clicable, así que el
   // popup se resuelve buscando la celda más cercana al clic sobre esta lista.
@@ -350,6 +365,7 @@ export default function MapView({
   const initialViewRef = useRef(initialView);
   const onHumedalesStatusRef = useRef(onHumedalesStatus);
   const onPropiedadesRuralesStatusRef = useRef(onPropiedadesRuralesStatus);
+  const onSiiPrediosStatusRef = useRef(onSiiPrediosStatus);
   const onNdviVisualStatusRef = useRef(onNdviVisualStatus);
   const onRelieveStatusRef = useRef(onRelieveStatus);
   const onVegetacionalStatusRef = useRef(onVegetacionalStatus);
@@ -368,6 +384,7 @@ export default function MapView({
     onViewChangeRef.current = onViewChange;
     onHumedalesStatusRef.current = onHumedalesStatus;
     onPropiedadesRuralesStatusRef.current = onPropiedadesRuralesStatus;
+    onSiiPrediosStatusRef.current = onSiiPrediosStatus;
     onNdviVisualStatusRef.current = onNdviVisualStatus;
     onRelieveStatusRef.current = onRelieveStatus;
     onVegetacionalStatusRef.current = onVegetacionalStatus;
@@ -376,7 +393,7 @@ export default function MapView({
     ndviModeRef.current = ndviMode;
     onNdviPointRef.current = onNdviPoint;
     onAnalizarPredioRef.current = onAnalizarPredio;
-  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onViewChange, onHumedalesStatus, onPropiedadesRuralesStatus, onNdviVisualStatus, onRelieveStatus, onVegetacionalStatus, onHexbinStatus, onConservadoresStatus, ndviMode, onNdviPoint, onAnalizarPredio]);
+  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onViewChange, onHumedalesStatus, onPropiedadesRuralesStatus, onSiiPrediosStatus, onNdviVisualStatus, onRelieveStatus, onVegetacionalStatus, onHexbinStatus, onConservadoresStatus, ndviMode, onNdviPoint, onAnalizarPredio]);
 
   // Publica el método de export en el ref entregado por la página. La closure
   // se re-bindea en cada cambio de flags para que la captura refleje siempre
@@ -532,6 +549,7 @@ export default function MapView({
     humedalesRef.current?.bringToFront();
     catastroFruticolaRef.current?.bringToFront();
     propiedadesRuralesRef.current?.bringToFront();
+    siiPrediosRef.current?.bringToFront();
     propiedadRuralHighlightRef.current?.bringToFront();
     // Red caminera sobre los polígonos (líneas finas, deben quedar visibles).
     redVialRef.current?.bringToFront();
@@ -671,6 +689,7 @@ export default function MapView({
       ndviVisualRef.current = null;
       relieveRef.current = null;
       propiedadesRuralesRef.current = null;
+      siiPrediosRef.current = null;
       propiedadRuralHighlightRef.current = null;
       hexbinsRef.current = null;
       basemapRef.current = null;
@@ -1156,6 +1175,14 @@ export default function MapView({
     serviceName: PROPIEDADES_RURALES_SERVICE_NAME, attribution: PROPIEDADES_RURALES_ATTRIBUTION,
     opacity: () => opacityRef.current.propiedadesRurales,
     onStatusRef: onPropiedadesRuralesStatusRef, reorderOverlays,
+  });
+
+  useViewportRaster({
+    mapRef, overlayRef: siiPrediosRef, show: showSiiPredios,
+    exportUrl: SII_PREDIOS_EXPORT_URL, minZoom: SII_PREDIOS_MIN_ZOOM,
+    serviceName: SII_PREDIOS_SERVICE_NAME, attribution: SII_PREDIOS_ATTRIBUTION,
+    opacity: () => opacityRef.current.siiPredios,
+    onStatusRef: onSiiPrediosStatusRef, reorderOverlays,
   });
 
   // Resultado seleccionado por ROL: una única geometría vectorial sobre el

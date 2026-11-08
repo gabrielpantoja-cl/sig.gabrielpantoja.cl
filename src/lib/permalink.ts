@@ -46,6 +46,7 @@ export const PERMALINK_LAYERS = [
   'vegetacional',
   'humedales',
   'propiedades_rurales',
+  'sii_predios',
   'ndvi_visual',
   'relieve',
 ] as const;

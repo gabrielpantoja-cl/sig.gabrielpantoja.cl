@@ -179,11 +179,14 @@ export function pngResponse(req: Request, body: Uint8Array): Response {
  * Fetches an upstream ArcGIS resource with an 8 s timeout and a byte cap,
  * never following redirects. `response` is null when the request never got
  * an answer; `bodyError` flags a body that was too large or broke mid-stream.
+ * `extraHeaders` are merged into the request headers (e.g. Referer /
+ * User-Agent for government WMS that block anonymous clients).
  */
 export async function fetchArcGis(
   url: URL,
   accept: string,
   maxBytes: number,
+  extraHeaders?: Record<string, string>,
 ): Promise<{
   response: Response | null;
   body: Uint8Array | null;
@@ -198,7 +201,7 @@ export async function fetchArcGis(
       cache: 'no-store',
       redirect: 'error',
       signal: controller.signal,
-      headers: { Accept: accept },
+      headers: { Accept: accept, ...extraHeaders },
     });
     if (!response.ok) {
       return { response, body: null, timedOut: false, bodyError: false };

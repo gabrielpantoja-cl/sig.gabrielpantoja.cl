@@ -48,6 +48,7 @@ const THUMBS = {
   vegetacional: { capa: 'vegetacional', v: '-39.85,-73.05,11' },
   humedales: { capa: 'humedales', v: '-39.82,-73.25,12' },
   propiedadesRurales: { capa: 'propiedades_rurales', v: '-37.79,-72.33,13' },
+  siiPredios: { capa: 'sii_predios', v: '-39.6,-72.33,12' },
   ndviVisual: { capa: 'ndvi_visual', v: '-34.42,-70.95,12' },
   relieve: { capa: 'relieve', v: '-33.4,-70.3,11' },
   bioclima: { capa: 'bioclima', v: '-36.5,-71.5,6' },

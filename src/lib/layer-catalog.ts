@@ -131,6 +131,12 @@ export const LAYER_CATALOG = [
         description: 'Clases de aptitud de suelo I a VIII, servidas por CIREN; consulta por punto',
       },
       {
+        id: 'siiPredios',
+        label: 'Deslindes prediales (SII)',
+        summary: 'SII · polígonos de predios WMS',
+        description: 'Deslindes prediales del Servicio de Impuestos Internos, servidos como capa dinámica remota (WMS por viewport)',
+      },
+      {
         id: 'vegetacional',
         label: 'Recursos vegetacionales (CONAF)',
         summary: 'CONAF · uso del suelo',

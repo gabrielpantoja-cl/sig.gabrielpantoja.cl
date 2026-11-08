@@ -13,6 +13,7 @@ import {
   PROPIEDADES_RURALES_SERVICE_NAME,
   type PropiedadesRuralesStatus,
 } from '@/lib/propiedades-rurales';
+import { SII_PREDIOS_SERVICE_NAME, type SiiPrediosStatus } from '@/lib/sii-predios';
 import { type HexbinStatus, type HexbinUnidad } from '@/lib/hexbins';
 import type { ConservadoresStatus } from '@/lib/conservadores';
 import { RetroLoader } from '@/components/RetroLoader';
@@ -441,6 +442,8 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   const [showRelieve, setShowRelieve] = useState(on('relieve'));
   const [relieveModo, setRelieveModo] = useState<RelieveModo>(initial.relieve);
   const [relieveStatus, setRelieveStatus] = useState<RemoteRasterStatus>({ kind: 'idle' });
+  const [showSiiPredios, setShowSiiPredios] = useState(on('sii_predios'));
+  const [siiPrediosStatus, setSiiPrediosStatus] = useState<SiiPrediosStatus>({ kind: 'idle' });
   // Mapa de calor de valor. El destino arranca en habitacional: es el 57 % de
   // la base y el caso urbano que el usuario quiere ver primero.
   const [showHexbins, setShowHexbins] = useState(on('mapa_calor'));
@@ -489,12 +492,13 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     vegetacional: showVegetacional,
     humedales: showHumedales,
     propiedades_rurales: showPropiedadesRurales,
+    sii_predios: showSiiPredios,
     ndvi_visual: showNdviVisual,
     relieve: showRelieve,
   }) satisfies Record<PermalinkLayer, boolean>, [
     showPoints, showConservadores, showHexbins, showProtected, showUrbanLimit, showComunas,
     showRedVial, showRedDrenaje, showLineasTransmision, showSuelos, showBioclima,
-    showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showNdviVisual, showRelieve,
+    showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showSiiPredios, showNdviVisual, showRelieve,
   ]);
   // Permalink: todo lo que define la vista, menos el encuadre (que llega de
   // MapView en cada `moveend`). `satisfies` arriba obliga a que cada capa
@@ -885,6 +889,9 @@ function SigApp({ initial }: { initial: PermalinkState }) {
           relieveModo={relieveModo}
           onRelieveModo={setRelieveModo}
           relieveStatus={relieveStatus}
+          showSiiPredios={showSiiPredios}
+          onToggleSiiPredios={setShowSiiPredios}
+          siiPrediosStatus={siiPrediosStatus}
           kmlLayers={kmlLayers}
           kmlError={kmlError}
           onAddKmlFiles={addKmlFiles}
@@ -940,6 +947,8 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               showRelieve={showRelieve}
               relieveModo={relieveModo}
               onRelieveStatus={setRelieveStatus}
+              showSiiPredios={showSiiPredios}
+              onSiiPrediosStatus={setSiiPrediosStatus}
               onVegetacionalStatus={setVegetacionalStatus}
               onPropiedadesRuralesStatus={setPropiedadesRuralesStatus}
               selectedRuralFeature={selectedRuralFeature}
@@ -1035,6 +1044,13 @@ function SigApp({ initial }: { initial: PermalinkState }) {
             <div role="alert" className="absolute bottom-20 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs text-red-800 shadow-lg dark:text-red-200">
               <strong>Capa de propiedades rurales temporalmente no disponible.</strong>{' '}
               No responde {propiedadesRuralesStatus.service || PROPIEDADES_RURALES_SERVICE_NAME}.
+            </div>
+          )}
+          {showSiiPredios && siiPrediosStatus.kind === 'error' && (
+            <div role="alert" className="absolute bottom-28 left-1/2 z-[650] w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-red-500/35 bg-[var(--background)]/95 px-3 py-2 text-xs leading-snug text-red-800 shadow-lg backdrop-blur dark:text-red-200">
+              <strong>Capa de deslindes prediales (SII) temporalmente no disponible.</strong>{' '}
+              No responde {siiPrediosStatus.service || SII_PREDIOS_SERVICE_NAME} (operación{' '}
+              {siiPrediosStatus.operation}). El resto del SIG continúa funcionando normalmente.
             </div>
           )}
           {showNdviVisual && ndviVisualStatus.kind === 'error' && (

@@ -80,6 +80,13 @@ import { KML_MAX_FILE_MB, kmlDisplayName, type KmlLayer } from '@/lib/kml';
 import { poligonoDeFeatures } from '@/lib/analisis-predio';
 import { PROPIEDADES_RURALES_ATTRIBUTION, PROPIEDADES_RURALES_COLOR, PROPIEDADES_RURALES_DISCLAIMER, PROPIEDADES_RURALES_MIN_ZOOM, PROPIEDADES_RURALES_REGIONS, PROPIEDADES_RURALES_SOURCE_URL, type PropiedadesRuralesStatus } from '@/lib/propiedades-rurales';
 import {
+  SII_PREDIOS_ATTRIBUTION,
+  SII_PREDIOS_COLOR,
+  SII_PREDIOS_MIN_ZOOM,
+  SII_PREDIOS_SOURCE_URL,
+  type SiiPrediosStatus,
+} from '@/lib/sii-predios';
+import {
   BIOCLIMA_SOURCE_URL,
   bioclimaAttribution,
   bioclimaRamp,
@@ -727,6 +734,9 @@ export function LayersControl({
   relieveModo,
   onRelieveModo,
   relieveStatus,
+  showSiiPredios,
+  onToggleSiiPredios,
+  siiPrediosStatus,
   kmlLayers,
   kmlError,
   onAddKmlFiles,
@@ -794,6 +804,9 @@ export function LayersControl({
   relieveModo: RelieveModo;
   onRelieveModo: (modo: RelieveModo) => void;
   relieveStatus: RemoteRasterStatus;
+  showSiiPredios: boolean;
+  onToggleSiiPredios: (v: boolean) => void;
+  siiPrediosStatus: SiiPrediosStatus;
   /** Estado del raster por viewport: la leyenda lo muestra para no presentar
    *  una falla del servicio como "sin datos". */
   ndviVisualStatus: NdviVisualEstado;
@@ -885,10 +898,10 @@ export function LayersControl({
   );
   const hasActiveLegend = showConservadores || showHexbins || showProtected || showUrbanLimit || showComunas ||
     showRedVial || showRedDrenaje || showLineasTransmision || showSuelos || showBioclima ||
-    showCatastroFruticola || showVegetacional || showHumedales || showPropiedadesRurales || showNdviVisual || showRelieve;
+    showCatastroFruticola || showVegetacional || showHumedales || showPropiedadesRurales || showSiiPredios || showNdviVisual || showRelieve;
   const activeLayerCount = [showConservadores, showHexbins, showProtected, showUrbanLimit, showComunas,
     showRedVial, showRedDrenaje, showLineasTransmision, showSuelos, showBioclima,
-    showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showNdviVisual, showRelieve].filter(Boolean).length;
+    showCatastroFruticola, showVegetacional, showHumedales, showPropiedadesRurales, showSiiPredios, showNdviVisual, showRelieve].filter(Boolean).length;
   const catalogue = (
       <div className="space-y-0.5">
         <LayerGroupHeader id="cbr" />
@@ -1371,6 +1384,36 @@ export function LayersControl({
             <a href={PROPIEDADES_RURALES_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-100">Ver fuente oficial →</a>
           </p>
           {showPropiedadesRurales && <RemoteStatusNotice status={propiedadesRuralesStatus} provider="CIREN" />}
+        </LayerRow>
+
+        <LayerRow
+          checked={showSiiPredios}
+          onChange={onToggleSiiPredios}
+          layerId="siiPredios"
+          label="Deslindes prediales (SII)"
+          controls={opacityControl('siiPredios')}
+          swatch={
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-sm"
+              style={{ background: `${SII_PREDIOS_COLOR}22`, border: `1.5px solid ${SII_PREDIOS_COLOR}` }}
+            />
+          }
+        >
+          <p className="text-[0.6rem] leading-snug opacity-50">
+            {SII_PREDIOS_ATTRIBUTION}. Polígonos de predios del Servicio de Impuestos
+            Internos servidos como capa dinámica remota (WMS por viewport).{' '}
+            <strong>Visible desde zoom {SII_PREDIOS_MIN_ZOOM}.</strong> Geometría
+            referencial: no acredita dominio ni vigencia registral.{' '}
+            <a
+              href={SII_PREDIOS_SOURCE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:opacity-100"
+            >
+              Ver fuente oficial →
+            </a>
+          </p>
+          {showSiiPredios && <RemoteStatusNotice status={siiPrediosStatus} provider="SII" />}
         </LayerRow>
 
         <div>
