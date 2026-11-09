@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "SIG de suelo — Transacciones CBR | gabrielpantoja.cl",
   description:
-    "Mapa interactivo y datos abiertos de compraventas de suelo rural inscritas en el Conservador de Bienes Raíces del centro-sur de Chile. Consulta por comuna, año, monto, superficie y ROL; descarga CSV/GeoJSON.",
+    "Mapa interactivo y datos abiertos de compraventas de suelo rural inscritas en los Conservadores de Bienes Raíces de todo Chile. Consulta por comuna, año, monto, superficie y ROL; descarga CSV/GeoJSON.",
   metadataBase: new URL("https://sig.gabrielpantoja.cl"),
 };
 

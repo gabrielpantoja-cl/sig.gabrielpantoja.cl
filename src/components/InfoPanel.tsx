@@ -63,9 +63,9 @@ export function InfoPanel() {
           <p className="opacity-80">
             Sistema de información geográfica para estudiar el valor y el
             contexto del suelo en Chile: compraventas inscritas en los
-            Conservadores de Bienes Raíces del centro-sur, junto a capas
-            oficiales de territorio, suelo, agua, vegetación y relieve. Pensado
-            para peritos tasadores e investigación.
+            Conservadores de Bienes Raíces de todo el país, junto a capas
+            oficiales de territorio, suelo, agua, vegetación y relieve.
+            Pensado para peritos tasadores e investigación.
           </p>
           <p className="mt-2 border-t border-black/10 pt-2 text-xs opacity-60 dark:border-white/10">
             Transacciones: recopilación propia de inscripciones públicas.
