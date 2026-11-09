@@ -64,7 +64,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
-    "@opennextjs/cloudflare": "^1.20.15",
+    "@opennextjs/cloudflare": "^1.20.16",
     "@tmcw/togeojson": "^7.1.2",
     "fflate": "^0.8.3",
     "geotiff": "^3.0.5",
