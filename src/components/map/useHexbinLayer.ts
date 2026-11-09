@@ -125,7 +125,10 @@ export function useHexbinLayer({
           .map(round)
           .join(','),
       );
-      params.set('z', String(map.getZoom()));
+      // La escalera de borde de celda se calibra por nivel ENTERO de zoom
+      // (docs/plan-mapa-de-calor.md). Con zoomSnap 0.25 el mapa puede estar en
+      // 14,5: se redondea acá para no depender del redondeo del servidor.
+      params.set('z', String(Math.round(map.getZoom())));
       params.set('destino', hexbinDestino ?? DESTINO_DEFAULT);
       params.set('min_n', String(hexbinMinN ?? HEXBIN_MIN_N_DEFAULT));
       params.set('unidad', hexbinUnidad ?? HEXBIN_UNIDAD_DEFAULT);

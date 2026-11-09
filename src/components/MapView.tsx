@@ -585,6 +585,18 @@ export default function MapView({
       maxBoundsViscosity: 1,
       preferCanvas: true,
       scrollWheelZoom: true,
+      // Rueda del ratón: con los valores por defecto (zoomSnap 1,
+      // wheelPxPerZoomLevel 60) CUALQUIER muesca salta un nivel entero (×2 de
+      // escala): ScrollWheelZoom._performZoom redondea hacia arriba
+      // (`Math.ceil(d3 / snap)`) y el scroll rápido acumula varios niveles por
+      // ventana de 40 ms. Google Earth avanza ~0,5 nivel por muesca (medido
+      // con Playwright: ×1,41-1,48 de altitud). Con zoomSnap 0.25 (cuartos de
+      // nivel, como ya usa /estado) + 100 px por nivel, la muesca queda en 0,5
+      // nivel (×1,41) y el scroll sostenido en ~1 nivel por ventana, la mitad
+      // que antes. El permalink y la escalera del mapa de calor redondean a
+      // entero por su lado, así que la URL y las celdas no cambian.
+      zoomSnap: 0.25,
+      wheelPxPerZoomLevel: 100,
     });
     // El mapa base lo monta el efecto de abajo, que también reacciona al
     // selector: así hay una sola ruta de código que crea capas de tiles.
