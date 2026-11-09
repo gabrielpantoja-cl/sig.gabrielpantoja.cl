@@ -802,6 +802,12 @@ export default function MapView({
       chunkInterval: 120,
       chunkDelay: 20,
       maxClusterRadius: 50,
+      // Desde z18 cada punto se dibuja individual en su coordenada exacta. Con
+      // el default (null) el radio de 50 px agrupa en TODOS los zooms, así que
+      // dos lotes contiguos a ~8 m (36 px a z19) quedaban en una sola burbuja
+      // «2» aunque el mapa estuviera al máximo. Bajo z18 el cluster sigue
+      // despejando el mapa; a z18 la separación (≈18 px) ya distingue los pines.
+      disableClusteringAtZoom: 18,
       showCoverageOnHover: false,
       // animate:false evita el requestAnimFrame de transición de clusters, cuyo
       // callback diferido corría tras el desmontaje (StrictMode) sobre un mapa
