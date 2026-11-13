@@ -1,6 +1,6 @@
 # Roadmap del SIG de suelo — `sig.gabrielpantoja.cl`
 
-> Documento vivo. Última actualización: 2026-11-07.
+> Documento vivo. Última actualización: 2026-11-13.
 > Próxima revisión sugerida: trimestral o cuando se cierre una fase.
 >
 > **¿Retomas el proyecto?** Lee primero [«Por dónde retomar»](#por-dónde-retomar):
@@ -51,7 +51,7 @@ rango temporal para series).
 
 | # | Capa | Tipo | Peso |
 |---|---|---|---|
-| 1 | Transacciones CBR (~108k puntos) | Dinámica (Neon vía `/api/points`, 8 partes cacheables) | 4,7 MB en el cable (31 MB JSON) |
+| 1 | Transacciones CBR (~215k puntos) | Sin filtros: archivo estático diario (`NEXT_PUBLIC_PUNTOS_URL`); con filtros: Neon vía `/api/points` (8 partes cacheables) | ~61 MB JSON sin comprimir |
 | 2 | Mapa de calor de valor ($/m²) | Derivada (PostGIS `ST_HexagonGrid` + interpolación) | — |
 | 3 | Propiedades rurales (CIREN) | Dinámica remota (PNG por viewport + `identify`) | — |
 | 4 | Áreas protegidas (RNAP) | Estática | 6,0 MB |
@@ -89,6 +89,12 @@ Además:
   comuna, límite urbano, áreas protegidas, relieve y comparables CBR.
   Descarga GeoJSON y CSV. Las tres capas oficiales esperan su carga en PostGIS.
 
+**Desde 2026-11-13** (v0.3.1–v0.3.7): las rutas CBR caen a una copia diaria
+de solo lectura si la base principal falla; `/estado` y el panel «Acerca de»
+dicen qué base atiende el mapa; la carga sin filtros sale de un archivo
+estático y no gasta cuota de ninguna base; las descargas de puntos se
+cancelan y reintentan si se cuelgan.
+
 `public/data/` pesa **62 MB**, la mitad del catastro frutícola: es lo que
 empuja la «Migración de almacenamiento» de más abajo.
 
@@ -101,7 +107,10 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 | # | Qué | Por qué ahora | Sección |
 |---|---|---|---|
 | 0 | 🔴 Cargar las capas oficiales en PostGIS (`db/capas.sql` + `npm run data:load:postgis`) | La ficha del predio ya está en producción, pero comuna, límite urbano y áreas protegidas responden «capa aún no cargada» hasta que se carguen. Requiere el rol owner de Neon | [Geoprocesos](#geoprocesos-ficha-del-predio-2026-10-26) |
-| 1 | 🟡 Etiquetar `v0.3.0` | «No publicado» acumula Relieve, Medir, Conservadores, «¿Qué hay aquí?» y permalink | [Deuda › Plataforma](#plataforma-y-release) |
+| 1 | ~~🟡 Etiquetar `v0.3.0`~~ — hecho el 2026-11-13 (hoy en `v0.3.7`) | | [Deuda › Plataforma](#plataforma-y-release) |
+| 1a | 🔴 Etapa B de los puntos: filtros y estadísticas en el navegador desde el archivo estático | La carga sin filtros ya no toca la base, pero cada filtro sigue pidiendo `/api/points` y `/api/stats`. Hay que replicar el cálculo de `/api/stats` en el cliente (ver [`estadisticas.md`](./estadisticas.md)) y verificarlo contra la API | [Rendimiento](#rendimiento-nuevo-2026-10-10) |
+| 1b | 🟡 Monitor externo de `/api/health` | Que avise si `datos.nivel` deja de ser `al-dia` o si `servicio` pasa a `respaldo`; hoy una caída se nota tarde | [Deuda › Seguridad](#seguridad-y-operación) |
+| 1c | 🟡 Inventario del contrato público de `/api/*` (camino a `1.0.0`) | Requisito de `1.0.0`: decidir qué rutas son públicas y cuáles internas, documentarlas (OpenAPI) y fijar una política de cambios | [Deuda › Seguridad](#seguridad-y-operación) |
 | 2 | ~~🟡 Filtro de transacciones: UF, destino, rango de años, encuadre~~ — hecho el 2026-10-26 | Quedan en la sección los 🟢 menores (caché desfasada, conteo con/sin monto, descarga por subconjunto) | [Filtro de transacciones](#filtro-de-transacciones-diagnóstico-2026-10-23) |
 | 3 | 🟡 Límite de consultas, parte 3: cupos separados por costo (datos / imágenes / consultas) y tope global por organismo | Las partes 1 y 2 (grilla + debounce, 429 honesto) ya están; con varias capas remotas el cupo único de 60/min se sigue agotando | [Deuda › Seguridad](#seguridad-y-operación) |
 | 4 | 🟡 Dividir `LayersControl.tsx`, `MapView.tsx` y `page.tsx` | Siguen creciendo (1.666, 1.275 y 1.006 líneas) | [Deuda › Frontend](#arquitectura-del-frontend) |
@@ -1371,7 +1380,23 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
       popups se arman al abrirse, no 108k a la carga. Primeros puntos en
       pantalla: escritorio 11,9 → 6,1 s; Pixel 7 13 → 5,9 s; Pixel 7 con 3G
       y CPU 4× 59 → 45 s (ahí manda el ancho de banda).
-- [ ] 🟡 **`/api/points` entrega 31 MB de JSON** (4,7 MB gzip; auditoría UX P5) y el clúster pinta ~108k
+- [x] **La carga sin filtros sale de un archivo estático** — 2026-11-13.
+      Con ~215k puntos, `/api/points` llegó a ~61 MB por carga completa y cada
+      MISS de la CDN (todo deploy vacía la caché) se leía de la base. Ahora el
+      mapa lee primero `manifest.json` + `points-<token>.json.gz`, publicados
+      una vez al día desde la copia restaurada del respaldo
+      (`db/exportar-puntos.sql`, mismas columnas que la API, test de
+      contrato), y solo si fallan vuelve a `/api/points`. Diseño en
+      [`design-notes.md`](./design-notes.md).
+- [x] **Partes de `/api/points` colgadas dejaban el mapa en ~40 %** —
+      2026-11-13 (v0.3.5): 15 s sin bytes cancela y reintenta la misma URL
+      (`src/lib/fetch-stall.ts`).
+- [ ] 🔴 **Etapa B: filtros y estadísticas en el navegador.** Con el archivo
+      completo ya en memoria, filtrar ahí y calcular estadísticas y facetas
+      sin ir a la base. Riesgo: que el cálculo del cliente difiera de
+      `/api/stats`; hacerlo con tests que comparen ambos sobre el mismo
+      conjunto. `hexbins` puede quedarse en el servidor.
+- [ ] 🟡 **`/api/points` entrega ~61 MB de JSON** (era 31 MB con ~108k; auditoría UX P5) y el clúster pinta ~215k
       marcadores en el cliente. Lo que más rinde en 3G es mandar solo
       `lat`, `lng` e id, y traer el detalle al tocar el punto. Ruta incremental: (1) nombres de campo
       cortos o arreglo de columnas; (2) carga por viewport + zoom con
@@ -1402,6 +1427,20 @@ Leyenda de severidad: 🔴 bloquea o expone (hacer antes que cualquier capa) ·
       en cada arranque en frío y no se comparten entre instancias. Para un
       límite real hace falta un almacén compartido o reglas del firewall de
       Vercel.
+- [ ] 🟡 **Monitor externo de `/api/health`** *(2026-11-13)*: sondear cada
+      5 min y alertar si `datos.nivel` ≠ `al-dia` o `servicio` = `respaldo`
+      (`/api/health` nunca consulta la base principal, así que el sondeo no
+      gasta cuota).
+- [ ] 🟡 **Contrato público de `/api/*` para `1.0.0`** *(2026-11-13)*:
+      (1) inventario de las rutas: cuáles son contrato (candidatas: `points`,
+      `stats`, `facets`, `hexbins`, `export`, `conservadores`, `dataset`,
+      `analisis/predio`, `health`, y el formato `manifest.json` v1 del archivo
+      de puntos) y cuáles internas (`analytics`, `version`, `estado/grilla`,
+      `geocode`, proxies de capas); (2) OpenAPI con parámetros (`ds`,
+      `part`/`parts`), columnas, formato de error y límite de 60/min;
+      (3) política de cambios incompatibles (`/api/v2` o `Deprecation`/
+      `Sunset` + CHANGELOG); (4) un test de contrato por ruta pública, como el
+      del archivo de puntos.
 - [ ] 🟡 **Sin monitoreo de errores ni de las fuentes remotas** *(nuevo)*.
       Si CIREN, CONAF o Earth Search caen, nadie se entera hasta que un
       usuario lo ve. Un chequeo programado (por ejemplo GitHub Actions) que haga **una** petición liviana por servicio al día
