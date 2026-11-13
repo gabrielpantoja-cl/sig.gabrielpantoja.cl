@@ -73,7 +73,7 @@ key-files table lives there too. Invariants that are easy to break:
 - Do NOT add CARTO or Stadia basemaps (they require API keys). The basemap preference is read via `useSyncExternalStore`, not `useState` + `useEffect`.
 - `/api/version` is the only route that skips `enforce()` and must stay `no-store`.
 - The CBR data routes are keyed by the dataset token: `useCbrData` resolves `/api/dataset` FIRST and attaches `?ds=<token>` to points, stats, facets and hexbins. Without it the CDN serves the pre-load copy for up to a day while any filter shows the new data — the bug that made the map look like it hid the old years. The param is `ds`, never `v` (`v` is the permalink viewport).
-- The unfiltered map load reads the static points file FIRST (`src/lib/points-snapshot.ts`) and falls back to `/api/points` only if it fails — never the other way round, or the database quota is spent anyway. `db/exportar-puntos.sql` must return exactly the `/api/points` columns (`MapPoint`); change both together.
+- The unfiltered map load reads the static points file FIRST (`src/lib/points-snapshot.ts`) and falls back to `/api/points` only if it fails — never the other way round, or the database quota is spent anyway. `db/exportar-puntos.sql` must return exactly the `/api/points` columns (`MapPoint`); change both together (a test enforces it) — and the reviewed copy that the publishing host runs must be updated too (location in `AGENTS.local.md`).
 - `/estado`, `/api/health` and `/api/estado/grilla` must never query Neon: a monitor polling every few minutes would keep its compute awake and burn the transfer quota.
 
 ## Environment

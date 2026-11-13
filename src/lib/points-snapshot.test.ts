@@ -59,3 +59,35 @@ describe('fetchSnapshotPoints', () => {
     ).rejects.toThrow(/no calza/);
   });
 });
+
+describe('contrato del archivo de puntos', () => {
+  // db/exportar-puntos.sql publica el mismo conjunto que /api/points: si una
+  // columna cambia en un lado y no en el otro, el mapa recibe datos distintos
+  // según la fuente. Este test lo detecta en CI.
+  it('el SQL de exportación, /api/points y MapPoint tienen las mismas columnas', async () => {
+    const { readFileSync } = await import('node:fs');
+    const leer = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
+
+    const sql = leer('db/exportar-puntos.sql');
+    const delSql = [...sql.matchAll(/^\s*'(\w+)',/gm)].map((m) => m[1]);
+
+    const ruta = leer('src/app/api/points/route.ts');
+    const mapeo = ruta.slice(ruta.indexOf('rows.map((r) => ({'), ruta.indexOf('}));'));
+    const deRuta = [...mapeo.matchAll(/^\s*(\w+):/gm)].map((m) => m[1]);
+
+    const tipos = leer('src/lib/types.ts');
+    const iface = tipos.slice(tipos.indexOf('export interface MapPoint'));
+    const cuerpo = iface.slice(0, iface.indexOf('\n}'));
+    const deTipo = [...cuerpo.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]);
+
+    expect(delSql.length).toBe(15);
+    expect(delSql).toEqual(deRuta);
+    expect([...delSql].sort()).toEqual([...deTipo].sort());
+    // Sin comentarios: el encabezado del SQL nombra estas columnas para prohibirlas.
+    const codigo = sql.replace(/--.*$/gm, '');
+    expect(codigo).toMatch(/\bconservador\b/); // el patrón de palabra funciona
+    for (const pii of ['comprador', 'vendedor', 'rut', 'userId', 'user_id', 'observaciones']) {
+      expect(codigo).not.toMatch(new RegExp(String.raw`\b${pii}\b`, 'i'));
+    }
+  });
+});
