@@ -3,6 +3,15 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { APP_VERSION } from '@/lib/version';
+import type { NivelEstado } from '@/lib/estado';
+
+/** Texto y color del punto de estado; mismos niveles que `/estado`. */
+const NIVELES: Record<NivelEstado, { texto: string; color: string }> = {
+  'al-dia': { texto: 'Datos respaldados y verificados', color: 'bg-emerald-500' },
+  falla: { texto: 'Falló la última verificación', color: 'bg-red-500' },
+  atrasado: { texto: 'Verificación atrasada', color: 'bg-amber-500' },
+  'sin-datos': { texto: 'Estado no disponible', color: 'bg-gray-400' },
+};
 
 /**
  * Botón "i" en el header con dropdown de información: aquí vive la
@@ -13,7 +22,25 @@ import { APP_VERSION } from '@/lib/version';
  */
 export function InfoPanel() {
   const [open, setOpen] = useState(false);
+  const [nivel, setNivel] = useState<NivelEstado | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // El estado se pide al abrir el panel, una sola vez. /api/health nunca
+  // consulta la base principal (lee la tabla de verificaciones con caché).
+  useEffect(() => {
+    if (!open || nivel) return;
+    const ctrl = new AbortController();
+    fetch('/api/health', { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { datos?: { nivel?: NivelEstado } } | null) => {
+        const n = j?.datos?.nivel;
+        setNivel(n && n in NIVELES ? n : 'sin-datos');
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) setNivel('sin-datos');
+      });
+    return () => ctrl.abort();
+  }, [open, nivel]);
 
   useEffect(() => {
     if (!open) return;
@@ -71,6 +98,17 @@ export function InfoPanel() {
             investigar cómo el mercado de suelo puede contribuir a la conservación
             de la naturaleza.
           </p>
+          <Link
+            href="/estado"
+            className="mt-3 flex items-center gap-2 rounded-md border border-black/10 px-2 py-1.5 text-xs transition-colors hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/10"
+          >
+            <span
+              aria-hidden="true"
+              className={`h-2 w-2 shrink-0 rounded-full ${nivel ? NIVELES[nivel].color : 'animate-pulse bg-gray-400'}`}
+            />
+            <span className="flex-1">{nivel ? NIVELES[nivel].texto : 'Consultando estado…'}</span>
+            <span className="opacity-60">Estado →</span>
+          </Link>
           <p className="mt-3 border-t border-black/10 pt-2 text-xs opacity-60 dark:border-white/10">
             © {new Date().getFullYear()} Gabriel Pantoja Rivera
             {' · '}

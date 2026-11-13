@@ -21,6 +21,15 @@ versionado.
 
 ## No publicado
 
+## [0.3.2] — 2026-11-13
+
+### Añadido
+
+- **Acceso a `/estado` desde el panel «Acerca de».** Un indicador con punto de
+  color muestra si los datos están respaldados y verificados, si falló la
+  última verificación o si está atrasada, y enlaza a la página de estado. Lo
+  lee de `/api/health`, que nunca consulta la base principal.
+
 ## [0.3.1] — 2026-11-13
 
 ### Corregido
