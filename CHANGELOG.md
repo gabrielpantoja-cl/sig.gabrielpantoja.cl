@@ -21,6 +21,23 @@ versionado.
 
 ## No publicado
 
+## [0.3.3] — 2026-11-13
+
+### Añadido
+
+- **`/estado` dice qué base atiende el mapa.** Si el sitio está funcionando con
+  la copia de respaldo, la página, `/api/health` (`"servicio":"respaldo"`) y
+  el panel «Acerca de» lo muestran en ámbar, y avisan que la ficha del predio
+  no está disponible mientras tanto. El aviso se apaga solo cuando vuelve la
+  base principal.
+
+### Cambiado
+
+- `/estado`: la grilla de 30 días marca con rayado los días anteriores al
+  inicio de las verificaciones y trae una leyenda visible; las horas dicen
+  «hora de Chile»; la barra del año en curso se marca como parcial. Se
+  regenera cada 5 minutos en vez de 15.
+
 ## [0.3.2] — 2026-11-13
 
 ### Añadido

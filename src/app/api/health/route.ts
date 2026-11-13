@@ -1,7 +1,7 @@
 import { enforce, corsHeaders } from '@/lib/security';
 import { APP_VERSION, BUILD_ID } from '@/lib/version';
-import { resumirEstado } from '@/lib/estado';
-import { obtenerVerificaciones } from '@/lib/estado-server';
+import { fuenteServicio, resumirEstado } from '@/lib/estado';
+import { obtenerMarcaRespaldo, obtenerVerificaciones } from '@/lib/estado-server';
 
 /**
  * GET /api/health — salud del sitio y de los datos, para monitores externos.
@@ -27,12 +27,17 @@ export async function GET(req: Request) {
   const blocked = enforce(req);
   if (blocked) return blocked;
 
-  const { nivel, ultima, ultimaOk } = resumirEstado(await obtenerVerificaciones(5), Date.now());
+  const [filas, marca] = await Promise.all([obtenerVerificaciones(5), obtenerMarcaRespaldo()]);
+  const ahora = Date.now();
+  const { nivel, ultima, ultimaOk } = resumirEstado(filas, ahora);
   return Response.json(
     {
       status: 'ok',
       version: APP_VERSION,
       build: BUILD_ID,
+      // Qué base atiende el mapa: `respaldo` = la copia diaria (hasta 1 día de
+      // atraso, sin ficha del predio). Leído de una marca, nunca de Neon.
+      servicio: fuenteServicio(marca, ahora),
       datos: {
         nivel,
         ultima_verificacion: ultima?.verificado_en ?? null,

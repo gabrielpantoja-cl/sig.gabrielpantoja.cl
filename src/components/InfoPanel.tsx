@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { APP_VERSION } from '@/lib/version';
-import type { NivelEstado } from '@/lib/estado';
+import type { FuenteServicio, NivelEstado } from '@/lib/estado';
 
 /** Texto y color del punto de estado; mismos niveles que `/estado`. */
 const NIVELES: Record<NivelEstado, { texto: string; color: string }> = {
@@ -23,6 +23,7 @@ const NIVELES: Record<NivelEstado, { texto: string; color: string }> = {
 export function InfoPanel() {
   const [open, setOpen] = useState(false);
   const [nivel, setNivel] = useState<NivelEstado | null>(null);
+  const [servicio, setServicio] = useState<FuenteServicio | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   // El estado se pide al abrir el panel, una sola vez. /api/health nunca
@@ -32,7 +33,8 @@ export function InfoPanel() {
     const ctrl = new AbortController();
     fetch('/api/health', { signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j: { datos?: { nivel?: NivelEstado } } | null) => {
+      .then((j: { servicio?: FuenteServicio; datos?: { nivel?: NivelEstado } } | null) => {
+        setServicio(j?.servicio ?? null);
         const n = j?.datos?.nivel;
         setNivel(n && n in NIVELES ? n : 'sin-datos');
       })
@@ -98,15 +100,29 @@ export function InfoPanel() {
             investigar cómo el mercado de suelo puede contribuir a la conservación
             de la naturaleza.
           </p>
+          {/* Funcionar con la copia pesa más que el nivel del respaldo: es lo que
+              ve quien usa el mapa ahora (datos con atraso, sin ficha del predio). */}
           <Link
             href="/estado"
             className="mt-3 flex items-center gap-2 rounded-md border border-black/10 px-2 py-1.5 text-xs transition-colors hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/10"
           >
             <span
               aria-hidden="true"
-              className={`h-2 w-2 shrink-0 rounded-full ${nivel ? NIVELES[nivel].color : 'animate-pulse bg-gray-400'}`}
+              className={`h-2 w-2 shrink-0 rounded-full ${
+                servicio === 'respaldo'
+                  ? 'bg-amber-500'
+                  : nivel
+                    ? NIVELES[nivel].color
+                    : 'animate-pulse bg-gray-400'
+              }`}
             />
-            <span className="flex-1">{nivel ? NIVELES[nivel].texto : 'Consultando estado…'}</span>
+            <span className="flex-1">
+              {servicio === 'respaldo'
+                ? 'Funcionando con la copia de respaldo'
+                : nivel
+                  ? NIVELES[nivel].texto
+                  : 'Consultando estado…'}
+            </span>
             <span className="opacity-60">Estado →</span>
           </Link>
           <p className="mt-3 border-t border-black/10 pt-2 text-xs opacity-60 dark:border-white/10">

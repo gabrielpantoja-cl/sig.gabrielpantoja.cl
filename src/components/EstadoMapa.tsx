@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import 'leaflet/dist/leaflet.css';
 import { getBasemap, prefersDark } from '@/lib/basemap';
 import { escalaPorZoom, radioCelda, type GrillaRespaldo } from '@/lib/estado';
@@ -29,7 +29,7 @@ type Estado =
   | { tipo: 'error' }
   | { tipo: 'ok'; total: number; celdas: number };
 
-export default function EstadoMapa() {
+export default function EstadoMapa({ children }: { children?: ReactNode }) {
   const contenedor = useRef<HTMLDivElement>(null);
   const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' });
 
@@ -125,6 +125,7 @@ export default function EstadoMapa() {
           {estado.tipo === 'ok' &&
             `${fmtNumero.format(estado.total)} transacciones georreferenciadas en ${fmtNumero.format(estado.celdas)} celdas. Se actualiza una vez al día.`}
         </p>
+        {children}
       </div>
     </div>
   );

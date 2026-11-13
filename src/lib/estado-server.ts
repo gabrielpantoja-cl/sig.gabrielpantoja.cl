@@ -3,6 +3,7 @@ import {
   COLUMNAS_VERIFICACION,
   normalizarGrilla,
   type GrillaRespaldo,
+  type MarcaRespaldo,
   type Verificacion,
 } from '@/lib/estado';
 
@@ -77,7 +78,35 @@ export async function obtenerGrilla(): Promise<GrillaRespaldo | null> {
  * Verificaciones + la hora de lectura. La hora se toma aquí y no en el
  * componente: en ISR es la hora del render, que se repite cada 15 min.
  */
-export async function leerEstado(): Promise<{ filas: Verificacion[] | null; ahora: number }> {
-  const filas = await obtenerVerificaciones();
-  return { filas, ahora: Date.now() };
+export async function leerEstado(): Promise<{
+  filas: Verificacion[] | null;
+  marca: MarcaRespaldo;
+  ahora: number;
+}> {
+  const [filas, marca] = await Promise.all([obtenerVerificaciones(), obtenerMarcaRespaldo()]);
+  return { filas, marca, ahora: Date.now() };
+}
+
+/**
+ * Última vez que el sitio usó la copia de respaldo (tabla `estado_servicio`,
+ * una sola fila, misma base y clave publicable). Caché de 1 min: el aviso
+ * «funcionando con respaldo» debe aparecer y apagarse en minutos.
+ * `disponible: false` si falta configuración o la tabla no existe.
+ */
+export async function obtenerMarcaRespaldo(): Promise<MarcaRespaldo> {
+  const base = process.env.ESTADO_SUPABASE_URL;
+  const clave = process.env.ESTADO_SUPABASE_KEY;
+  const sinDatos: MarcaRespaldo = { disponible: false, respaldoUsadoEn: null };
+  if (!base || !clave) return sinDatos;
+
+  const url = `${base.replace(/\/$/, '')}/rest/v1/estado_servicio?select=respaldo_usado_en&id=eq.1`;
+  try {
+    const res = await fetch(url, { headers: { apikey: clave }, next: { revalidate: 60 } });
+    if (!res.ok) return sinDatos;
+    const filas = (await res.json()) as { respaldo_usado_en?: string | null }[];
+    if (!Array.isArray(filas) || filas.length === 0) return sinDatos;
+    return { disponible: true, respaldoUsadoEn: filas[0].respaldo_usado_en ?? null };
+  } catch {
+    return sinDatos;
+  }
 }

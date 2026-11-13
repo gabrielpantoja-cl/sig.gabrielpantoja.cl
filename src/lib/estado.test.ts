@@ -4,6 +4,7 @@ import {
   barrasPorRegion,
   escalaPorZoom,
   fechaChile,
+  fuenteServicio,
   historialDiario,
   normalizarGrilla,
   radioCelda,
@@ -71,6 +72,11 @@ describe('historialDiario', () => {
       { fecha: '2026-10-25', estado: 'sin-registro' },
       { fecha: '2026-10-26', estado: 'ok' },
     ]);
+  });
+
+  it('los días sin fila anteriores al inicio no son «sin registro»', () => {
+    const h = historialDiario([fila('2026-10-26T09:00:00Z', true)], AHORA, 3, '2026-10-26');
+    expect(h.map((d) => d.estado)).toEqual(['antes-del-inicio', 'antes-del-inicio', 'ok']);
   });
 
   it('02:00 UTC todavía es el día anterior en Chile', () => {
@@ -143,5 +149,20 @@ describe('grilla del respaldo', () => {
     expect(escalaPorZoom(10)).toBe(1);
     expect(escalaPorZoom(5)).toBe(0.5);
     expect(escalaPorZoom(1)).toBe(0.3);
+  });
+});
+
+describe('fuenteServicio', () => {
+  const ahora = Date.parse('2026-11-13T21:00:00Z');
+  const marca = (respaldoUsadoEn: string | null) => ({ disponible: true, respaldoUsadoEn });
+  it('una marca reciente es respaldo', () => {
+    expect(fuenteServicio(marca('2026-11-13T20:50:00Z'), ahora)).toBe('respaldo');
+  });
+  it('una marca vieja o ausente es principal', () => {
+    expect(fuenteServicio(marca('2026-11-13T20:40:00Z'), ahora)).toBe('principal');
+    expect(fuenteServicio(marca(null), ahora)).toBe('principal');
+  });
+  it('sin lectura es desconocida', () => {
+    expect(fuenteServicio({ disponible: false, respaldoUsadoEn: null }, ahora)).toBe('desconocida');
   });
 });

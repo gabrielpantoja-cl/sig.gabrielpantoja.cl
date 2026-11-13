@@ -19,6 +19,13 @@ import postgres from 'postgres';
  * exhausted quota does not add a failing round-trip to every request; then it
  * tries Neon again and recovers on its own when the quota resets.
  *
+ * Each instance also records «the fallback is in use» at most once per
+ * `MARK_EVERY_MS` by calling `public.marcar_uso_respaldo()` on the fallback
+ * (a SECURITY DEFINER function that only stamps one timestamp; it is the only
+ * thing the role can write). `/estado` reads that stamp, so it can say the
+ * site runs on the copy without ever querying Neon. A missing function only
+ * skips the stamp.
+ *
  * Both URLs are server-side only, never `NEXT_PUBLIC_`.
  */
 export interface ReadOnlySql {
@@ -27,6 +34,9 @@ export interface ReadOnlySql {
 
 const NEON_COOLDOWN_MS = 5 * 60_000;
 let neonDownUntil = 0;
+
+const MARK_EVERY_MS = 5 * 60_000;
+let lastMark = 0;
 
 let fallbackClient: ReturnType<typeof postgres> | null = null;
 let fallbackUrl: string | null = null;
@@ -46,8 +56,28 @@ function getFallback(url: string) {
   return fallbackClient;
 }
 
+/** Never throws: the stamp is informative, the query is what matters. */
+async function markFallbackInUse(client: ReturnType<typeof postgres>) {
+  const now = Date.now();
+  if (now - lastMark < MARK_EVERY_MS) return;
+  lastMark = now;
+  try {
+    // The role defaults to read-only transactions; this one must write.
+    await client.begin('read write', (tx) => tx`select public.marcar_uso_respaldo()`);
+  } catch (err) {
+    console.warn(
+      '[db] could not stamp fallback use:',
+      err instanceof Error ? err.message.slice(0, 200) : 'unknown error',
+    );
+  }
+}
+
 async function queryFallback(url: string, text: string, params: unknown[]) {
-  const rows = await getFallback(url).unsafe(text, params as postgres.ParameterOrJSON<never>[]);
+  const client = getFallback(url);
+  const [rows] = await Promise.all([
+    client.unsafe(text, params as postgres.ParameterOrJSON<never>[]),
+    markFallbackInUse(client),
+  ]);
   return Array.from(rows) as unknown[];
 }
 

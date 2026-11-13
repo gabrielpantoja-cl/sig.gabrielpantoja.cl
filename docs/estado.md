@@ -70,6 +70,23 @@ lng, n }] }`, o 503 si no está disponible. `src/components/EstadoMapa.tsx`
 importa Leaflet recién al montar y dibuja círculos en canvas (área
 proporcional al conteo) sobre el fondo neutro.
 
+### Base que atiende el mapa (`estado_servicio`)
+
+Las verificaciones dicen si el **respaldo** está sano, no qué base atiende
+**hoy** al mapa. Cuando la base principal falla, las rutas CBR leen de la
+copia (`FALLBACK_DATABASE_URL`, ver `src/lib/neon.ts`) y cada servidor lo
+anota, a lo más una vez cada 5 min, llamando a `public.marcar_uso_respaldo()`
+en la base del respaldo: una función `SECURITY DEFINER` que solo escribe la
+hora en la única fila de `public.estado_servicio`. El rol del respaldo tiene
+`EXECUTE` sobre ella y nada más escribible; el rol anónimo solo lee la fila.
+
+`/estado` y `/api/health` leen la marca por REST (caché 1 min) y
+`fuenteServicio()` decide: marca de menos de 15 min → `respaldo` (aviso
+ámbar, ficha del predio no disponible); más vieja o vacía → `principal`; sin
+lectura → `desconocida` (no se afirma nada). Nadie escribe «volvió»: la marca
+envejece sola cuando la base principal responde de nuevo. Tampoco aquí se
+consulta Neon.
+
 ## `/api/health`
 
 ```json
@@ -77,6 +94,7 @@ proporcional al conteo) sobre el fondo neutro.
   "status": "ok",
   "version": "0.2.0",
   "build": "…",
+  "servicio": "principal",
   "datos": {
     "nivel": "al-dia",
     "ultima_verificacion": "2026-10-26T15:55:07Z",

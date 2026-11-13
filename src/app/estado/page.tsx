@@ -1,12 +1,16 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
+  anioChile,
   barrasPorAnio,
   barrasPorRegion,
+  fuenteServicio,
   historialDiario,
+  INICIO_VERIFICACIONES,
   resumirEstado,
   type Barra,
   type DiaHistorial,
+  type FuenteServicio,
   type NivelEstado,
 } from '@/lib/estado';
 import { leerEstado } from '@/lib/estado-server';
@@ -15,10 +19,11 @@ import EstadoMapa from '@/components/EstadoMapa';
 /**
  * /estado — salud de los datos de transacciones CBR: si el respaldo diario se
  * pudo restaurar, cuántos registros hay y desde cuándo. No consulta la base
- * principal (ver `lib/estado.ts`); se regenera cada 15 minutos.
+ * principal (ver `lib/estado.ts`); se regenera cada 5 minutos para que el aviso
+ * «funcionando con respaldo» aparezca y se apague a tiempo.
  */
 
-export const revalidate = 900;
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: 'Estado de los datos — SIG de suelo | gabrielpantoja.cl',
@@ -54,6 +59,23 @@ const NIVELES: Record<NivelEstado, { titulo: string; color: string; detalle: str
   },
 };
 
+const AMBAR = 'hsl(38 90% 45%)';
+const ROJO = 'hsl(0 65% 48%)';
+
+/** Qué atiende el mapa. `desconocida` no se muestra: no hay nada que afirmar. */
+const SERVICIO: Record<Exclude<FuenteServicio, 'desconocida'>, {
+  base: string;
+  ficha: string;
+  fichaOk: boolean;
+}> = {
+  principal: { base: 'Base principal', ficha: 'Disponible', fichaOk: true },
+  respaldo: {
+    base: 'Copia de respaldo (hasta 1 día de atraso)',
+    ficha: 'No disponible mientras se use la copia',
+    fichaOk: false,
+  },
+};
+
 const fmtNumero = new Intl.NumberFormat('es-CL');
 const fmtFechaHora = new Intl.DateTimeFormat('es-CL', {
   timeZone: 'America/Santiago',
@@ -78,10 +100,11 @@ function hace(iso: string, ahora: number): string {
 }
 
 export default async function EstadoPage() {
-  const { filas, ahora } = await leerEstado();
+  const { filas, marca, ahora } = await leerEstado();
   const { nivel, ultima, ultimaOk } = resumirEstado(filas, ahora);
   const nivelInfo = NIVELES[nivel];
-  const historial = historialDiario(filas, ahora, DIAS_HISTORIAL);
+  const fuente = fuenteServicio(marca, ahora);
+  const historial = historialDiario(filas, ahora, DIAS_HISTORIAL, INICIO_VERIFICACIONES);
   const porAnio = barrasPorAnio(ultimaOk?.por_anio ?? null, ANIOS_GRAFICO);
   const porRegion = barrasPorRegion(ultimaOk?.por_region ?? null);
 
@@ -115,15 +138,35 @@ export default async function EstadoPage() {
           <h2 className="text-base font-medium">{nivelInfo.titulo}</h2>
         </div>
         <p className="mt-2 text-sm opacity-75">{nivelInfo.detalle}</p>
+        {fuente === 'respaldo' && (
+          <div
+            className="mt-3 rounded-md border p-3 text-sm"
+            style={{ borderColor: AMBAR, background: 'hsl(38 90% 45% / 0.08)' }}
+          >
+            <p className="flex items-center gap-2 font-medium">
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ background: AMBAR }}
+                aria-hidden="true"
+              />
+              Funcionando con la copia de respaldo
+            </p>
+            <p className="mt-1 opacity-80">
+              La base principal no está respondiendo. El mapa muestra la copia verificada, con
+              hasta un día de atraso. La ficha del predio no está disponible mientras tanto; el
+              resto de las capas funciona con normalidad.
+            </p>
+          </div>
+        )}
         {ultima && (
           <p className="mt-2 text-xs opacity-60">
-            Última verificación: {fmtFechaHora.format(Date.parse(ultima.verificado_en))} (
-            {hace(ultima.verificado_en, ahora)})
+            Última verificación: {fmtFechaHora.format(Date.parse(ultima.verificado_en))} (hora de
+            Chile, {hace(ultima.verificado_en, ahora)})
             {ultimaOk && ultimaOk !== ultima && (
               <>
                 {' '}
                 · Último respaldo verificado:{' '}
-                {fmtFechaHora.format(Date.parse(ultimaOk.verificado_en))}
+                {fmtFechaHora.format(Date.parse(ultimaOk.verificado_en))} (hora de Chile)
               </>
             )}
           </p>
@@ -159,7 +202,38 @@ export default async function EstadoPage() {
         <h2 className="text-xs font-semibold uppercase tracking-wide opacity-50">
           Copia restaurada en el mapa
         </h2>
-        <EstadoMapa />
+        <EstadoMapa>
+          {fuente !== 'desconocida' && (
+            <dl className="mt-4 space-y-2 rounded-lg border border-black/10 p-3 text-xs dark:border-white/10 md:text-sm">
+              <div>
+                <dt className="text-[0.7rem] uppercase tracking-wide opacity-55">
+                  Transacciones del mapa
+                </dt>
+                <dd className="mt-0.5 flex items-center gap-2">
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ background: fuente === 'principal' ? ACENTO : AMBAR }}
+                    aria-hidden="true"
+                  />
+                  {SERVICIO[fuente].base}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[0.7rem] uppercase tracking-wide opacity-55">
+                  Ficha del predio
+                </dt>
+                <dd className="mt-0.5 flex items-center gap-2">
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ background: SERVICIO[fuente].fichaOk ? ACENTO : AMBAR }}
+                    aria-hidden="true"
+                  />
+                  {SERVICIO[fuente].ficha}
+                </dd>
+              </div>
+            </dl>
+          )}
+        </EstadoMapa>
       </section>
 
       <section className="mt-8">
@@ -174,7 +248,12 @@ export default async function EstadoPage() {
           <h2 className="text-xs font-semibold uppercase tracking-wide opacity-50">
             Transacciones por año
           </h2>
-          <BarrasVerticales barras={porAnio} />
+          <BarrasVerticales barras={porAnio} anioEnCurso={anioChile(ahora)} />
+          {porAnio.some((b) => b.etiqueta === String(anioChile(ahora))) && (
+            <p className="mt-1 text-[0.7rem] opacity-55">
+              * {anioChile(ahora)} es el año en curso: la cifra es parcial.
+            </p>
+          )}
         </section>
       )}
 
@@ -235,11 +314,29 @@ const TEXTO_DIA: Record<DiaHistorial['estado'], string> = {
   ok: 'verificado',
   falla: 'falló',
   'sin-registro': 'sin registro',
+  'antes-del-inicio': 'antes del inicio de las verificaciones',
 };
 
+/** Rayado: días en que el sistema todavía no existía. */
+const RAYADO =
+  'repeating-linear-gradient(135deg, transparent 0 3px, hsl(0 0% 50% / 0.35) 3px 4px)';
+
+function fondoDia(e: DiaHistorial['estado']): string {
+  if (e === 'ok') return ACENTO;
+  if (e === 'falla') return ROJO;
+  if (e === 'antes-del-inicio') return RAYADO;
+  return 'transparent';
+}
+
+const LEYENDA: { estado: DiaHistorial['estado']; texto: string }[] = [
+  { estado: 'ok', texto: 'Verificado' },
+  { estado: 'falla', texto: 'Falló' },
+  { estado: 'sin-registro', texto: 'Sin registro' },
+  { estado: 'antes-del-inicio', texto: 'Antes del inicio' },
+];
+
 function Historial({ dias }: { dias: DiaHistorial[] }) {
-  const color = (e: DiaHistorial['estado']) =>
-    e === 'ok' ? ACENTO : e === 'falla' ? 'hsl(0 65% 48%)' : 'transparent';
+  const presentes = new Set(dias.map((d) => d.estado));
   return (
     <div className="mt-3">
       <ol className="flex gap-[3px]" aria-label="Resultado diario de la verificación">
@@ -248,7 +345,7 @@ function Historial({ dias }: { dias: DiaHistorial[] }) {
             key={d.fecha}
             title={`${d.fecha}: ${TEXTO_DIA[d.estado]}`}
             className="h-8 flex-1 rounded-sm border border-black/10 dark:border-white/15"
-            style={{ background: color(d.estado) }}
+            style={{ background: fondoDia(d.estado) }}
           >
             <span className="sr-only">
               {d.fecha}: {TEXTO_DIA[d.estado]}
@@ -260,12 +357,28 @@ function Historial({ dias }: { dias: DiaHistorial[] }) {
         <span>{dias[0]?.fecha}</span>
         <span>hoy</span>
       </div>
+      {/* Leyenda visible: el title solo se ve con mouse, no en celular. */}
+      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[0.7rem] opacity-70">
+        {LEYENDA.filter((l) => l.estado !== 'antes-del-inicio' || presentes.has(l.estado)).map(
+          (l) => (
+            <li key={l.estado} className="mr-3 flex items-center gap-1.5">
+              <span
+                className="inline-block h-3 w-3 rounded-sm border border-black/10 dark:border-white/15"
+                style={{ background: fondoDia(l.estado) }}
+                aria-hidden="true"
+              />
+              {l.texto}
+            </li>
+          ),
+        )}
+      </ul>
     </div>
   );
 }
 
-function BarrasVerticales({ barras }: { barras: Barra[] }) {
+function BarrasVerticales({ barras, anioEnCurso }: { barras: Barra[]; anioEnCurso: number }) {
   const max = Math.max(...barras.map((b) => b.valor), 1);
+  const enCurso = String(anioEnCurso);
   return (
     <div className="mt-3 flex h-44 items-end gap-1.5" role="list">
       {barras.map((b) => (
@@ -273,17 +386,24 @@ function BarrasVerticales({ barras }: { barras: Barra[] }) {
           key={b.etiqueta}
           role="listitem"
           className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1"
-          title={`${b.etiqueta}: ${fmtNumero.format(b.valor)}`}
+          title={`${b.etiqueta}: ${fmtNumero.format(b.valor)}${b.etiqueta === enCurso ? ' (año en curso, parcial)' : ''}`}
         >
           <span className="shrink-0 text-[0.6rem] tabular-nums opacity-60">
             {b.valor >= 1000 ? `${(b.valor / 1000).toLocaleString('es-CL', { maximumFractionDigits: 1 })}k` : b.valor}
           </span>
           <div
             className="w-full min-h-0 rounded-t-sm"
-            style={{ height: `${(b.valor / max) * 100}%`, background: ACENTO, minHeight: 2 }}
+            style={{
+              height: `${(b.valor / max) * 100}%`,
+              background: ACENTO,
+              minHeight: 2,
+              // El año en curso está incompleto: más claro para no leerse como caída.
+              opacity: b.etiqueta === enCurso ? 0.45 : 1,
+            }}
           />
           <span className="w-full shrink-0 truncate text-center text-[0.6rem] opacity-60">
             {b.etiqueta.startsWith('Antes') ? b.etiqueta.replace('Antes de ', '<') : `’${b.etiqueta.slice(2)}`}
+            {b.etiqueta === enCurso && '*'}
           </span>
         </div>
       ))}

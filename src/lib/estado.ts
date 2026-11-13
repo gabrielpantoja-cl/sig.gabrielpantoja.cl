@@ -62,7 +62,14 @@ export function resumirEstado(filas: Verificacion[] | null, ahora: number): Resu
   return { nivel, ultima, ultimaOk };
 }
 
-export type EstadoDia = 'ok' | 'falla' | 'sin-registro';
+/**
+ * Primer día con verificaciones (hora de Chile). Los días anteriores no son
+ * «sin registro»: el sistema todavía no existía, y se dibujan distinto para no
+ * confundirlos con días en que la verificación no corrió.
+ */
+export const INICIO_VERIFICACIONES = '2026-10-26';
+
+export type EstadoDia = 'ok' | 'falla' | 'sin-registro' | 'antes-del-inicio';
 
 export interface DiaHistorial {
   /** `YYYY-MM-DD` en hora de Chile. */
@@ -89,6 +96,8 @@ export function historialDiario(
   filas: Verificacion[] | null,
   ahora: number,
   dias: number,
+  /** `YYYY-MM-DD`: los días sin fila anteriores a esta fecha son `antes-del-inicio`. */
+  inicio?: string,
 ): DiaHistorial[] {
   const porFecha = new Map<string, EstadoDia>();
   for (const f of filas ?? []) {
@@ -99,7 +108,9 @@ export function historialDiario(
   const salida: DiaHistorial[] = [];
   for (let i = dias - 1; i >= 0; i--) {
     const fecha = fechaChile(ahora - i * 24 * HORA_MS);
-    salida.push({ fecha, estado: porFecha.get(fecha) ?? 'sin-registro' });
+    const estado: EstadoDia =
+      porFecha.get(fecha) ?? (inicio && fecha < inicio ? 'antes-del-inicio' : 'sin-registro');
+    salida.push({ fecha, estado });
   }
   return salida;
 }
@@ -189,4 +200,35 @@ export const ZOOM_RADIO_COMPLETO = 7;
  */
 export function escalaPorZoom(zoom: number): number {
   return Math.min(1, Math.max(0.3, 2 ** ((zoom - ZOOM_RADIO_COMPLETO) / 2)));
+}
+
+/**
+ * Qué base atiende hoy las rutas de transacciones del mapa.
+ *
+ * El sitio anota la hora cada vez que usa la copia de respaldo (a lo más una
+ * vez cada 5 min por servidor, ver `lib/neon.ts`). Si la última marca es
+ * reciente, el mapa está funcionando con la copia; si envejece, la base
+ * principal volvió y el aviso se apaga solo, sin que nadie escriba «volvió».
+ * `desconocida` cuando no se pudo leer la marca.
+ */
+export type FuenteServicio = 'principal' | 'respaldo' | 'desconocida';
+
+/** Tres veces el intervalo de marcado: tolera servidores con poco tráfico. */
+export const RESPALDO_VIGENTE_MIN = 15;
+
+export interface MarcaRespaldo {
+  disponible: boolean;
+  respaldoUsadoEn: string | null;
+}
+
+export function fuenteServicio(marca: MarcaRespaldo, ahora: number): FuenteServicio {
+  if (!marca.disponible) return 'desconocida';
+  const t = marca.respaldoUsadoEn ? Date.parse(marca.respaldoUsadoEn) : NaN;
+  if (Number.isFinite(t) && ahora - t < RESPALDO_VIGENTE_MIN * 60_000) return 'respaldo';
+  return 'principal';
+}
+
+/** Año calendario en curso en hora de Chile (su barra es parcial). */
+export function anioChile(ms: number): number {
+  return Number(fechaChile(ms).slice(0, 4));
 }
