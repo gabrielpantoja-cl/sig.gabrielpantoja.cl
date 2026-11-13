@@ -52,7 +52,9 @@ export default function PrivacidadPage() {
       <section className="mt-6 rounded-lg border border-l-[3px] border-black/10 border-l-[hsl(153_28%_35%)] p-4 text-sm dark:border-white/10 dark:border-l-[hsl(153_28%_35%)]">
         <p className="opacity-85">
           Este sitio publica compraventas de inmuebles inscritas en los Conservadores de Bienes
-          Raíces para estudiar el valor y el contexto del suelo en Chile. Nunca muestra nombres ni
+          Raíces para estudiar el valor y el contexto del suelo en Chile, sobre todo cómo esos datos
+          pueden contribuir a la conservación de la naturaleza y a su planificación sistemática.
+          Nunca muestra nombres ni
           RUT de compradores o vendedores. Aun así, una compraventa con su ubicación, ROL y precio
           puede llegar a vincularse con su propietario si se cruza con otras fuentes, y por eso la
           tratamos como dato personal, con las reglas de la ley.
@@ -144,7 +146,9 @@ export default function PrivacidadPage() {
         <ul className="list-disc space-y-1 pl-5">
           <li>
             Investigar el valor y la dinámica del suelo en Chile y su relación con el territorio
-            (suelo, agua, vegetación, relieve, áreas protegidas).
+            (suelo, agua, vegetación, relieve, áreas protegidas), en particular cómo los datos
+            del mercado de suelo pueden contribuir a la conservación de la naturaleza y a la
+            planificación sistemática de la conservación.
           </li>
           <li>
             Ofrecer datos abiertos de mercado de suelo como apoyo a la investigación y al trabajo de

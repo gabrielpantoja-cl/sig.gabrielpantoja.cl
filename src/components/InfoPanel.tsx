@@ -66,7 +66,10 @@ export function InfoPanel() {
             contexto del suelo en Chile: compraventas inscritas en los
             Conservadores de Bienes Raíces de todo el país, junto a capas
             oficiales de territorio, suelo, agua, vegetación y relieve.
-            Pensado para peritos tasadores e investigación.
+            Hoy lo uso sobre todo para investigar cómo los datos del mercado
+            de suelo pueden contribuir a la conservación de la naturaleza y a
+            la planificación sistemática de la conservación; también sirve de
+            apoyo a peritos tasadores.
           </p>
           <p className="mt-2 border-t border-black/10 pt-2 text-xs opacity-60 dark:border-white/10">
             Transacciones: recopilación propia de inscripciones públicas.
