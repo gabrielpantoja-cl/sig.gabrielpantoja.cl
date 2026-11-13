@@ -61,29 +61,19 @@ export function InfoPanel() {
 
       {open && (
         <div className="absolute right-0 top-full z-[1300] mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-black/15 bg-[var(--background)]/95 p-3 text-sm shadow-lg backdrop-blur dark:border-white/20">
-          <p className="opacity-80">
-            Sistema de información geográfica para estudiar el valor y el
-            contexto del suelo en Chile: compraventas inscritas en los
-            Conservadores de Bienes Raíces de todo el país, junto a capas
-            oficiales de territorio, suelo, agua, vegetación y relieve.
-            Hoy lo uso sobre todo para investigar cómo los datos del mercado
-            de suelo pueden contribuir a la conservación de la naturaleza y a
-            la planificación sistemática de la conservación; también sirve de
-            apoyo a peritos tasadores.
+          {/* Ficha breve, al estilo «Acerca de» de una app: nombre, versión y
+              enlaces. El detalle (qué datos se publican, analítica, finalidades)
+              vive en /privacidad, la única fuente; no repetirlo aquí. */}
+          <p className="font-semibold">SIG de suelo</p>
+          <p className="text-xs opacity-60">v{APP_VERSION}</p>
+          <p className="mt-2 opacity-80">
+            Compraventas de suelo en Chile y capas oficiales del territorio, para
+            investigar cómo el mercado de suelo puede contribuir a la conservación
+            de la naturaleza.
           </p>
-          <p className="mt-2 border-t border-black/10 pt-2 text-xs opacity-60 dark:border-white/10">
-            Transacciones: recopilación propia de inscripciones públicas.
-            Se muestran precio, año, comuna, superficie, ROL y ubicación; nunca
-            nombres ni RUT de las partes. Cada capa indica su fuente y licencia
-            en la leyenda.
-          </p>
-          <p className="mt-2 border-t border-black/10 pt-2 text-xs opacity-60 dark:border-white/10">
-            Medimos el uso del sitio de forma agregada y sin cookies de
-            seguimiento: no guardamos tu IP ni lo que buscas, solo el país, la
-            región y la ciudad aproximados, el tipo de dispositivo y qué herramientas se usan. Si tu
-            navegador envía Do Not Track o GPC, no registramos nada.
-          </p>
-          <p className="mt-2 border-t border-black/10 pt-2 text-xs opacity-60 dark:border-white/10">
+          <p className="mt-3 border-t border-black/10 pt-2 text-xs opacity-60 dark:border-white/10">
+            © {new Date().getFullYear()} Gabriel Pantoja Rivera
+            {' · '}
             <a
               href="https://github.com/gabrielpantoja-cl/sig.gabrielpantoja.cl"
               target="_blank"
@@ -96,7 +86,6 @@ export function InfoPanel() {
             <Link href="/privacidad" className="underline underline-offset-2 hover:opacity-100">
               Privacidad
             </Link>
-            {' · '}v{APP_VERSION}
           </p>
         </div>
       )}
