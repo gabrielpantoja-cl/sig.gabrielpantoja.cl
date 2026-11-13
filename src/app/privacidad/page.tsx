@@ -12,7 +12,7 @@ import Link from 'next/link';
  * e) seguridad · f) derechos del titular.
  *
  * Página estática: no consulta ninguna base. Si cambia lo que expone la API,
- * la analítica o un proveedor, actualizar esta página y subir VERSION.
+ * la analítica o un proveedor, actualizar esta página y su FECHA.
  */
 
 export const metadata: Metadata = {
@@ -21,7 +21,6 @@ export const metadata: Metadata = {
     'Qué datos trata el SIG de suelo, con qué fin y base legal, a quién se comunican, cómo se protegen y cómo ejercer tus derechos (Ley 19.628 modificada por la Ley 21.719).',
 };
 
-const VERSION = '1.0';
 const FECHA = '13 de noviembre de 2026';
 const CORREO = 'peritajes@gabrielpantoja.cl';
 
@@ -47,7 +46,7 @@ export default function PrivacidadPage() {
       </header>
 
       <p className="mt-4 text-xs opacity-60">
-        Versión {VERSION} · vigente desde el {FECHA}
+        Vigente desde el {FECHA}
       </p>
 
       <section className="mt-6 rounded-lg border border-l-[3px] border-black/10 border-l-[hsl(153_28%_35%)] p-4 text-sm dark:border-white/10 dark:border-l-[hsl(153_28%_35%)]">
@@ -285,8 +284,8 @@ export default function PrivacidadPage() {
 
       <Seccion titulo="11. Cambios a esta política">
         <p>
-          Si cambia lo que el sitio trata o publica, actualizaremos esta página con una nueva
-          versión y fecha. La versión vigente es la {VERSION}, del {FECHA}.
+          Si cambia lo que el sitio trata o publica, actualizaremos esta página y su fecha
+          de vigencia. La versión vigente es la del {FECHA}.
         </p>
       </Seccion>
     </main>
