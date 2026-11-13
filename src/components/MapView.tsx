@@ -887,6 +887,15 @@ export default function MapView({
       // Neutraliza los chunks pendientes del grupo saliente: sin mapa,
       // _addLayer dereferencia this._map.getMinZoom() y lanza TypeError.
       (group as unknown as { _addLayer: () => void })._addLayer = () => {};
+      // Y el cierre del último chunk, que agrega los clusters al mapa con el
+      // mismo getMinZoom(). Hoy se alcanza al remontar con los puntos ya en
+      // memoria (caché de useCbrData al volver de /privacidad o /estado):
+      // en StrictMode el primer montaje ya trae datos y se limpia a medio
+      // procesar.
+      const top = (group as unknown as {
+        _topClusterLevel?: { _recursivelyAddChildrenToMap: () => void };
+      })._topClusterLevel;
+      if (top) top._recursivelyAddChildrenToMap = () => {};
       if (clusterRef.current === group) {
         if (mapRef.current?.hasLayer(group)) {
           mapRef.current.removeLayer(group);

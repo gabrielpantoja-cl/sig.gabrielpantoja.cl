@@ -83,6 +83,25 @@ async function fetchDatasetVersion(): Promise<DatasetVersion | null> {
   }
 }
 
+/**
+ * Último conjunto resuelto, a nivel de módulo: sobrevive al desmontaje de la
+ * página. Ir a `/privacidad` o `/estado` y volver con «Volver al mapa» es una
+ * navegación de cliente que desmonta y remonta la página; sin esto se volvían
+ * a descargar y decodificar los ~31 MB. Solo se guarda UNA entrada (la última)
+ * para no retener varios conjuntos en memoria, y solo se reutiliza si coincide
+ * el query de filtros. La versión viaja con ella: el sondeo sigue corriendo al
+ * volver y, si entró una carga nueva mientras tanto, ofrece «Hay datos nuevos»
+ * como siempre, sin recargar solo. Una recarga completa del navegador la vacía.
+ */
+interface CbrCache {
+  version: DatasetVersion | null;
+  qs: string;
+  points: MapPoint[];
+  stats: Stats | null;
+  facets: Facets | null;
+}
+let cache: CbrCache | null = null;
+
 export interface CbrDataCallbacks {
   /** Avance 0..1 de la descarga de /api/points. */
   onDownloadProgress?: (fraction: number) => void;
@@ -126,19 +145,26 @@ export interface CbrDataCallbacks {
  * callbacks se leen de un ref, así cambiarlos no relanza la descarga de ~31 MB.
  */
 export function useCbrData(debouncedQs: string, callbacks: CbrDataCallbacks = {}) {
-  const [facets, setFacets] = useState<Facets | null>(null);
-  const [points, setPoints] = useState<MapPoint[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  // Al remontar con el mismo query, todo arranca desde la caché de módulo:
+  // `loadedKey` ya coincide con la clave, así que no hay descarga ni loader.
+  const [initial] = useState(() => (cache && cache.qs === debouncedQs ? cache : null));
+  const [facets, setFacets] = useState<Facets | null>(initial?.facets ?? null);
+  const [points, setPoints] = useState<MapPoint[]>(initial?.points ?? []);
+  const [stats, setStats] = useState<Stats | null>(initial?.stats ?? null);
+  const [loadedKey, setLoadedKey] = useState<string | null>(
+    initial ? `${initial.version?.token ?? ''}|${initial.qs}` : null,
+  );
   const [errorKey, setErrorKey] = useState<string | null>(null);
+  // Clave servida desde la caché: el efecto de puntos la salta una vez.
+  const fromCache = useRef(loadedKey);
 
   // `aplicada` es la versión con la que se cargó lo que está en pantalla;
   // `ultima` es la que reporta el servidor ahora. Que difieran es justamente
   // la señal de «hay datos nuevos». `sondeada` evita pedir los ~31 MB antes
   // de saber el token: hacerlo sembraría la caché con la clave sin `ds`.
-  const [aplicada, setAplicada] = useState<DatasetVersion | null>(null);
-  const [ultima, setUltima] = useState<DatasetVersion | null>(null);
-  const [sondeada, setSondeada] = useState(false);
+  const [aplicada, setAplicada] = useState<DatasetVersion | null>(initial?.version ?? null);
+  const [ultima, setUltima] = useState<DatasetVersion | null>(initial?.version ?? null);
+  const [sondeada, setSondeada] = useState(initial != null);
 
   const callbacksRef = useRef(callbacks);
   useEffect(() => {
@@ -185,6 +211,12 @@ export function useCbrData(debouncedQs: string, callbacks: CbrDataCallbacks = {}
   }, []);
 
   const token = aplicada?.token ?? null;
+  // Facetas más recientes, para guardarlas junto a los puntos en la caché
+  // (pueden llegar antes o después que ellos).
+  const facetsRef = useRef(facets);
+  useEffect(() => {
+    facetsRef.current = facets;
+  });
   // Clave de lo pedido: filtros Y versión. Cambiar cualquiera de las dos es
   // una carga nueva, y `loading` se deriva de comparar esta clave con la
   // resuelta — así el aviso de carga también cubre el refresco de datos.
@@ -194,14 +226,18 @@ export function useCbrData(debouncedQs: string, callbacks: CbrDataCallbacks = {}
   // de comunas seguirían describiendo el conjunto viejo tras una carga.
   useEffect(() => {
     if (!sondeada) return;
+    if (initial?.facets && (initial.version?.token ?? null) === token) return;
     const ctrl = new AbortController();
     const qs = withDataset('', token);
     fetch(`/api/facets${qs ? `?${qs}` : ''}`, { signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((f: Facets) => setFacets(f))
+      .then((f: Facets) => {
+        setFacets(f);
+        if (cache && (cache.version?.token ?? null) === token) cache.facets = f;
+      })
       .catch(() => {});
     return () => ctrl.abort();
-  }, [sondeada, token]);
+  }, [sondeada, token, initial]);
 
   // Fetch points + stats whenever the (debounced) filters or the dataset
   // version change.
@@ -214,6 +250,15 @@ export function useCbrData(debouncedQs: string, callbacks: CbrDataCallbacks = {}
     const qs = withDataset(debouncedQs, token);
     const suffix = qs ? `?${qs}` : '';
     const pedida = `${token ?? ''}|${debouncedQs}`;
+    if (fromCache.current === pedida) {
+      // Ya en pantalla desde la caché: solo se avisa al loader de arranque.
+      // No se limpia aquí (StrictMode corre el efecto dos veces); se limpia
+      // en cuanto se pide cualquier otra clave.
+      callbacksRef.current.onDecoded?.(points.length);
+      return;
+    }
+    fromCache.current = null;
+    const version = aplicada;
     Promise.all([
       fetchPointParts(suffix, ctrl.signal, (frac) => {
         callbacksRef.current.onDownloadProgress?.(frac);
@@ -228,6 +273,13 @@ export function useCbrData(debouncedQs: string, callbacks: CbrDataCallbacks = {}
         setPoints(Array.isArray(pts) ? pts : []);
         setStats(st);
         setLoadedKey(pedida);
+        cache = {
+          version,
+          qs: debouncedQs,
+          points: Array.isArray(pts) ? pts : [],
+          stats: st,
+          facets: facetsRef.current,
+        };
       })
       .catch(() => {
         if (ctrl.signal.aborted || id !== reqId.current) return;
@@ -236,6 +288,9 @@ export function useCbrData(debouncedQs: string, callbacks: CbrDataCallbacks = {}
       });
 
     return () => ctrl.abort();
+    // `points` y `aplicada` se leen solo como instantánea (aviso desde caché y
+    // versión a guardar); `token` ya representa a `aplicada` en las deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sondeada, token, debouncedQs]);
 
   /** Vuelve a pedir el conjunto con la versión nueva, sin recargar la página. */
