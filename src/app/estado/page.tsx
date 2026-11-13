@@ -4,7 +4,7 @@ import {
   anioChile,
   barrasPorAnio,
   barrasPorRegion,
-  fuenteServicio,
+  estadoServicio,
   historialDiario,
   INICIO_VERIFICACIONES,
   resumirEstado,
@@ -103,7 +103,7 @@ export default async function EstadoPage() {
   const { filas, marca, ahora } = await leerEstado();
   const { nivel, ultima, ultimaOk } = resumirEstado(filas, ahora);
   const nivelInfo = NIVELES[nivel];
-  const fuente = fuenteServicio(marca, ahora);
+  const { fuente, desde: servicioDesde } = estadoServicio(marca);
   const historial = historialDiario(filas, ahora, DIAS_HISTORIAL, INICIO_VERIFICACIONES);
   const porAnio = barrasPorAnio(ultimaOk?.por_anio ?? null, ANIOS_GRAFICO);
   const porRegion = barrasPorRegion(ultimaOk?.por_region ?? null);
@@ -157,6 +157,12 @@ export default async function EstadoPage() {
               comparables y relieve, pero no comuna, límite urbano ni áreas protegidas. El resto
               de las capas funciona con normalidad.
             </p>
+            {servicioDesde && (
+              <p className="mt-1 text-xs opacity-60">
+                Último uso registrado de la copia: {fmtFechaHora.format(Date.parse(servicioDesde))}{' '}
+                (hora de Chile). El aviso se quita cuando la base principal vuelva a responder.
+              </p>
+            )}
           </div>
         )}
         {ultima && (

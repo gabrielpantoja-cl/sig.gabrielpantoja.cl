@@ -81,6 +81,8 @@ rclone copyto "$TMP/manifest.json" "$PUNTOS_DEST/manifest.json" \
   --header-upload "Cache-Control: public, max-age=300"
 echo "manifest.json → $archivo"
 
-# Limpieza: versiones de más de 14 días, nunca la vigente (el primer filtro
-# que calza gana en rclone, así que el --exclude va antes).
-rclone delete "$PUNTOS_DEST" --exclude "$archivo" --include "points-*.json.gz" --min-age 14d
+# Limpieza: versiones de más de 14 días, nunca la vigente. Con --filter el orden
+# es explícito (el primero que calza gana); mezclar --include y --exclude lo deja
+# indeterminado y rclone lo advierte (visto en la primera corrida, 2026-11-13).
+rclone delete "$PUNTOS_DEST" --filter "- $archivo" --filter "- manifest.json" \
+  --filter "+ points-*.json.gz" --filter "- **" --min-age 14d

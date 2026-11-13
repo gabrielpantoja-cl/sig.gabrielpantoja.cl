@@ -21,6 +21,21 @@ versionado.
 
 ## No publicado
 
+## [0.3.6] — 2026-11-13
+
+### Corregido
+
+- **El aviso «Funcionando con la copia de respaldo» ya no se apaga solo.**
+  Antes se quitaba si nadie había usado la copia en 15 minutos, y como la CDN
+  puede atender todas las visitas, llegó a decir «principal» con la base
+  principal todavía caída. Ahora cada servidor anota también el último éxito
+  de la base principal y manda el evento más reciente: el aviso se quita recién
+  cuando la principal vuelve a responder. `/api/health` agrega
+  `servicio_desde`.
+- `scripts/publicar-puntos.sh`: la limpieza de versiones viejas usa `--filter`
+  con orden explícito; mezclar `--include` y `--exclude` dejaba el orden
+  indeterminado y podía borrar el archivo vigente.
+
 ### Añadido
 
 - **La carga del mapa sin filtros puede salir de un archivo estático.** Con

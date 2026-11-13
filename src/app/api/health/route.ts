@@ -1,6 +1,6 @@
 import { enforce, corsHeaders } from '@/lib/security';
 import { APP_VERSION, BUILD_ID } from '@/lib/version';
-import { fuenteServicio, resumirEstado } from '@/lib/estado';
+import { estadoServicio, resumirEstado } from '@/lib/estado';
 import { obtenerMarcaRespaldo, obtenerVerificaciones } from '@/lib/estado-server';
 
 /**
@@ -30,14 +30,17 @@ export async function GET(req: Request) {
   const [filas, marca] = await Promise.all([obtenerVerificaciones(5), obtenerMarcaRespaldo()]);
   const ahora = Date.now();
   const { nivel, ultima, ultimaOk } = resumirEstado(filas, ahora);
+  const servicio = estadoServicio(marca);
   return Response.json(
     {
       status: 'ok',
       version: APP_VERSION,
       build: BUILD_ID,
       // Qué base atiende el mapa: `respaldo` = la copia diaria (hasta 1 día de
-      // atraso, sin ficha del predio). Leído de una marca, nunca de Neon.
-      servicio: fuenteServicio(marca, ahora),
+      // atraso, ficha del predio parcial). Es el evento más reciente anotado
+      // (`servicio_desde`), nunca una consulta a Neon.
+      servicio: servicio.fuente,
+      servicio_desde: servicio.desde,
       datos: {
         nivel,
         ultima_verificacion: ultima?.verificado_en ?? null,

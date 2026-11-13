@@ -19,12 +19,15 @@ import postgres from 'postgres';
  * exhausted quota does not add a failing round-trip to every request; then it
  * tries Neon again and recovers on its own when the quota resets.
  *
- * Each instance also records «the fallback is in use» at most once per
- * `MARK_EVERY_MS` by calling `public.marcar_uso_respaldo()` on the fallback
- * (a SECURITY DEFINER function that only stamps one timestamp; it is the only
- * thing the role can write). `/estado` reads that stamp, so it can say the
- * site runs on the copy without ever querying Neon. A missing function only
- * skips the stamp.
+ * Each instance also stamps, at most once per `MARK_EVERY_MS` each, the two
+ * service events on the fallback database: «the fallback was used»
+ * (`public.marcar_uso_respaldo()`) and «a Neon query succeeded»
+ * (`public.marcar_exito_principal()`) — SECURITY DEFINER functions that only
+ * write a timestamp; they are the only thing the role can write. `/estado`
+ * shows whichever event is newest, so it never says «principal» just because
+ * nobody stamped anything for a while. The Neon-success stamp is fire-and-
+ * forget: it must never slow down or fail a request Neon already answered. A
+ * missing function only skips the stamp.
  *
  * Both URLs are server-side only, never `NEXT_PUBLIC_`.
  */
@@ -37,6 +40,7 @@ let neonDownUntil = 0;
 
 const MARK_EVERY_MS = 5 * 60_000;
 let lastMark = 0;
+let lastPrimaryMark = 0;
 
 let fallbackClient: ReturnType<typeof postgres> | null = null;
 let fallbackUrl: string | null = null;
@@ -72,6 +76,21 @@ async function markFallbackInUse(client: ReturnType<typeof postgres>) {
   }
 }
 
+/** Never throws, never awaited by the request: Neon already answered. */
+function markPrimaryOk(url: string) {
+  const now = Date.now();
+  if (now - lastPrimaryMark < MARK_EVERY_MS) return;
+  lastPrimaryMark = now;
+  getFallback(url)
+    .begin('read write', (tx) => tx`select public.marcar_exito_principal()`)
+    .catch((err: unknown) => {
+      console.warn(
+        '[db] could not stamp primary success:',
+        err instanceof Error ? err.message.slice(0, 200) : 'unknown error',
+      );
+    });
+}
+
 async function queryFallback(url: string, text: string, params: unknown[]) {
   const client = getFallback(url);
   const [rows] = await Promise.all([
@@ -101,7 +120,9 @@ export function getSql(): ReadOnlySql {
     async query(text, params = []) {
       if (primary && (!fallback || Date.now() >= neonDownUntil)) {
         try {
-          return (await neon(primary).query(text, params)) as unknown[];
+          const rows = (await neon(primary).query(text, params)) as unknown[];
+          if (fallback) markPrimaryOk(fallback);
+          return rows;
         } catch (err) {
           if (!fallback) throw err;
           neonDownUntil = Date.now() + NEON_COOLDOWN_MS;

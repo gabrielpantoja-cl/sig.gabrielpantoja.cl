@@ -153,16 +153,27 @@ describe('grilla del respaldo', () => {
 });
 
 describe('fuenteServicio', () => {
-  const ahora = Date.parse('2026-11-13T21:00:00Z');
-  const marca = (respaldoUsadoEn: string | null) => ({ disponible: true, respaldoUsadoEn });
-  it('una marca reciente es respaldo', () => {
-    expect(fuenteServicio(marca('2026-11-13T20:50:00Z'), ahora)).toBe('respaldo');
+  const marca = (respaldoUsadoEn: string | null, principalOkEn: string | null) => ({
+    disponible: true,
+    respaldoUsadoEn,
+    principalOkEn,
   });
-  it('una marca vieja o ausente es principal', () => {
-    expect(fuenteServicio(marca('2026-11-13T20:40:00Z'), ahora)).toBe('principal');
-    expect(fuenteServicio(marca(null), ahora)).toBe('principal');
+  it('manda el evento más reciente', () => {
+    expect(fuenteServicio(marca('2026-11-13T20:50:00Z', '2026-11-13T14:45:00Z'))).toBe('respaldo');
+    expect(fuenteServicio(marca('2026-11-13T20:50:00Z', '2026-11-13T20:55:00Z'))).toBe('principal');
   });
-  it('sin lectura es desconocida', () => {
-    expect(fuenteServicio({ disponible: false, respaldoUsadoEn: null }, ahora)).toBe('desconocida');
+  it('un uso viejo del respaldo sigue siendo respaldo si la principal no ha vuelto', () => {
+    // Regresión 2026-11-13: la CDN atendía todo y la marca envejecía.
+    expect(fuenteServicio(marca('2026-11-01T00:00:00Z', null))).toBe('respaldo');
+    expect(fuenteServicio(marca('2026-11-01T00:00:00Z', '2026-10-31T00:00:00Z'))).toBe('respaldo');
+  });
+  it('sin eventos o sin lectura es desconocida', () => {
+    expect(fuenteServicio(marca(null, null))).toBe('desconocida');
+    expect(fuenteServicio({ disponible: false, respaldoUsadoEn: null, principalOkEn: null })).toBe(
+      'desconocida',
+    );
+  });
+  it('solo éxitos de la principal es principal', () => {
+    expect(fuenteServicio(marca(null, '2026-11-13T20:55:00Z'))).toBe('principal');
   });
 });

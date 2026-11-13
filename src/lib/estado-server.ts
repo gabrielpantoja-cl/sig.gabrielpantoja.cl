@@ -88,24 +88,32 @@ export async function leerEstado(): Promise<{
 }
 
 /**
- * Última vez que el sitio usó la copia de respaldo (tabla `estado_servicio`,
- * una sola fila, misma base y clave publicable). Caché de 1 min: el aviso
- * «funcionando con respaldo» debe aparecer y apagarse en minutos.
+ * Últimos eventos de servicio (tabla `estado_servicio`, una sola fila, misma
+ * base y clave publicable): último uso de la copia y último éxito de la base
+ * principal. Caché de 1 min. `select=*` a propósito: si la columna
+ * `principal_ok_en` todavía no existe, se lee igual (queda `null`).
  * `disponible: false` si falta configuración o la tabla no existe.
  */
 export async function obtenerMarcaRespaldo(): Promise<MarcaRespaldo> {
   const base = process.env.ESTADO_SUPABASE_URL;
   const clave = process.env.ESTADO_SUPABASE_KEY;
-  const sinDatos: MarcaRespaldo = { disponible: false, respaldoUsadoEn: null };
+  const sinDatos: MarcaRespaldo = { disponible: false, respaldoUsadoEn: null, principalOkEn: null };
   if (!base || !clave) return sinDatos;
 
-  const url = `${base.replace(/\/$/, '')}/rest/v1/estado_servicio?select=respaldo_usado_en&id=eq.1`;
+  const url = `${base.replace(/\/$/, '')}/rest/v1/estado_servicio?select=*&id=eq.1`;
   try {
     const res = await fetch(url, { headers: { apikey: clave }, next: { revalidate: 60 } });
     if (!res.ok) return sinDatos;
-    const filas = (await res.json()) as { respaldo_usado_en?: string | null }[];
+    const filas = (await res.json()) as {
+      respaldo_usado_en?: string | null;
+      principal_ok_en?: string | null;
+    }[];
     if (!Array.isArray(filas) || filas.length === 0) return sinDatos;
-    return { disponible: true, respaldoUsadoEn: filas[0].respaldo_usado_en ?? null };
+    return {
+      disponible: true,
+      respaldoUsadoEn: filas[0].respaldo_usado_en ?? null,
+      principalOkEn: filas[0].principal_ok_en ?? null,
+    };
   } catch {
     return sinDatos;
   }

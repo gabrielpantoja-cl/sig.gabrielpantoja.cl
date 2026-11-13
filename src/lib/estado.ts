@@ -205,27 +205,47 @@ export function escalaPorZoom(zoom: number): number {
 /**
  * Qué base atiende hoy las rutas de transacciones del mapa.
  *
- * El sitio anota la hora cada vez que usa la copia de respaldo (a lo más una
- * vez cada 5 min por servidor, ver `lib/neon.ts`). Si la última marca es
- * reciente, el mapa está funcionando con la copia; si envejece, la base
- * principal volvió y el aviso se apaga solo, sin que nadie escriba «volvió».
- * `desconocida` cuando no se pudo leer la marca.
+ * Cada servidor anota dos eventos en la base del respaldo, a lo más una vez
+ * cada 5 min (ver `lib/neon.ts`): cuándo usó la copia de respaldo y cuándo una
+ * consulta a la base principal funcionó. Manda el evento MÁS RECIENTE, sin
+ * vencimiento: si la CDN atiende todo por un rato no se anota nada, y la falta
+ * de marcas no prueba que la principal haya vuelto (el 2026-11-13 una ventana
+ * de 15 min hizo decir «principal» con Neon todavía bloqueado). El aviso se
+ * apaga recién cuando se ve un éxito de la principal posterior al último uso
+ * del respaldo. `desconocida` si no se pudo leer o no hay ningún evento.
  */
 export type FuenteServicio = 'principal' | 'respaldo' | 'desconocida';
-
-/** Tres veces el intervalo de marcado: tolera servidores con poco tráfico. */
-export const RESPALDO_VIGENTE_MIN = 15;
 
 export interface MarcaRespaldo {
   disponible: boolean;
   respaldoUsadoEn: string | null;
+  /** Último éxito de la base principal; `null` si no hay o la columna no existe. */
+  principalOkEn: string | null;
 }
 
-export function fuenteServicio(marca: MarcaRespaldo, ahora: number): FuenteServicio {
-  if (!marca.disponible) return 'desconocida';
-  const t = marca.respaldoUsadoEn ? Date.parse(marca.respaldoUsadoEn) : NaN;
-  if (Number.isFinite(t) && ahora - t < RESPALDO_VIGENTE_MIN * 60_000) return 'respaldo';
-  return 'principal';
+export interface EstadoServicio {
+  fuente: FuenteServicio;
+  /** Hora del evento que decidió la fuente (ISO), o `null`. */
+  desde: string | null;
+}
+
+export function estadoServicio(marca: MarcaRespaldo): EstadoServicio {
+  if (!marca.disponible) return { fuente: 'desconocida', desde: null };
+  const t = (iso: string | null) => (iso ? Date.parse(iso) : NaN);
+  const respaldo = t(marca.respaldoUsadoEn);
+  const principal = t(marca.principalOkEn);
+  const hayRespaldo = Number.isFinite(respaldo);
+  const hayPrincipal = Number.isFinite(principal);
+  if (hayRespaldo && (!hayPrincipal || respaldo > principal)) {
+    return { fuente: 'respaldo', desde: marca.respaldoUsadoEn };
+  }
+  if (hayPrincipal) return { fuente: 'principal', desde: marca.principalOkEn };
+  return { fuente: 'desconocida', desde: null };
+}
+
+/** Atajo: solo la fuente. */
+export function fuenteServicio(marca: MarcaRespaldo): FuenteServicio {
+  return estadoServicio(marca).fuente;
 }
 
 /** Año calendario en curso en hora de Chile (su barra es parcial). */

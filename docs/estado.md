@@ -37,7 +37,7 @@ de transacciones ni el motivo de un error.
 
 El SIG la lee por la API REST de esa base con una **clave publicable**
 (`src/lib/estado-server.ts`), con caché de 15 minutos; `/estado` se regenera por
-ISR cada 15 minutos.
+ISR cada 5 minutos (para que el aviso de servicio cambie a tiempo).
 
 Columnas: `verificado_en`, `ok`, `respaldo_fecha`, `referenciales`,
 `conservadores`, `comunas`, `ultimo_ingreso`, `anio_min`, `anio_max`,
@@ -73,19 +73,31 @@ proporcional al conteo) sobre el fondo neutro.
 ### Base que atiende el mapa (`estado_servicio`)
 
 Las verificaciones dicen si el **respaldo** está sano, no qué base atiende
-**hoy** al mapa. Cuando la base principal falla, las rutas CBR leen de la
-copia (`FALLBACK_DATABASE_URL`, ver `src/lib/neon.ts`) y cada servidor lo
-anota, a lo más una vez cada 5 min, llamando a `public.marcar_uso_respaldo()`
-en la base del respaldo: una función `SECURITY DEFINER` que solo escribe la
-hora en la única fila de `public.estado_servicio`. El rol del respaldo tiene
-`EXECUTE` sobre ella y nada más escribible; el rol anónimo solo lee la fila.
+**hoy** al mapa. Cada servidor anota dos eventos en la única fila de
+`public.estado_servicio` de la base del respaldo, cada uno a lo más una vez
+cada 5 min (`src/lib/neon.ts`):
 
-`/estado` y `/api/health` leen la marca por REST (caché 1 min) y
-`fuenteServicio()` decide: marca de menos de 15 min → `respaldo` (aviso
-ámbar, ficha del predio parcial: sin las capas `capas.*`); más vieja o vacía → `principal`; sin
-lectura → `desconocida` (no se afirma nada). Nadie escribe «volvió»: la marca
-envejece sola cuando la base principal responde de nuevo. Tampoco aquí se
-consulta Neon.
+| Evento | Columna | Función |
+|---|---|---|
+| Una consulta CBR se respondió con la copia (`FALLBACK_DATABASE_URL`) | `respaldo_usado_en` | `public.marcar_uso_respaldo()` |
+| Una consulta a la base principal funcionó | `principal_ok_en` | `public.marcar_exito_principal()` |
+
+Son funciones `SECURITY DEFINER` que solo escriben esa hora; el rol del
+respaldo tiene `EXECUTE` sobre ellas y nada más escribible, y el rol anónimo
+solo lee la fila. La marca del éxito de la principal no se espera: nunca demora
+ni hace fallar una respuesta que la principal ya dio.
+
+`/estado` y `/api/health` (`servicio`, `servicio_desde`) leen la fila por REST
+(caché 1 min) y `estadoServicio()` decide por el **evento más reciente**, sin
+vencimiento: uso de la copia más nuevo que el último éxito de la principal →
+`respaldo` (aviso ámbar, ficha del predio parcial: sin las capas `capas.*`);
+lo contrario → `principal`; sin eventos o sin lectura → `desconocida`.
+
+Por qué sin vencimiento: si la CDN atiende todas las visitas no se anota nada,
+y la falta de marcas no prueba que la principal haya vuelto. La primera versión
+apagaba el aviso cuando la marca cumplía 15 min, y el 2026-11-13 dijo
+«principal» con la base principal todavía bloqueada. Ahora el aviso se quita
+recién al ver un éxito de la principal. Tampoco aquí se consulta Neon.
 
 ## `/api/health`
 
@@ -95,6 +107,7 @@ consulta Neon.
   "version": "0.2.0",
   "build": "…",
   "servicio": "principal",
+  "servicio_desde": "2026-12-01T00:05:00Z",
   "datos": {
     "nivel": "al-dia",
     "ultima_verificacion": "2026-10-26T15:55:07Z",
