@@ -44,7 +44,7 @@
  * queda fijo en `dev` y el aviso nunca aparece.
  */
 
-export const APP_VERSION = '0.3.0';
+export const APP_VERSION = '0.3.1';
 
 /** SHA del commit desplegado (Vercel) o `dev` fuera de él. Se congela en el
  *  bundle al construir, que es justo lo que necesita el comparador. */

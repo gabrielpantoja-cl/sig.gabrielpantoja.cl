@@ -81,6 +81,11 @@ with `npx vercel link` once, then
 `npx vercel env pull .env.local --environment=development`. Without it the CBR
 routes answer 500 but every other layer works.
 
+Optional `FALLBACK_DATABASE_URL`: read-only role on the daily restored copy of
+the same tables. `getSql()` (`src/lib/neon.ts`) falls back to it when a Neon
+query fails (e.g. the monthly network-transfer quota is exhausted) and retries
+Neon after 5 min. The ficha del predio (`capas.*`) has no copy and still fails.
+
 Optional `/estado`: `ESTADO_SUPABASE_URL` + `ESTADO_SUPABASE_KEY` (publishable
 key; see `docs/estado.md`). Without them the page shows «no disponible».
 

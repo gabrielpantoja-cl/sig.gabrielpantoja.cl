@@ -21,6 +21,17 @@ versionado.
 
 ## No publicado
 
+## [0.3.1] — 2026-11-13
+
+### Corregido
+
+- **Las transacciones no dependen solo de Neon.** Si una consulta a Neon falla
+  —el 2026-11-13 el proyecto agotó su cuota mensual de transferencia y el mapa
+  quedó sin transacciones— las rutas CBR leen de una copia diaria de solo
+  lectura de las mismas tablas (`FALLBACK_DATABASE_URL`), con a lo más un día
+  de atraso, y vuelven a Neon solas cuando se recupera. La ficha del predio
+  sigue dependiendo de Neon.
+
 ## [0.3.0] — 2026-11-13
 
 ### Añadido
