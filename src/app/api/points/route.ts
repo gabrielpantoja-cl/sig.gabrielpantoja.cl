@@ -9,6 +9,10 @@ import { getSql } from '@/lib/neon';
  * superficie, rol). PII columns (comprador, vendedor, rut, user_id,
  * observaciones) are never selected.
  *
+ * CONTRACT: `db/exportar-puntos.sql` publishes this same unfiltered set as a
+ * static file, which the map reads first (`src/lib/points-snapshot.ts`).
+ * Changing a column here means changing it there too.
+ *
  * Optional `part`/`parts` (e.g. `part=0&parts=8`) return one disjoint slice of
  * the same result, so each response stays under the CDN's cacheable size
  * (see `parsePartition`). Without them the route answers the whole set.

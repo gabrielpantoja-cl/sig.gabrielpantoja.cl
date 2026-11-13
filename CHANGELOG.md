@@ -21,6 +21,16 @@ versionado.
 
 ## No publicado
 
+### Añadido
+
+- **La carga del mapa sin filtros puede salir de un archivo estático.** Con
+  `NEXT_PUBLIC_PUNTOS_URL` configurada, el mapa lee primero un archivo con el
+  conjunto completo (mismas columnas que `/api/points`), publicado una vez al
+  día desde la copia restaurada del respaldo por `scripts/publicar-puntos.sh`
+  (`db/exportar-puntos.sql`), y solo si falla vuelve a `/api/points`. Así la
+  carga que más pesa deja de gastar la cuota de transferencia de las bases.
+  Los filtros siguen consultando la API.
+
 ## [0.3.5] — 2026-11-13
 
 ### Corregido

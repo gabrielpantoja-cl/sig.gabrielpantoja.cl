@@ -7,6 +7,7 @@ import {
   type DatasetVersion,
 } from '@/lib/dataset';
 import { fetchWithStallRetry } from '@/lib/fetch-stall';
+import { fetchSnapshotPoints, PUNTOS_URL } from '@/lib/points-snapshot';
 import type { Facets, MapPoint, Stats } from '@/lib/types';
 
 /**
@@ -48,6 +49,31 @@ async function fetchPointParts(
     ),
   );
   return parts.flatMap((p) => (Array.isArray(p) ? p : []));
+}
+
+/**
+ * Puntos para un juego de filtros. Sin filtros, la fuente principal es el
+ * archivo estático publicado (`lib/points-snapshot.ts`) y /api/points solo el
+ * respaldo si el archivo falla; con filtros, /api/points (el filtrado sigue en
+ * el servidor). El archivo puede ir hasta un día detrás de la base: es el
+ * mismo atraso que la copia de respaldo.
+ */
+async function fetchPoints(
+  debouncedQs: string,
+  suffix: string,
+  signal: AbortSignal,
+  onProgress: (frac: number) => void,
+): Promise<MapPoint[]> {
+  if (!debouncedQs && PUNTOS_URL) {
+    try {
+      return (await fetchSnapshotPoints(PUNTOS_URL, signal, onProgress)).points;
+    } catch (err) {
+      if (signal.aborted) throw err;
+      console.warn('[points] archivo estático no disponible, uso /api/points:', (err as Error).message);
+      onProgress(0);
+    }
+  }
+  return fetchPointParts(suffix, signal, onProgress);
 }
 
 /** Huella del conjunto; `null` si el sondeo falló (la red, un 429, un 500). */
@@ -239,7 +265,7 @@ export function useCbrData(debouncedQs: string, callbacks: CbrDataCallbacks = {}
     fromCache.current = null;
     const version = aplicada;
     Promise.all([
-      fetchPointParts(suffix, ctrl.signal, (frac) => {
+      fetchPoints(debouncedQs, suffix, ctrl.signal, (frac) => {
         callbacksRef.current.onDownloadProgress?.(frac);
       }),
       fetch(`/api/stats${suffix}`, { signal: ctrl.signal }).then((r) =>

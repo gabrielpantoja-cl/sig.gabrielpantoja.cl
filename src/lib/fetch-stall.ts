@@ -23,6 +23,8 @@ export interface StallRetryOptions {
   attempts?: number;
   /** Espera antes del reintento n (1-based): `backoffMs * n`. */
   backoffMs?: number;
+  /** Tamaño sin comprimir si la respuesta no trae X-Total-Bytes (p. ej. un archivo estático). */
+  totalBytes?: number;
 }
 
 export class HttpError extends Error {
@@ -66,6 +68,7 @@ async function attempt(
   parent: AbortSignal,
   stallMs: number,
   onProgress?: (frac: number) => void,
+  totalBytes = 0,
 ): Promise<Uint8Array> {
   const ctrl = new AbortController();
   const onParentAbort = () => ctrl.abort(parent.reason);
@@ -90,7 +93,7 @@ async function attempt(
 
     // El servidor expone X-Total-Bytes (descomprimido): tras el gzip de la CDN
     // Content-Length ya no corresponde a lo que entrega el reader.
-    const total = Number(res.headers.get('x-total-bytes')) || 0;
+    const total = Number(res.headers.get('x-total-bytes')) || totalBytes;
     if (!res.body) {
       const buf = new Uint8Array(await res.arrayBuffer());
       onProgress?.(1);
@@ -127,7 +130,14 @@ async function attempt(
 /** Bytes del cuerpo; lanza el último error si se agotan los intentos. */
 export async function fetchWithStallRetry(
   url: string,
-  { signal, onProgress, stallMs = 15_000, attempts = 3, backoffMs = 1_000 }: StallRetryOptions,
+  {
+    signal,
+    onProgress,
+    stallMs = 15_000,
+    attempts = 3,
+    backoffMs = 1_000,
+    totalBytes,
+  }: StallRetryOptions,
 ): Promise<Uint8Array> {
   let last: unknown;
   for (let n = 0; n < attempts; n++) {
@@ -136,7 +146,7 @@ export async function fetchWithStallRetry(
       await wait(backoffMs * n, signal);
     }
     try {
-      return await attempt(url, signal, stallMs, onProgress);
+      return await attempt(url, signal, stallMs, onProgress, totalBytes);
     } catch (err) {
       if (signal.aborted || !retriable(err)) throw err;
       last = err;
