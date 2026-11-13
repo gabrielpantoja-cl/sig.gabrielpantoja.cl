@@ -101,7 +101,7 @@ export function InfoPanel() {
             de la naturaleza.
           </p>
           {/* Funcionar con la copia pesa más que el nivel del respaldo: es lo que
-              ve quien usa el mapa ahora (datos con atraso, sin ficha del predio). */}
+              ve quien usa el mapa ahora (datos con atraso, ficha del predio parcial). */}
           <Link
             href="/estado"
             className="mt-3 flex items-center gap-2 rounded-md border border-black/10 px-2 py-1.5 text-xs transition-colors hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/10"

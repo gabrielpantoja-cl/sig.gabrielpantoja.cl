@@ -71,7 +71,7 @@ const SERVICIO: Record<Exclude<FuenteServicio, 'desconocida'>, {
   principal: { base: 'Base principal', ficha: 'Disponible', fichaOk: true },
   respaldo: {
     base: 'Copia de respaldo (hasta 1 día de atraso)',
-    ficha: 'No disponible mientras se use la copia',
+    ficha: 'Parcial: sin comuna, límite urbano ni áreas protegidas',
     fichaOk: false,
   },
 };
@@ -153,8 +153,9 @@ export default async function EstadoPage() {
             </p>
             <p className="mt-1 opacity-80">
               La base principal no está respondiendo. El mapa muestra la copia verificada, con
-              hasta un día de atraso. La ficha del predio no está disponible mientras tanto; el
-              resto de las capas funciona con normalidad.
+              hasta un día de atraso. La ficha del predio funciona en parte: calcula superficie,
+              comparables y relieve, pero no comuna, límite urbano ni áreas protegidas. El resto
+              de las capas funciona con normalidad.
             </p>
           </div>
         )}

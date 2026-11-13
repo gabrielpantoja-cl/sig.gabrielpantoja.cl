@@ -82,7 +82,7 @@ hora en la única fila de `public.estado_servicio`. El rol del respaldo tiene
 
 `/estado` y `/api/health` leen la marca por REST (caché 1 min) y
 `fuenteServicio()` decide: marca de menos de 15 min → `respaldo` (aviso
-ámbar, ficha del predio no disponible); más vieja o vacía → `principal`; sin
+ámbar, ficha del predio parcial: sin las capas `capas.*`); más vieja o vacía → `principal`; sin
 lectura → `desconocida` (no se afirma nada). Nadie escribe «volvió»: la marca
 envejece sola cuando la base principal responde de nuevo. Tampoco aquí se
 consulta Neon.

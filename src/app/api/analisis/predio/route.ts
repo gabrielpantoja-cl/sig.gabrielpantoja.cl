@@ -5,7 +5,7 @@ import {
   rateLimitResponse,
 } from '@/lib/security';
 import { buildFilters } from '@/lib/filters';
-import { getSql } from '@/lib/neon';
+import { getSql, isUsingFallback } from '@/lib/neon';
 import { relieveEnPoligono } from '@/lib/relieve-raster';
 import type { RelieveZonal } from '@/lib/zonal';
 import {
@@ -77,7 +77,9 @@ async function seccion<T>(nombre: string, consulta: () => Promise<T>): Promise<S
   try {
     return { estado: 'ok', datos: await consulta() };
   } catch (err) {
-    if (sinCapa(err)) return { estado: 'sin-capa' };
+    // Con la base principal caída, las capas no faltan: solo existen en ella.
+    // Decir «capa aún no cargada» sería falso; es un error temporal.
+    if (sinCapa(err)) return isUsingFallback() ? { estado: 'error' } : { estado: 'sin-capa' };
     console.error(`[analisis/predio] ${nombre}:`, err instanceof Error ? err.message : err);
     return { estado: 'error' };
   }

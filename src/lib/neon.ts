@@ -81,6 +81,15 @@ async function queryFallback(url: string, text: string, params: unknown[]) {
   return Array.from(rows) as unknown[];
 }
 
+/**
+ * True while this instance is serving from the fallback (Neon failed less
+ * than `NEON_COOLDOWN_MS` ago). Lets a route tell «this table only exists in
+ * Neon» apart from «this layer was never loaded».
+ */
+export function isUsingFallback(): boolean {
+  return Boolean(process.env.FALLBACK_DATABASE_URL) && Date.now() < neonDownUntil;
+}
+
 export function getSql(): ReadOnlySql {
   const primary = process.env.NEON_DATABASE_URL;
   const fallback = process.env.FALLBACK_DATABASE_URL;

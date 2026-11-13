@@ -21,6 +21,16 @@ versionado.
 
 ## No publicado
 
+## [0.3.4] — 2026-11-13
+
+### Corregido
+
+- **La ficha del predio con la copia de respaldo.** `/estado` decía que no
+  estaba disponible, pero funciona en parte: superficie, comparables y relieve
+  sí; comuna, límite urbano y áreas protegidas no, porque esas capas solo
+  existen en la base principal. Esas secciones decían «Capa aún no cargada»;
+  ahora dicen «No se pudo consultar esta capa».
+
 ## [0.3.3] — 2026-11-13
 
 ### Añadido
