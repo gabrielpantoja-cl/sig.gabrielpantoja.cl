@@ -21,6 +21,16 @@ versionado.
 
 ## No publicado
 
+## [0.3.5] — 2026-11-13
+
+### Corregido
+
+- **El mapa ya no se queda trabado cargando.** Si una de las 8 partes de las
+  transacciones pasa 15 s sin recibir datos, se cancela y se vuelve a pedir
+  (hasta 3 intentos, misma URL para no saltarse la caché). Antes, en la primera
+  visita después de un deploy, algunas partes quedaban colgadas y la barra se
+  detenía en 39–46 % sin terminar nunca.
+
 ## [0.3.4] — 2026-11-13
 
 ### Corregido

@@ -6,48 +6,27 @@ import {
   withDataset,
   type DatasetVersion,
 } from '@/lib/dataset';
+import { fetchWithStallRetry } from '@/lib/fetch-stall';
 import type { Facets, MapPoint, Stats } from '@/lib/types';
 
 /**
- * Descarga /api/points reportando el avance real de bytes. El servidor expone
- * X-Total-Bytes (tamaño descomprimido) porque tras el gzip de la CDN el
- * Content-Length deja de corresponder a los bytes que entrega el reader. Si el
- * header faltara, cae a una curva asintótica sobre el tamaño típico (~18 MB).
+ * Descarga una parte de /api/points reportando el avance real de bytes. Si la
+ * parte se queda sin datos 15 s se cancela y se reintenta (ver
+ * `lib/fetch-stall.ts`): antes una parte colgada dejaba el mapa trabado.
  */
 async function fetchPointsWithProgress(
   url: string,
   signal: AbortSignal,
   onProgress: (frac: number) => void,
 ): Promise<MapPoint[]> {
-  const res = await fetch(url, { signal });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  if (!res.body) return res.json();
-
-  const total = Number(res.headers.get('x-total-bytes')) || 0;
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let received = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    received += value.length;
-    onProgress(total > 0 ? Math.min(received / total, 1) : received / (received + 6_000_000));
-  }
-
-  const buf = new Uint8Array(received);
-  let offset = 0;
-  for (const c of chunks) {
-    buf.set(c, offset);
-    offset += c.length;
-  }
+  const buf = await fetchWithStallRetry(url, { signal, onProgress });
   return JSON.parse(new TextDecoder().decode(buf)) as MapPoint[];
 }
 
 /**
- * Partes en que se pide /api/points. El conjunto completo (~31 MB) supera lo
- * que la CDN de Vercel cachea (~10 MB) y era MISS en cada visita; en 8 partes
- * cada respuesta queda bajo ~4 MB y se cachea. Las partes se piden en paralelo
+ * Partes en que se pide /api/points. El conjunto completo (~61 MB en nov-2026)
+ * supera lo que la CDN de Vercel cachea (~10 MB por respuesta) y era MISS en
+ * cada visita; en 8 partes cada respuesta queda en ~7,6 MB y se cachea. Las partes se piden en paralelo
  * (HTTP/2) y son disjuntas, así que concatenarlas da el conjunto completo.
  */
 const POINT_PARTS = 8;
