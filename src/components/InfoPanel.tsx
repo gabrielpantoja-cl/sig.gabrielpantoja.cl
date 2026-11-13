@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { APP_VERSION } from '@/lib/version';
 
@@ -75,8 +76,8 @@ export function InfoPanel() {
           </p>
           <p className="mt-2 border-t border-black/10 pt-2 text-xs opacity-60 dark:border-white/10">
             Medimos el uso del sitio de forma agregada y sin cookies de
-            seguimiento: no guardamos tu IP ni lo que buscas, solo la región
-            aproximada, el tipo de dispositivo y qué herramientas se usan. Si tu
+            seguimiento: no guardamos tu IP ni lo que buscas, solo el país, la
+            región y la ciudad aproximados, el tipo de dispositivo y qué herramientas se usan. Si tu
             navegador envía Do Not Track o GPC, no registramos nada.
           </p>
           <p className="mt-2 border-t border-black/10 pt-2 text-xs opacity-60 dark:border-white/10">
@@ -88,6 +89,10 @@ export function InfoPanel() {
             >
               Código abierto (MIT)
             </a>
+            {' · '}
+            <Link href="/privacidad" className="underline underline-offset-2 hover:opacity-100">
+              Privacidad
+            </Link>
             {' · '}v{APP_VERSION}
           </p>
         </div>

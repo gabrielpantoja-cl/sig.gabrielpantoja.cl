@@ -23,6 +23,13 @@ versionado.
 
 ### Añadido
 
+- **Política de privacidad en `/privacidad`.** Cubre el deber de información
+  del art. 14 ter de la Ley 19.628 en el texto de la Ley 21.719 (vigente desde
+  el 1 de diciembre de 2026): responsable, contacto
+  (`peritajes@gabrielpantoja.cl`), datos tratados, origen, finalidades, base de
+  licitud (interés legítimo), destinatarios, conservación, seguridad y derechos
+  del titular. Enlazada desde el panel «Acerca de este sitio». No cambia lo que
+  muestra el mapa ni la API.
 - **Aviso «Hay datos nuevos» con recarga en sitio.** Mientras la pestaña está
   visible, el mapa comprueba cada minuto si cambió el conjunto de
   transacciones y ofrece actualizarlo sin recargar la página: los filtros,
