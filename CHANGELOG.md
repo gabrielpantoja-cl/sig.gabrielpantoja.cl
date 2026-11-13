@@ -21,6 +21,15 @@ versionado.
 
 ## No publicado
 
+## [0.3.7] — 2026-11-13
+
+### Cambiado
+
+- **El panel «Acerca de» resume el estado en una línea.** Punto de color y dos
+  o tres palabras, al estilo del pie de una página de estado: «Todo funciona»,
+  «Funcionamiento parcial» (el mapa usa la copia de respaldo), «Respaldo en
+  revisión» o «Ver estado». El detalle vive solo en `/estado`.
+
 ## [0.3.6] — 2026-11-13
 
 ### Corregido

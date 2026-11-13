@@ -5,13 +5,26 @@ import { useEffect, useRef, useState } from 'react';
 import { APP_VERSION } from '@/lib/version';
 import type { FuenteServicio, NivelEstado } from '@/lib/estado';
 
-/** Texto y color del punto de estado; mismos niveles que `/estado`. */
-const NIVELES: Record<NivelEstado, { texto: string; color: string }> = {
-  'al-dia': { texto: 'Datos respaldados y verificados', color: 'bg-emerald-500' },
-  falla: { texto: 'Falló la última verificación', color: 'bg-red-500' },
-  atrasado: { texto: 'Verificación atrasada', color: 'bg-amber-500' },
-  'sin-datos': { texto: 'Estado no disponible', color: 'bg-gray-400' },
-};
+/**
+ * Resumen de una línea, al estilo del pie de una página de estado: un punto y
+ * dos o tres palabras. El detalle (qué base atiende, qué falla, desde cuándo)
+ * vive solo en /estado; no repetirlo aquí.
+ */
+type Resumen = { texto: string; color: string };
+
+const OK: Resumen = { texto: 'Todo funciona', color: 'bg-emerald-500' };
+const PARCIAL: Resumen = { texto: 'Funcionamiento parcial', color: 'bg-amber-500' };
+const REVISION: Resumen = { texto: 'Respaldo en revisión', color: 'bg-amber-500' };
+const SIN_DATOS: Resumen = { texto: 'Ver estado', color: 'bg-gray-400' };
+
+function resumen(servicio: FuenteServicio | null, nivel: NivelEstado): Resumen {
+  // Funcionar con la copia pesa más que el respaldo: es lo que nota quien usa
+  // el mapa ahora (datos con atraso, ficha del predio parcial).
+  if (servicio === 'respaldo') return PARCIAL;
+  if (nivel === 'falla' || nivel === 'atrasado') return REVISION;
+  if (nivel === 'al-dia') return OK;
+  return SIN_DATOS;
+}
 
 /**
  * Botón "i" en el header con dropdown de información: aquí vive la
@@ -36,7 +49,7 @@ export function InfoPanel() {
       .then((j: { servicio?: FuenteServicio; datos?: { nivel?: NivelEstado } } | null) => {
         setServicio(j?.servicio ?? null);
         const n = j?.datos?.nivel;
-        setNivel(n && n in NIVELES ? n : 'sin-datos');
+        setNivel(n ?? 'sin-datos');
       })
       .catch(() => {
         if (!ctrl.signal.aborted) setNivel('sin-datos');
@@ -100,8 +113,6 @@ export function InfoPanel() {
             investigar cómo el mercado de suelo puede contribuir a la conservación
             de la naturaleza.
           </p>
-          {/* Funcionar con la copia pesa más que el nivel del respaldo: es lo que
-              ve quien usa el mapa ahora (datos con atraso, ficha del predio parcial). */}
           <Link
             href="/estado"
             className="mt-3 flex items-center gap-2 rounded-md border border-black/10 px-2 py-1.5 text-xs transition-colors hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/10"
@@ -109,20 +120,10 @@ export function InfoPanel() {
             <span
               aria-hidden="true"
               className={`h-2 w-2 shrink-0 rounded-full ${
-                servicio === 'respaldo'
-                  ? 'bg-amber-500'
-                  : nivel
-                    ? NIVELES[nivel].color
-                    : 'animate-pulse bg-gray-400'
+                nivel ? resumen(servicio, nivel).color : 'animate-pulse bg-gray-400'
               }`}
             />
-            <span className="flex-1">
-              {servicio === 'respaldo'
-                ? 'Funcionando con la copia de respaldo'
-                : nivel
-                  ? NIVELES[nivel].texto
-                  : 'Consultando estado…'}
-            </span>
+            <span className="flex-1">{nivel ? resumen(servicio, nivel).texto : 'Estado…'}</span>
             <span className="opacity-60">Estado →</span>
           </Link>
           <p className="mt-3 border-t border-black/10 pt-2 text-xs opacity-60 dark:border-white/10">
