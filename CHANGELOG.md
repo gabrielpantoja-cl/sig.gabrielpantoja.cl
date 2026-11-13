@@ -21,6 +21,8 @@ versionado.
 
 ## No publicado
 
+## [0.3.0] — 2026-11-13
+
 ### Añadido
 
 - **Política de privacidad en `/privacidad`.** Cubre el deber de información
@@ -99,6 +101,14 @@ versionado.
 
 ### Cambiado
 
+- **Volver al mapa ya no descarga de nuevo las transacciones.** Al ir a
+  `/privacidad` o `/estado` y volver, el conjunto cargado (puntos,
+  estadísticas y facetas de la versión vigente) se reutiliza desde memoria; el
+  sondeo de `/api/dataset` sigue ofreciendo «Hay datos nuevos» si entró una
+  carga mientras tanto.
+- **Panel «Acerca de este sitio» breve.** Nombre, versión, una línea de
+  propósito y enlaces (código, privacidad). El detalle de datos publicados y
+  analítica vive solo en `/privacidad`.
 - **Sin el botón «Consulta NDVI» en la barra superior.** Ocupaba espacio en
   la vista principal para una herramienta poco usada; la serie mensual de
   NDVI sigue en «Capas › Herramientas de consulta», y el NDVI del área se ve
