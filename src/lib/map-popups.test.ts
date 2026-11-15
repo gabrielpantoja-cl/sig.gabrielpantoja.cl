@@ -119,7 +119,7 @@ describe('popups escape data values', () => {
 
   it('user KML popup strips embedded markup and escapes the rest', () => {
     const layer = {
-      id: '1', name: 'capa', displayName: XSS, color: '#ff0000', colorMode: 'unico', colorSeed: 0,
+      id: '1', name: 'capa', displayName: XSS, color: '#ff0000', colorMode: 'unico', tieneEstilo: false, colorSeed: 0,
       subidaEn: 0, visible: true, featureCount: 1,
       geojson: { type: 'FeatureCollection', features: [] },
     } satisfies KmlLayer;

@@ -572,6 +572,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     renameKml,
     setKmlColor,
     shuffleKmlColors,
+    applyFileKmlColors,
   } = useKmlLayers();
   const handleAnalizarKml = useCallback((id: string) => {
     const layer = kmlLayers.find((l) => l.id === id);
@@ -910,6 +911,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
           onRenameKml={renameKml}
           onSetKmlColor={setKmlColor}
           onShuffleKmlColors={shuffleKmlColors}
+          onUseFileKmlColors={applyFileKmlColors}
           onExport={handleExportClick}
           exporting={exporting}
           ndviMode={ndviMode}

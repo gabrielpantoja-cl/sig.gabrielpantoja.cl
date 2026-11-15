@@ -1,6 +1,13 @@
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { extractKmlFromKmz, hslToHex, kmlFeatureColor, restoreKmlLayer } from './kml';
+import {
+  extractKmlFromKmz,
+  hslToHex,
+  kmlFeatureColor,
+  kmlFeatureStyle,
+  kmlFileStyle,
+  restoreKmlLayer,
+} from './kml';
 
 const KML = '<?xml version="1.0"?><kml><Document><name>Predio</name></Document></kml>';
 
@@ -114,5 +121,67 @@ describe('restoreKmlLayer', () => {
         geojson: { type: 'FeatureCollection', features: [{ ...feature, geometry: null }] },
       }),
     ).toBeNull();
+  });
+});
+
+describe('kmlFileStyle / kmlFeatureStyle (colores de Google Earth)', () => {
+  it('usa fill/stroke que togeojson ya convirtió desde aabbggrr', () => {
+    const style = kmlFeatureStyle(
+      { color: '#123456', colorMode: 'archivo', colorSeed: 0 },
+      { fill: '#FF0000', 'fill-opacity': 0.25, stroke: '#0f0', 'stroke-width': 3 },
+      0,
+    );
+    expect(style).toEqual({
+      color: '#00ff00',
+      fillColor: '#ff0000',
+      opacity: 0.9,
+      fillOpacity: 0.25,
+      weight: 3,
+    });
+  });
+
+  it('respeta un relleno apagado (fill 0) y acota el grosor', () => {
+    const s = kmlFileStyle({ stroke: '#abcdef', 'fill-opacity': 0, 'stroke-width': 99 });
+    expect(s.fillOpacity).toBe(0);
+    expect(s.strokeWidth).toBe(8);
+  });
+
+  it('descarta colores que no son hex y cae al color de la capa', () => {
+    const style = kmlFeatureStyle(
+      { color: '#123456', colorMode: 'archivo', colorSeed: 0 },
+      { stroke: 'red;background:url(x)', fill: 'url(x)' },
+      0,
+    );
+    expect(style.color).toBe('#123456');
+    expect(style.fillColor).toBe('#123456');
+  });
+
+  it('en otros modos ignora el estilo del archivo', () => {
+    const style = kmlFeatureStyle(
+      { color: '#123456', colorMode: 'unico', colorSeed: 0 },
+      { fill: '#ff0000' },
+      0,
+    );
+    expect(style.fillColor).toBe('#123456');
+  });
+
+  it('restaurar detecta el estilo y no deja modo archivo sin estilo', () => {
+    const base = {
+      id: 'a',
+      name: 'p',
+      color: '#7c3aed',
+      colorMode: 'archivo',
+    };
+    const geom = { type: 'Point', coordinates: [-73, -39] };
+    const con = restoreKmlLayer({
+      ...base,
+      geojson: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { fill: '#ff0000' }, geometry: geom }] },
+    });
+    expect(con).toMatchObject({ tieneEstilo: true, colorMode: 'archivo' });
+    const sin = restoreKmlLayer({
+      ...base,
+      geojson: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: geom }] },
+    });
+    expect(sin).toMatchObject({ tieneEstilo: false, colorMode: 'unico' });
   });
 });

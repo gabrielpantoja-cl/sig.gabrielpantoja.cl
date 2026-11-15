@@ -26,9 +26,13 @@ export interface KmlLayer {
    *  usuario. Siempre `#rrggbb` (se valida al restaurar). En modo
    *  `por-entidad` sigue siendo el color del panel y del cajetín. */
   color: string;
-  /** `unico`: toda la capa de `color`. `por-entidad`: cada Placemark con un
+  /** `archivo`: los colores que trae el KML (Google Earth), por entidad.
+   *  `unico`: toda la capa de `color`. `por-entidad`: cada Placemark con un
    *  color distinto (`kmlFeatureColor`), para diferenciar polígonos. */
   colorMode: KmlColorMode;
+  /** true si al menos una entidad trae color propio en el KML: habilita el
+   *  modo `archivo`. Se recalcula al restaurar. */
+  tieneEstilo: boolean;
   /** Semilla del coloreado por entidad; «Aleatorio» la cambia. */
   colorSeed: number;
   /** Momento de la subida (ms): ordena las capas restauradas. */
@@ -41,7 +45,7 @@ export interface KmlLayer {
   geojson: FeatureCollection<Geometry, KmlFeatureProps>;
 }
 
-export type KmlColorMode = 'unico' | 'por-entidad';
+export type KmlColorMode = 'archivo' | 'unico' | 'por-entidad';
 
 /** Helper para consumidores: prioriza el alias editable del perito. */
 export const kmlDisplayName = (layer: KmlLayer): string =>
@@ -80,7 +84,7 @@ export const KMZ_MAX_UNCOMPRESSED_MB = 150;
  * Extrae el texto del KML principal de un KMZ (un ZIP). Por convención de
  * Google Earth es `doc.kml` en la raíz; si no existe, se toma el primer
  * `.kml` de menor profundidad. Íconos, imágenes y KML secundarios del ZIP
- * se ignoran: la capa se dibuja con los colores del SIG, no con sus estilos.
+ * se ignoran; los colores de los estilos sí se usan (modo `archivo`).
  * Lanza Error con mensaje en español apto para la UI.
  */
 export function extractKmlFromKmz(bytes: Uint8Array, fileName: string): string {
@@ -151,6 +155,96 @@ export function hslToHex(h: number, s: number, l: number): string {
   return `#${f(0)}${f(8)}${f(4)}`;
 }
 
+/** `#rgb` o `#rrggbb` → `#rrggbb` en minúsculas; cualquier otra cosa → null. */
+function normalizeHex(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value.trim());
+  if (!m) return null;
+  const h = m[1].length === 3 ? [...m[1]].map((c) => c + c).join('') : m[1];
+  return `#${h.toLowerCase()}`;
+}
+
+const unit = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : null;
+
+/**
+ * Estilo que el propio KML asigna a una entidad. togeojson ya resuelve los
+ * `<Style>`/`<StyleMap>` referidos por `styleUrl` y convierte el `aabbggrr`
+ * de Google Earth a `fill`/`stroke` `#rrggbb` + `*-opacity` (simplestyle).
+ * Todo se valida antes de usarse: el archivo es entrada no confiable y estos
+ * valores terminan en atributos de estilo.
+ */
+export interface KmlFileStyle {
+  stroke: string | null;
+  fill: string | null;
+  icon: string | null;
+  strokeOpacity: number | null;
+  fillOpacity: number | null;
+  strokeWidth: number | null;
+}
+
+export function kmlFileStyle(props: KmlFeatureProps | null | undefined): KmlFileStyle {
+  const p = props ?? {};
+  const width = p['stroke-width'];
+  return {
+    stroke: normalizeHex(p.stroke),
+    fill: normalizeHex(p.fill),
+    icon: normalizeHex(p['icon-color']),
+    strokeOpacity: unit(p['stroke-opacity']),
+    fillOpacity: unit(p['fill-opacity']),
+    strokeWidth:
+      typeof width === 'number' && Number.isFinite(width) ? Math.min(8, Math.max(0.5, width)) : null,
+  };
+}
+
+/** true si la entidad trae algún color propio utilizable. */
+const hasFileColor = (props: KmlFeatureProps | null | undefined): boolean => {
+  const s = kmlFileStyle(props);
+  return s.stroke !== null || s.fill !== null || s.icon !== null;
+};
+
+export const kmlHasFileStyle = (features: Feature<Geometry | null, KmlFeatureProps>[]): boolean =>
+  features.some((f) => hasFileColor(f.properties));
+
+/** Estilo Leaflet (Path) de una entidad según el modo de la capa. */
+export interface KmlPathStyle {
+  color: string;
+  fillColor: string;
+  opacity: number;
+  fillOpacity: number;
+  weight: number;
+}
+
+export function kmlFeatureStyle(
+  layer: Pick<KmlLayer, 'color' | 'colorMode' | 'colorSeed'>,
+  props: KmlFeatureProps | null | undefined,
+  index: number,
+): KmlPathStyle {
+  if (layer.colorMode === 'archivo') {
+    const s = kmlFileStyle(props);
+    // Una entidad sin estilo propio dentro de un KML que sí lo tiene usa el
+    // color de la capa, igual que Google Earth usa su estilo por defecto.
+    const stroke = s.stroke ?? s.fill ?? s.icon ?? layer.color;
+    const fill = s.fill ?? s.icon ?? stroke;
+    return {
+      color: stroke,
+      fillColor: fill,
+      opacity: s.strokeOpacity ?? 0.9,
+      fillOpacity: s.fillOpacity ?? 0.3,
+      weight: s.strokeWidth ?? 2,
+    };
+  }
+  const color = kmlFeatureColor(layer, index);
+  return {
+    color,
+    fillColor: color,
+    opacity: 0.9,
+    // Con un color por polígono el relleno es la pista principal.
+    fillOpacity: layer.colorMode === 'por-entidad' ? 0.3 : 0.15,
+    weight: 2,
+  };
+}
+
 /** Nueva semilla para «Aleatorio» (un tono de partida, 0–359). */
 export const randomKmlSeed = (): number => Math.floor(Math.random() * 360);
 
@@ -194,12 +288,19 @@ export function restoreKmlLayer(raw: unknown): KmlLayer | null {
     (f) => f != null && typeof f === 'object' && hasGeometry(f),
   ) as Feature<Geometry, KmlFeatureProps>[];
   if (features.length === 0) return null;
+  const tieneEstilo = kmlHasFileStyle(features);
+  const modes: KmlColorMode[] = ['archivo', 'unico', 'por-entidad'];
+  let colorMode: KmlColorMode = modes.includes(r.colorMode as KmlColorMode)
+    ? (r.colorMode as KmlColorMode)
+    : 'unico';
+  if (colorMode === 'archivo' && !tieneEstilo) colorMode = 'unico';
   return {
     id: r.id,
     name: r.name,
     displayName: typeof r.displayName === 'string' ? r.displayName : r.name,
     color: isHexColor(r.color) ? r.color : KML_COLORS[0],
-    colorMode: r.colorMode === 'por-entidad' ? 'por-entidad' : 'unico',
+    colorMode,
+    tieneEstilo,
     colorSeed:
       typeof r.colorSeed === 'number' && Number.isFinite(r.colorSeed) ? r.colorSeed % 360 : 0,
     subidaEn: typeof r.subidaEn === 'number' && Number.isFinite(r.subidaEn) ? r.subidaEn : 0,
@@ -251,6 +352,7 @@ export async function parseKmlFile(file: File, color: string): Promise<KmlLayer>
   }
 
   const baseName = file.name.replace(/\.km[lz]$/i, '');
+  const tieneEstilo = kmlHasFileStyle(features);
   return {
     id: crypto.randomUUID(),
     name: baseName,
@@ -259,9 +361,11 @@ export async function parseKmlFile(file: File, color: string): Promise<KmlLayer>
     // export PNG y al popup del feature.
     displayName: baseName,
     color,
-    // Con más de una entidad, cada una de un color: así se distinguen los
+    // Si el KML trae sus colores (Google Earth), se respetan. Si no, con más
+    // de una entidad cada una va de un color: así se distinguen los
     // polígonos vecinos apenas se carga el archivo.
-    colorMode: features.length > 1 ? 'por-entidad' : 'unico',
+    colorMode: tieneEstilo ? 'archivo' : features.length > 1 ? 'por-entidad' : 'unico',
+    tieneEstilo,
     colorSeed: randomKmlSeed(),
     subidaEn: Date.now(),
     visible: true,

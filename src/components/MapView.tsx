@@ -28,7 +28,7 @@ import {
   URBAN_LIMIT_STYLE,
   type UrbanLimitProps,
 } from '@/lib/urban-limit';
-import { kmlDisplayName, kmlFeatureColor, type KmlLayer } from '@/lib/kml';
+import { kmlDisplayName, kmlFeatureStyle, type KmlFeatureProps, type KmlLayer } from '@/lib/kml';
 import {
   COMUNAS_STYLE,
   comunaFillColor,
@@ -1295,33 +1295,27 @@ export default function MapView({
       // Leaflet entrega a style/onEachFeature el MISMO objeto Feature del
       // arreglo, así que el índice sale de un Map por referencia.
       const indexOf = new Map(kml.geojson.features.map((f, i) => [f as object, i]));
-      const colorOf = (feature: object | undefined): string =>
-        kmlFeatureColor(kml, feature ? (indexOf.get(feature) ?? 0) : 0);
-      const multi = kml.colorMode === 'por-entidad';
+      const styleOf = (feature: { properties?: unknown } | undefined) =>
+        kmlFeatureStyle(
+          kml,
+          feature?.properties as KmlFeatureProps | undefined,
+          feature ? (indexOf.get(feature) ?? 0) : 0,
+        );
       const layer = L.geoJSON(kml.geojson, {
-        style: (feature) => {
-          const color = colorOf(feature);
-          return {
-            color,
-            fillColor: color,
-            // Con un color por polígono el relleno es la pista principal.
-            fillOpacity: multi ? 0.3 : 0.15,
-            weight: 2,
-            opacity: 0.9,
-          };
-        },
+        style: (feature) => styleOf(feature),
         pointToLayer(feature, latlng) {
-          const color = colorOf(feature);
+          const s = styleOf(feature);
           return L.circleMarker(latlng, {
             radius: 6,
-            color,
-            fillColor: color,
+            color: s.color,
+            fillColor: s.fillColor,
             fillOpacity: 0.75,
             weight: 1.5,
           });
         },
         onEachFeature(feature, featureLayer) {
-          featureLayer.bindPopup(buildKmlPopup(feature.properties, kml, colorOf(feature)), {
+          const s = styleOf(feature);
+          featureLayer.bindPopup(buildKmlPopup(feature.properties, kml, s.color), {
             maxWidth: 280,
           });
         },

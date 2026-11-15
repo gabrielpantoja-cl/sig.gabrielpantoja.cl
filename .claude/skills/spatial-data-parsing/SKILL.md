@@ -39,40 +39,37 @@ File (Blob)
 - `properties.name` may be **string** OR `{ '@type': 'html', value: '...' }` (when togeojson hit CDATA). Use `kmlPropText(value: unknown): string` to read it (defined in `src/lib/kml.ts`).
 - `properties.description` is similar HTML handling required.
 
-## Color assignment — IGNORE Google Earth's `<Style><color>`
+## Color assignment — the file's own styles WIN when present
 
-Two modes per layer (`KmlLayer.colorMode`): `unico` (whole layer in `color`,
-user-pickable via the swatch's `<input type="color">`) and `por-entidad`
-(default when a file has >1 feature: `kmlFeatureColor(layer, index)` walks
-the golden angle from `colorSeed`; the dice button re-seeds). `color` stays
-the layer colour for the panel and the cajetín in both modes. MapView
+Three modes per layer (`KmlLayer.colorMode`):
+
+- `archivo` (default when `tieneEstilo`): the colours the KML carries.
+  `@tmcw/togeojson` already resolves `styleUrl` → `<Style>`/`<StyleMap>`
+  and converts Google Earth's `aabbggrr` to simplestyle `fill`/`stroke`
+  `#rrggbb` + `fill-opacity`/`stroke-opacity`/`stroke-width` (and
+  `icon-color` for points). Read them ONLY through `kmlFileStyle(props)`,
+  which accepts `#rgb`/`#rrggbb` only, clamps opacities to 0–1 and width to
+  0.5–8: the file is untrusted input and these values end up in style
+  attributes. A feature without a style inside a styled file falls back to
+  `layer.color`.
+- `por-entidad` (default for >1 feature without styles):
+  `kmlFeatureColor(layer, index)` walks the golden angle from `colorSeed`;
+  the dice button re-seeds.
+- `unico`: whole layer in `color`, user-pickable via the swatch's
+  `<input type="color">`.
+
+Everything that paints goes through `kmlFeatureStyle(layer, props, index)`.
+`color` stays the layer colour for the panel and the cajetín. MapView
 rebuilds a layer when its style key (mode, color, seed, alias) changes.
 Layers persist in the browser (`src/lib/kml-store.ts`, IndexedDB); anything
-read back goes through `restoreKmlLayer` (shape + `#rrggbb` validation).
+read back goes through `restoreKmlLayer` (shape + `#rrggbb` validation,
+`tieneEstilo` recomputed, `archivo` downgraded to `unico` if no style).
 
-The KML palette in `src/lib/kml.ts`:
+Palette (used for `color` on upload, round-robin per file):
 
 ```ts
-const KML_COLORS = [
-  '#7c3aed',  // violeta
-  '#0ea5e9',  // celeste
-  '#db2777',  // magenta
-  '#b45309',  // café
-  '#0d9488',  // verde azulado
-  '#dc2626',  // rojo
-];
-export const kmlColorFor = (index: number): string =>
-  KML_COLORS[index % KML_COLORS.length];
+const KML_COLORS = ['#7c3aed', '#0ea5e9', '#db2777', '#b45309', '#0d9488', '#dc2626'];
 ```
-
-Rules:
-- `kmlColorFor(index)` assigns one color per UPLOADED file in round-robin order.
-- The index is **per-tour**, not per-session — ref-counted across multiple uploads so retries don't always land on the same color.
-- The result is stored on the layer's `color` field and propagates to:
-  - The LayersControl UI swatch.
-  - The KML popup background.
-  - The map-export cajetín swatch (`color: layer.color, shape: 'square'`).
-- **Trust nothing from `<Style><color>`.** Google Earth writes `#AABBGGRR` (alpha-first), not the standard hex. We IGNORE this — palette wins.
 
 ## `displayName` convention (renombrable por el perito)
 
@@ -121,7 +118,7 @@ const worker = new Worker(
 - Using `JSON.parse(xml.outerHTML)` as a KML → GeoJSON shortcut — `togeojson` preserves FeatureCollection semantics and `name`/`description` typing.
 - Trusting `properties.name` as a `string` — could be the HTML wrapper type. Always use `kmlPropText`.
 - Letting `KmlLayer.name` flow to UI without going through `kmlDisplayName` — the rename for the perito gets clobbered on file re-upload.
-- Trusting user-supplied colors from `<Style><IconStyle><color>...` — palette always wins.
+- Reading `fill`/`stroke`/`icon-color` straight from `properties` — always via `kmlFileStyle` (validated hex, clamped numbers).
 - Reading `process.env.NEON_DATABASE_URL` in client code (server only).
 - Letting `atob()` or `TextDecoder` blow up on a partial read — guard with try/catch and surface `«file.name»: <reason>`.
 

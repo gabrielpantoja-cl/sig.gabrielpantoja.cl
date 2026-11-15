@@ -21,6 +21,17 @@ versionado.
 
 ## No publicado
 
+## [0.5.0] — 2026-11-15
+
+### Añadido
+
+- **Las capas KML conservan los colores de Google Earth.** Si el archivo trae
+  estilos (`<Style>`/`<StyleMap>` con `LineStyle`, `PolyStyle` o
+  `IconStyle`), cada polígono se dibuja con su borde, relleno, opacidad y
+  grosor originales. El dado y el selector siguen disponibles, y el botón
+  «Original» vuelve a los colores del archivo. Los KML sin estilos siguen con
+  un color por polígono.
+
 ## [0.4.0] — 2026-11-15
 
 ### Añadido

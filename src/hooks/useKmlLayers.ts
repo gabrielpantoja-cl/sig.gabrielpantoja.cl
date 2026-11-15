@@ -112,6 +112,9 @@ export function useKmlLayers() {
   const shuffleKmlColors = (id: string) =>
     patch(id, { colorMode: 'por-entidad', colorSeed: randomKmlSeed() });
 
+  /** Vuelve a los colores que trae el KML (Google Earth). */
+  const applyFileKmlColors = (id: string) => patch(id, { colorMode: 'archivo' });
+
   return {
     kmlLayers,
     kmlError,
@@ -121,5 +124,6 @@ export function useKmlLayers() {
     renameKml,
     setKmlColor,
     shuffleKmlColors,
+    applyFileKmlColors,
   };
 }

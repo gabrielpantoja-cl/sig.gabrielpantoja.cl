@@ -76,7 +76,8 @@ Además:
 - **Capas KML/KMZ del usuario**, procesadas en el navegador; nunca salen del
   dispositivo (`src/lib/kml.ts`; KMZ desde 2026-10-06). Desde v0.4.0
   (2026-11-15) un color por polígono, botón «aleatorio», color elegible por
-  capa y guardado en el navegador (IndexedDB, `src/lib/kml-store.ts`).
+  capa y guardado en el navegador (IndexedDB, `src/lib/kml-store.ts`);
+  desde v0.5.0 respeta los colores de Google Earth si el archivo los trae.
 - **Coordenadas del cursor** al pie del mapa (decimal, GMS y UTM 18S/19S,
   2026-10-06) y **Neutro** como mapa base por defecto.
 - **Panel de capas** `LayerSidebar` (dock en escritorio, drawer en mobile, con
@@ -782,10 +783,8 @@ Hoy: color por polígono o único elegido, guardado en el navegador del equipo
 - [ ] **Categorizar por atributo**: elegir un campo del `ExtendedData` o el
       nombre del Placemark y colorear por valor, con leyenda en el panel y en
       el cajetín del PNG. Es lo que más pide un plano de loteo.
-- [ ] **Estilo del archivo**: tercer modo que respete los colores de Google
-      Earth. togeojson ya los entrega normalizados (`fill`, `stroke`,
-      `fill-opacity`), así que la objeción histórica al `#AABBGGRR` no
-      aplica; validar `#rrggbb` igual que al restaurar.
+- [x] **Estilo del archivo** *(v0.5.0)*: los colores de Google Earth se
+      respetan por defecto (modo `archivo`, `kmlFileStyle`).
 - [ ] **Color por entidad individual**: cambiar el color de un polígono desde
       su popup (se guardaría como mapa `índice → color` en la capa).
 - [ ] **Respaldo manual**: «Descargar mis capas» (GeoJSON o KML con sus

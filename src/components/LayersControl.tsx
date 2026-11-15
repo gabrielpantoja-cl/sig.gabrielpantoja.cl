@@ -76,7 +76,7 @@ import {
   ndviRampTicks,
   type NdviVisualEstado,
 } from '@/lib/ndvi-visual';
-import { KML_MAX_FILE_MB, KML_MULTI_SWATCH, kmlDisplayName, type KmlLayer } from '@/lib/kml';
+import { KML_MAX_FILE_MB, KML_MULTI_SWATCH, kmlDisplayName, kmlFeatureStyle, type KmlLayer } from '@/lib/kml';
 import { poligonoDeFeatures } from '@/lib/analisis-predio';
 import { PROPIEDADES_RURALES_ATTRIBUTION, PROPIEDADES_RURALES_COLOR, PROPIEDADES_RURALES_DISCLAIMER, PROPIEDADES_RURALES_MIN_ZOOM, PROPIEDADES_RURALES_REGIONS, PROPIEDADES_RURALES_SOURCE_URL, type PropiedadesRuralesStatus } from '@/lib/propiedades-rurales';
 import {
@@ -746,6 +746,7 @@ export function LayersControl({
   onRenameKml,
   onSetKmlColor,
   onShuffleKmlColors,
+  onUseFileKmlColors,
   onExport,
   exporting,
   ndviMode,
@@ -828,6 +829,8 @@ export function LayersControl({
   onSetKmlColor: (id: string, color: string) => void;
   /** Un color distinto por entidad (otra combinación en cada clic). */
   onShuffleKmlColors: (id: string) => void;
+  /** Vuelve a los colores que trae el propio KML (Google Earth). */
+  onUseFileKmlColors: (id: string) => void;
   /** Dispara la rasterización de la vista actual a PNG con flecha norte,
    *  escala y atribuciones. La página se ocupa del guard contra re-entradas. */
   onExport: () => void;
@@ -1629,7 +1632,11 @@ export function LayersControl({
                     className="relative inline-block h-3.5 w-3.5 shrink-0 cursor-pointer overflow-hidden rounded-sm ring-1 ring-black/20 dark:ring-white/30"
                     style={{
                       background:
-                        layer.colorMode === 'por-entidad' ? KML_MULTI_SWATCH : layer.color,
+                        layer.colorMode === 'por-entidad'
+                          ? KML_MULTI_SWATCH
+                          : layer.colorMode === 'archivo'
+                            ? kmlFeatureStyle(layer, layer.geojson.features[0]?.properties, 0).fillColor
+                            : layer.color,
                     }}
                     title="Elegir un color para toda la capa"
                   >
@@ -1646,6 +1653,17 @@ export function LayersControl({
                     onSave={(v) => onRenameKml(layer.id, v)}
                   />
                   <span className="opacity-50 no-shrink-0">({layer.featureCount})</span>
+                  {layer.tieneEstilo && layer.colorMode !== 'archivo' && (
+                    <button
+                      type="button"
+                      onClick={() => onUseFileKmlColors(layer.id)}
+                      aria-label={`Usar los colores del archivo en ${label}`}
+                      title="Volver a los colores del archivo (Google Earth)"
+                      className="shrink-0 rounded border border-current px-1 text-[0.6rem] leading-tight opacity-50 hover:opacity-100"
+                    >
+                      Original
+                    </button>
+                  )}
                   {layer.featureCount > 1 && (
                     <button
                       type="button"

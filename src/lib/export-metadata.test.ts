@@ -41,6 +41,7 @@ const kml = (over: Partial<KmlLayer>): KmlLayer => ({
   displayName: '',
   color: '#123456',
   colorMode: 'unico',
+  tieneEstilo: false,
   colorSeed: 0,
   subidaEn: 0,
   visible: true,

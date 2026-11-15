@@ -300,7 +300,11 @@ export function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEnt
       title: `KML: ${kmlDisplayName(kml)}`,
       details:
         `${kml.featureCount} entidades vectoriales` +
-        (kml.colorMode === 'por-entidad' ? ' (un color por entidad)' : '') +
+        (kml.colorMode === 'por-entidad'
+          ? ' (un color por entidad)'
+          : kml.colorMode === 'archivo'
+            ? ' (colores del archivo)'
+            : '') +
         '\nFuente: archivo local del operador (no publicado)',
       color: kml.color,
       shape: 'square',
