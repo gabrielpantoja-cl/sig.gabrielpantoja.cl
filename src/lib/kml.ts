@@ -22,11 +22,26 @@ export interface KmlLayer {
    *  ha renombrado, los consumidores caen a `name`. Se inicializa igual al
    *  nombre del archivo en `parseKmlFile`. */
   displayName: string;
-  color: string; // color asignado de la paleta, distinto por capa
+  /** Color de la capa: el de la paleta al subirla o el que eligió el
+   *  usuario. Siempre `#rrggbb` (se valida al restaurar). En modo
+   *  `por-entidad` sigue siendo el color del panel y del cajetín. */
+  color: string;
+  /** `unico`: toda la capa de `color`. `por-entidad`: cada Placemark con un
+   *  color distinto (`kmlFeatureColor`), para diferenciar polígonos. */
+  colorMode: KmlColorMode;
+  /** Semilla del coloreado por entidad; «Aleatorio» la cambia. */
+  colorSeed: number;
+  /** Momento de la subida (ms): ordena las capas restauradas. */
+  subidaEn: number;
+  /** true si vino del almacenamiento del navegador al abrir la página: el
+   *  mapa no vuela a ella (respeta el encuadre del enlace). */
+  restaurada?: boolean;
   visible: boolean;
   featureCount: number;
   geojson: FeatureCollection<Geometry, KmlFeatureProps>;
 }
+
+export type KmlColorMode = 'unico' | 'por-entidad';
 
 /** Helper para consumidores: prioriza el alias editable del perito. */
 export const kmlDisplayName = (layer: KmlLayer): string =>
@@ -65,7 +80,7 @@ export const KMZ_MAX_UNCOMPRESSED_MB = 150;
  * Extrae el texto del KML principal de un KMZ (un ZIP). Por convención de
  * Google Earth es `doc.kml` en la raíz; si no existe, se toma el primer
  * `.kml` de menor profundidad. Íconos, imágenes y KML secundarios del ZIP
- * se ignoran: la capa se dibuja con el color asignado, no con sus estilos.
+ * se ignoran: la capa se dibuja con los colores del SIG, no con sus estilos.
  * Lanza Error con mensaje en español apto para la UI.
  */
 export function extractKmlFromKmz(bytes: Uint8Array, fileName: string): string {
@@ -116,6 +131,85 @@ const KML_COLORS = [
 export const kmlColorFor = (index: number): string =>
   KML_COLORS[index % KML_COLORS.length];
 
+/** Muestra del panel para el modo por entidad. */
+export const KML_MULTI_SWATCH = `conic-gradient(${[...KML_COLORS, KML_COLORS[0]].join(', ')})`;
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+export const isHexColor = (value: unknown): value is string =>
+  typeof value === 'string' && HEX_COLOR.test(value);
+
+/** HSL (h en grados, s y l en %) → `#rrggbb`. */
+export function hslToHex(h: number, s: number, l: number): string {
+  const sat = s / 100;
+  const lig = l / 100;
+  const a = sat * Math.min(lig, 1 - lig);
+  const f = (n: number): string => {
+    const k = (n + h / 30) % 12;
+    const c = lig - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(c * 255).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+/** Nueva semilla para «Aleatorio» (un tono de partida, 0–359). */
+export const randomKmlSeed = (): number => Math.floor(Math.random() * 360);
+
+/**
+ * Color de la entidad `index` de la capa. En modo por entidad los tonos
+ * avanzan por el ángulo áureo (137,5°): entidades consecutivas —que suelen
+ * ser vecinas en el KML— quedan siempre bien separadas en el círculo
+ * cromático, sin importar cuántas haya. La luminosidad alterna para que dos
+ * tonos parecidos tampoco se confundan sobre la imagen satelital.
+ */
+export function kmlFeatureColor(
+  layer: Pick<KmlLayer, 'color' | 'colorMode' | 'colorSeed'>,
+  index: number,
+): string {
+  if (layer.colorMode !== 'por-entidad') return layer.color;
+  const hue = (layer.colorSeed + index * 137.508) % 360;
+  return hslToHex(hue, 75, index % 2 === 0 ? 50 : 40);
+}
+
+/**
+ * Valida una capa leída del almacenamiento del navegador (IndexedDB). Lo
+ * guardado pudo escribirlo otra versión del SIG o alterarse a mano: se
+ * revisa la forma mínima y se completan los campos nuevos. Devuelve null si
+ * no es utilizable.
+ */
+export function restoreKmlLayer(raw: unknown): KmlLayer | null {
+  if (raw == null || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const geojson = r.geojson as { type?: unknown; features?: unknown } | undefined;
+  if (
+    typeof r.id !== 'string' ||
+    typeof r.name !== 'string' ||
+    geojson == null ||
+    geojson.type !== 'FeatureCollection' ||
+    !Array.isArray(geojson.features) ||
+    geojson.features.length === 0
+  ) {
+    return null;
+  }
+  const features = (geojson.features as Feature<Geometry | null, KmlFeatureProps>[]).filter(
+    (f) => f != null && typeof f === 'object' && hasGeometry(f),
+  ) as Feature<Geometry, KmlFeatureProps>[];
+  if (features.length === 0) return null;
+  return {
+    id: r.id,
+    name: r.name,
+    displayName: typeof r.displayName === 'string' ? r.displayName : r.name,
+    color: isHexColor(r.color) ? r.color : KML_COLORS[0],
+    colorMode: r.colorMode === 'por-entidad' ? 'por-entidad' : 'unico',
+    colorSeed:
+      typeof r.colorSeed === 'number' && Number.isFinite(r.colorSeed) ? r.colorSeed % 360 : 0,
+    subidaEn: typeof r.subidaEn === 'number' && Number.isFinite(r.subidaEn) ? r.subidaEn : 0,
+    restaurada: true,
+    visible: r.visible !== false,
+    featureCount: features.length,
+    geojson: { type: 'FeatureCollection', features },
+  };
+}
+
 const hasGeometry = (
   f: Feature<Geometry | null, KmlFeatureProps>,
 ): f is Feature<Geometry, KmlFeatureProps> => f.geometry != null;
@@ -165,6 +259,11 @@ export async function parseKmlFile(file: File, color: string): Promise<KmlLayer>
     // export PNG y al popup del feature.
     displayName: baseName,
     color,
+    // Con más de una entidad, cada una de un color: así se distinguen los
+    // polígonos vecinos apenas se carga el archivo.
+    colorMode: features.length > 1 ? 'por-entidad' : 'unico',
+    colorSeed: randomKmlSeed(),
+    subidaEn: Date.now(),
     visible: true,
     featureCount: features.length,
     geojson: { type: 'FeatureCollection', features },

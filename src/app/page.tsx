@@ -563,7 +563,16 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   // pines re-proyectados). El cajetín de trazabilidad legal (filtros vigentes
   // + fuentes de capas activas) se construye acá, en el momento del click, y
   // se entrega por args para no inflar el deps array del useEffect en MapView.
-  const { kmlLayers, kmlError, addKmlFiles, toggleKml, removeKml, renameKml } = useKmlLayers();
+  const {
+    kmlLayers,
+    kmlError,
+    addKmlFiles,
+    toggleKml,
+    removeKml,
+    renameKml,
+    setKmlColor,
+    shuffleKmlColors,
+  } = useKmlLayers();
   const handleAnalizarKml = useCallback((id: string) => {
     const layer = kmlLayers.find((l) => l.id === id);
     const geometry = layer ? poligonoDeFeatures(layer.geojson) : null;
@@ -899,6 +908,8 @@ function SigApp({ initial }: { initial: PermalinkState }) {
           onRemoveKml={removeKml}
           onAnalizarKml={handleAnalizarKml}
           onRenameKml={renameKml}
+          onSetKmlColor={setKmlColor}
+          onShuffleKmlColors={shuffleKmlColors}
           onExport={handleExportClick}
           exporting={exporting}
           ndviMode={ndviMode}

@@ -28,7 +28,7 @@ import {
   URBAN_LIMIT_STYLE,
   type UrbanLimitProps,
 } from '@/lib/urban-limit';
-import type { KmlLayer } from '@/lib/kml';
+import { kmlDisplayName, kmlFeatureColor, type KmlLayer } from '@/lib/kml';
 import {
   COMUNAS_STYLE,
   comunaFillColor,
@@ -354,6 +354,9 @@ export default function MapView({
   const hexbinRamp: HexbinRampId = darkCanvas ? 'plasma' : 'tasacion';
   const kmlRef = useRef<Map<string, L.GeoJSON>>(new Map());
   const seenKmlIds = useRef<Set<string>>(new Set());
+  /** Firma de estilo con que se dibujó cada capa KML: si cambia (color,
+   *  modo, semilla, alias del popup) la capa se reconstruye. */
+  const kmlStyleKeys = useRef<Map<string, string>>(new Map());
 
   // Callbacks de progreso en refs: el efecto del clúster no debe re-ejecutarse
   // (y reconstruir 85k marcadores) porque el padre re-creó una función.
@@ -674,6 +677,7 @@ export default function MapView({
     resizeObserver.observe(container);
 
     const kmlById = kmlRef.current;
+    const kmlKeys = kmlStyleKeys.current;
     const seenIds = seenKmlIds.current;
     return () => {
       // Stop the observer FIRST: a callback queued after `map.remove()` would
@@ -707,6 +711,7 @@ export default function MapView({
       basemapRef.current = null;
       basemapLabelsRef.current = null;
       kmlById.clear();
+      kmlKeys.clear();
       seenIds.clear();
     };
   }, []);
@@ -1262,50 +1267,70 @@ export default function MapView({
   }, [showPropiedadesRurales, selectedRuralFeature, reorderOverlays]);
 
   // Capas KML del usuario — ya parseadas a GeoJSON en el navegador (lib/kml).
-  // Se sincronizan por id: se quitan las eliminadas u ocultas, se agregan las
-  // visibles que falten, y al aparecer una capa nueva el mapa vuela a su
-  // extensión para confirmar visualmente la carga.
+  // Se sincronizan por id: se quitan las eliminadas u ocultas, se reconstruyen
+  // las que cambiaron de color o de alias, se agregan las visibles que falten,
+  // y al aparecer una capa recién subida el mapa vuela a su extensión para
+  // confirmar visualmente la carga (no las restauradas del navegador: ahí
+  // manda el encuadre del enlace).
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
+    const styleKey = (k: KmlLayer): string =>
+      `${k.colorMode}|${k.color}|${k.colorSeed}|${kmlDisplayName(k)}`;
     const wanted = new Map(kmlLayers.filter((k) => k.visible).map((k) => [k.id, k]));
 
     for (const [id, layer] of kmlRef.current) {
-      if (!wanted.has(id)) {
+      const next = wanted.get(id);
+      if (!next || kmlStyleKeys.current.get(id) !== styleKey(next)) {
         map.removeLayer(layer);
         kmlRef.current.delete(id);
+        kmlStyleKeys.current.delete(id);
       }
     }
 
     let added: L.GeoJSON | null = null;
     for (const [id, kml] of wanted) {
       if (kmlRef.current.has(id)) continue;
+      // Leaflet entrega a style/onEachFeature el MISMO objeto Feature del
+      // arreglo, así que el índice sale de un Map por referencia.
+      const indexOf = new Map(kml.geojson.features.map((f, i) => [f as object, i]));
+      const colorOf = (feature: object | undefined): string =>
+        kmlFeatureColor(kml, feature ? (indexOf.get(feature) ?? 0) : 0);
+      const multi = kml.colorMode === 'por-entidad';
       const layer = L.geoJSON(kml.geojson, {
-        style: {
-          color: kml.color,
-          fillColor: kml.color,
-          fillOpacity: 0.15,
-          weight: 2,
-          opacity: 0.9,
+        style: (feature) => {
+          const color = colorOf(feature);
+          return {
+            color,
+            fillColor: color,
+            // Con un color por polígono el relleno es la pista principal.
+            fillOpacity: multi ? 0.3 : 0.15,
+            weight: 2,
+            opacity: 0.9,
+          };
         },
-        pointToLayer(_feature, latlng) {
+        pointToLayer(feature, latlng) {
+          const color = colorOf(feature);
           return L.circleMarker(latlng, {
             radius: 6,
-            color: kml.color,
-            fillColor: kml.color,
+            color,
+            fillColor: color,
             fillOpacity: 0.75,
             weight: 1.5,
           });
         },
         onEachFeature(feature, featureLayer) {
-          featureLayer.bindPopup(buildKmlPopup(feature.properties, kml), { maxWidth: 280 });
+          featureLayer.bindPopup(buildKmlPopup(feature.properties, kml, colorOf(feature)), {
+            maxWidth: 280,
+          });
         },
       }).addTo(map);
       kmlRef.current.set(id, layer);
+      kmlStyleKeys.current.set(id, styleKey(kml));
       if (!seenKmlIds.current.has(id)) {
         seenKmlIds.current.add(id);
-        added = layer;
+        if (!kml.restaurada) added = layer;
       }
     }
 

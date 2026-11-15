@@ -76,7 +76,7 @@ import {
   ndviRampTicks,
   type NdviVisualEstado,
 } from '@/lib/ndvi-visual';
-import { KML_MAX_FILE_MB, kmlDisplayName, type KmlLayer } from '@/lib/kml';
+import { KML_MAX_FILE_MB, KML_MULTI_SWATCH, kmlDisplayName, type KmlLayer } from '@/lib/kml';
 import { poligonoDeFeatures } from '@/lib/analisis-predio';
 import { PROPIEDADES_RURALES_ATTRIBUTION, PROPIEDADES_RURALES_COLOR, PROPIEDADES_RURALES_DISCLAIMER, PROPIEDADES_RURALES_MIN_ZOOM, PROPIEDADES_RURALES_REGIONS, PROPIEDADES_RURALES_SOURCE_URL, type PropiedadesRuralesStatus } from '@/lib/propiedades-rurales';
 import {
@@ -744,6 +744,8 @@ export function LayersControl({
   onRemoveKml,
   onAnalizarKml,
   onRenameKml,
+  onSetKmlColor,
+  onShuffleKmlColors,
   onExport,
   exporting,
   ndviMode,
@@ -822,6 +824,10 @@ export function LayersControl({
    *  exportado. El nombre original del archivo, en `KmlLayer.name`, no se
    *  toca: solo se reemplaza `displayName`. */
   onRenameKml: (id: string, displayName: string) => void;
+  /** Un color elegido por el usuario para toda la capa KML. */
+  onSetKmlColor: (id: string, color: string) => void;
+  /** Un color distinto por entidad (otra combinación en cada clic). */
+  onShuffleKmlColors: (id: string) => void;
   /** Dispara la rasterización de la vista actual a PNG con flecha norte,
    *  escala y atribuciones. La página se ocupa del guard contra re-entradas. */
   onExport: () => void;
@@ -1616,15 +1622,50 @@ export function LayersControl({
                     className="accent-[hsl(153_28%_35%)]"
                     aria-label={`Mostrar capa ${label}`}
                   />
-                  <span
-                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
-                    style={{ background: layer.color }}
-                  />
+                  {/* La muestra ES el selector: un <input type="color">
+                      invisible encima. Elegir un color pasa la capa a
+                      color único; el dado vuelve a uno por entidad. */}
+                  <label
+                    className="relative inline-block h-3.5 w-3.5 shrink-0 cursor-pointer overflow-hidden rounded-sm ring-1 ring-black/20 dark:ring-white/30"
+                    style={{
+                      background:
+                        layer.colorMode === 'por-entidad' ? KML_MULTI_SWATCH : layer.color,
+                    }}
+                    title="Elegir un color para toda la capa"
+                  >
+                    <input
+                      type="color"
+                      value={layer.color}
+                      onChange={(e) => onSetKmlColor(layer.id, e.target.value)}
+                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                      aria-label={`Color de la capa ${label}`}
+                    />
+                  </label>
                   <InlineEditableKmlName
                     value={label}
                     onSave={(v) => onRenameKml(layer.id, v)}
                   />
                   <span className="opacity-50 no-shrink-0">({layer.featureCount})</span>
+                  {layer.featureCount > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => onShuffleKmlColors(layer.id)}
+                      aria-label={`Colorear cada entidad de ${label} con un color distinto`}
+                      title={
+                        layer.colorMode === 'por-entidad'
+                          ? 'Otra combinación de colores'
+                          : 'Un color distinto por polígono'
+                      }
+                      className="shrink-0 rounded p-0.5 leading-none opacity-50 hover:opacity-100"
+                    >
+                      <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+                        <rect x="1.5" y="1.5" width="13" height="13" rx="3" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                        <circle cx="5" cy="5" r="1.2" fill="currentColor" />
+                        <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+                        <circle cx="11" cy="11" r="1.2" fill="currentColor" />
+                      </svg>
+                    </button>
+                  )}
                   {onAnalizarKml && poligonoDeFeatures(layer.geojson) && (
                     <button
                       type="button"
@@ -1677,8 +1718,8 @@ export function LayersControl({
         )}
 
         <p className="mt-1.5 text-[0.6rem] leading-snug opacity-50">
-          Solo .kml o .kmz, máx. {KML_MAX_FILE_MB} MB. Se procesa en tu navegador; no se sube a ningún
-          servidor.
+          Solo .kml o .kmz, máx. {KML_MAX_FILE_MB} MB. Se procesa y se guarda en tu navegador (no se
+          sube a ningún servidor) hasta que la quites con ✕.
         </p>
       </div>
 

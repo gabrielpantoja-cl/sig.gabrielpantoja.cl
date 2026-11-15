@@ -21,6 +21,23 @@ versionado.
 
 ## No publicado
 
+## [0.4.0] — 2026-11-15
+
+### Añadido
+
+- **Capas KML con un color por polígono.** Al subir un KML/KMZ con más de una
+  entidad, cada una se dibuja de un color distinto (tonos separados por el
+  ángulo áureo, relleno más visible), para diferenciar lotes vecinos. El dado
+  junto a la capa baraja otra combinación, y la muestra de color abre un
+  selector para pintar toda la capa de un color elegido.
+- **Las capas KML se guardan en tu navegador.** Siguen ahí al recargar o
+  volver otro día (IndexedDB, en este equipo); se borran con ✕. Nada se sube
+  a un servidor ni requiere cuenta.
+
+### Corregido
+
+- Renombrar una capa KML ahora actualiza también el rótulo de sus popups.
+
 ## [0.3.7] — 2026-11-13
 
 ### Cambiado

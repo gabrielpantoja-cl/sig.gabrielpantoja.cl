@@ -41,6 +41,15 @@ File (Blob)
 
 ## Color assignment — IGNORE Google Earth's `<Style><color>`
 
+Two modes per layer (`KmlLayer.colorMode`): `unico` (whole layer in `color`,
+user-pickable via the swatch's `<input type="color">`) and `por-entidad`
+(default when a file has >1 feature: `kmlFeatureColor(layer, index)` walks
+the golden angle from `colorSeed`; the dice button re-seeds). `color` stays
+the layer colour for the panel and the cajetín in both modes. MapView
+rebuilds a layer when its style key (mode, color, seed, alias) changes.
+Layers persist in the browser (`src/lib/kml-store.ts`, IndexedDB); anything
+read back goes through `restoreKmlLayer` (shape + `#rrggbb` validation).
+
 The KML palette in `src/lib/kml.ts`:
 
 ```ts

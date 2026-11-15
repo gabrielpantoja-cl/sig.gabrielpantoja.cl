@@ -84,7 +84,8 @@ Layer catalog and the recipe for a new layer: `docs/arquitectura-capas.md`.
 | `src/app/page.tsx` | Single page — filters + stats bar + map; state lives in the hooks below |
 | `src/hooks/useCbrData.ts` | Facets + points/stats for the debounced filter query AND the dataset version (byte-level download progress, derived loading/error, «hay datos nuevos» + in-place refresh) |
 | `src/hooks/useRuralRolSearch.ts` | ROL search against CIREN rural properties (`/search` → `/feature`), abortable |
-| `src/hooks/useKmlLayers.ts` | User KML layers: in-browser parse, toggle, rename, remove |
+| `src/hooks/useKmlLayers.ts` | User KML layers: in-browser parse, toggle, rename, remove, colour (single / per feature), persisted in the browser |
+| `src/lib/kml-store.ts` | IndexedDB store of the user KML layers (one record per layer, debounced writes, never leaves the device) |
 | `src/hooks/useNdviQuery.ts` | NDVI point-query tool state (armed mode, current query, export payload, Escape handling) |
 | `src/lib/analisis-predio.ts` | Ficha del predio: response contract, polygon validation (Chile bounds, vertex/area caps, holes), comparables radius and GiST prefilter margin. Tested |
 | `src/app/api/analisis/predio/route.ts` | POST geoprocess: PostGIS intersections with `capas.*` + CBR comparables per destino, per-section `sin-capa`/`error` |

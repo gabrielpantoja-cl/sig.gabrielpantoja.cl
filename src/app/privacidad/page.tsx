@@ -126,8 +126,9 @@ export default function PrivacidadPage() {
             servidor.
           </li>
           <li>
-            <strong>Polígonos, vértices y archivos KML:</strong> los KML se leen en tu navegador.
-            Cuando pides «Analizar predio», el polígono se envía al servidor para calcularlo y no se
+            <strong>Polígonos, vértices y archivos KML:</strong> los KML se leen en tu navegador
+            y se guardan en él (no en nuestro servidor) para que sigan ahí cuando vuelvas; se
+            borran al quitarlos con ✕ o al borrar los datos del sitio. Cuando pides «Analizar predio», el polígono se envía al servidor para calcularlo y no se
             guarda.
           </li>
         </ul>

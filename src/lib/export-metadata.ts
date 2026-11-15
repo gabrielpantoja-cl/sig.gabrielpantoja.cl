@@ -291,13 +291,17 @@ export function buildExportMetadata(input: BuildMetadataInput): LayerMetadataEnt
 
   // Capas KML del operador: usamos el alias del perito (`kmlDisplayName`),
   // que es lo que aparece ya en el popup del feature tras renombrarlo.
-  // El color es el de la paleta asignada por `kmlColorFor` al subir la capa,
-  // único por KML para que se distingan entre sí dentro de un mismo mapa.
+  // El color es el de la capa (paleta al subirla o el que eligió el usuario);
+  // en modo por entidad el cajetín lo dice, porque un solo cuadro no puede
+  // mostrar todos los tonos.
   for (const kml of input.kmlLayers) {
     if (!kml.visible) continue;
     entries.push({
       title: `KML: ${kmlDisplayName(kml)}`,
-      details: `${kml.featureCount} entidades vectoriales\nFuente: archivo local del operador (no publicado)`,
+      details:
+        `${kml.featureCount} entidades vectoriales` +
+        (kml.colorMode === 'por-entidad' ? ' (un color por entidad)' : '') +
+        '\nFuente: archivo local del operador (no publicado)',
       color: kml.color,
       shape: 'square',
     });

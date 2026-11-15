@@ -1,6 +1,6 @@
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { extractKmlFromKmz } from './kml';
+import { extractKmlFromKmz, hslToHex, kmlFeatureColor, restoreKmlLayer } from './kml';
 
 const KML = '<?xml version="1.0"?><kml><Document><name>Predio</name></Document></kml>';
 
@@ -37,5 +37,82 @@ describe('extractKmlFromKmz', () => {
 
   it('falla con mensaje claro si no es un ZIP', () => {
     expect(() => extractKmlFromKmz(strToU8(KML), 'x.kmz')).toThrow(/no es un KMZ válido/);
+  });
+});
+
+describe('kmlFeatureColor', () => {
+  const base = { color: '#123456', colorSeed: 40 };
+
+  it('en modo único devuelve el color de la capa', () => {
+    expect(kmlFeatureColor({ ...base, colorMode: 'unico' }, 7)).toBe('#123456');
+  });
+
+  it('en modo por entidad da colores #rrggbb distintos a entidades consecutivas', () => {
+    const layer = { ...base, colorMode: 'por-entidad' as const };
+    const colors = Array.from({ length: 12 }, (_, i) => kmlFeatureColor(layer, i));
+    for (const c of colors) expect(c).toMatch(/^#[0-9a-f]{6}$/);
+    expect(new Set(colors).size).toBe(12);
+  });
+
+  it('otra semilla cambia la combinación', () => {
+    const a = kmlFeatureColor({ ...base, colorMode: 'por-entidad' }, 0);
+    const b = kmlFeatureColor({ ...base, colorMode: 'por-entidad', colorSeed: 200 }, 0);
+    expect(a).not.toBe(b);
+  });
+});
+
+describe('hslToHex', () => {
+  it('convierte los primarios', () => {
+    expect(hslToHex(0, 100, 50)).toBe('#ff0000');
+    expect(hslToHex(120, 100, 50)).toBe('#00ff00');
+    expect(hslToHex(240, 100, 50)).toBe('#0000ff');
+  });
+});
+
+describe('restoreKmlLayer', () => {
+  const feature = {
+    type: 'Feature',
+    properties: { name: 'Lote 1' },
+    geometry: { type: 'Point', coordinates: [-73.2, -39.8] },
+  };
+
+  it('completa los campos de versiones anteriores y marca la capa como restaurada', () => {
+    const layer = restoreKmlLayer({
+      id: 'a',
+      name: 'predio',
+      color: '#7c3aed',
+      visible: true,
+      geojson: { type: 'FeatureCollection', features: [feature] },
+    });
+    expect(layer).toMatchObject({
+      id: 'a',
+      displayName: 'predio',
+      colorMode: 'unico',
+      colorSeed: 0,
+      restaurada: true,
+      featureCount: 1,
+    });
+  });
+
+  it('reemplaza un color que no es #rrggbb', () => {
+    const layer = restoreKmlLayer({
+      id: 'a',
+      name: 'p',
+      color: 'red;background:url(x)',
+      geojson: { type: 'FeatureCollection', features: [feature] },
+    });
+    expect(layer?.color).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it('descarta registros sin geometrías o con otra forma', () => {
+    expect(restoreKmlLayer(null)).toBeNull();
+    expect(restoreKmlLayer({ id: 'a', name: 'p' })).toBeNull();
+    expect(
+      restoreKmlLayer({
+        id: 'a',
+        name: 'p',
+        geojson: { type: 'FeatureCollection', features: [{ ...feature, geometry: null }] },
+      }),
+    ).toBeNull();
   });
 });

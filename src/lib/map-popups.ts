@@ -2,7 +2,7 @@ import type { Conservador, MapPoint } from '@/lib/types';
 import { CONSERVADORES_ATTRIBUTION, CONSERVADORES_COLOR, comoLlegarUrl } from '@/lib/conservadores';
 import { categoryColor, type ProtectedAreaProps } from '@/lib/protected-areas';
 import { URBAN_LIMIT_ATTRIBUTION, URBAN_LIMIT_COLOR, type UrbanLimitProps } from '@/lib/urban-limit';
-import { kmlDisplayName, kmlPropText, type KmlFeatureProps, type KmlLayer } from '@/lib/kml';
+import { isHexColor, kmlDisplayName, kmlPropText, type KmlFeatureProps, type KmlLayer } from '@/lib/kml';
 import { COMUNAS_ATTRIBUTION, COMUNAS_COLOR, type ComunaProps } from '@/lib/comunas';
 import { RED_VIAL_ATTRIBUTION, ROAD_CLASS_GROUPS, roadClassGroup, type RedVialProps } from '@/lib/red-vial';
 import {
@@ -707,9 +707,15 @@ export function buildRemoteFailurePopup(title: string, service: string, operatio
  * Popup de un feature dentro de una capa KML del usuario. Muestra el nombre
  * del Placemark y su descripción como texto plano: cualquier HTML embebido en
  * el KML (habitual en exportes de Google Earth) se descarta antes de escapar,
- * para no inyectar markup ajeno en la página.
+ * para no inyectar markup ajeno en la página. `color` es el de la entidad
+ * (en modo por entidad difiere del de la capa); solo entra si es `#rrggbb`.
  */
-export function buildKmlPopup(props: KmlFeatureProps, layer: KmlLayer): string {
+export function buildKmlPopup(
+  props: KmlFeatureProps,
+  layer: KmlLayer,
+  color: string = layer.color,
+): string {
+  const badge = isHexColor(color) ? color : '#555555';
   const stripTags = (s: string): string => s.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   const name = kmlPropText(props.name).trim();
   const description = stripTags(kmlPropText(props.description));
@@ -722,7 +728,7 @@ export function buildKmlPopup(props: KmlFeatureProps, layer: KmlLayer): string {
     `<div style="font-size:0.8rem;line-height:1.45;min-width:180px;max-width:260px">` +
     `<div style="font-weight:600;font-size:0.92rem">${esc(name || layerLabel)}</div>` +
     `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
-    `font-size:0.68rem;font-weight:600;color:#fff;background:${layer.color}">Capa KML · ${esc(layerLabel)}</div>` +
+    `font-size:0.68rem;font-weight:600;color:#fff;background:${badge}">Capa KML · ${esc(layerLabel)}</div>` +
     (description ? `<div style="opacity:.75">${esc(description)}</div>` : '') +
     `<div style="margin-top:.35rem;font-size:0.62rem;opacity:.5">Archivo local del usuario · no publicado</div>` +
     `</div>`

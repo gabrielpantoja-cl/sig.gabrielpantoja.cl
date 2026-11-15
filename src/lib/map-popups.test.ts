@@ -119,7 +119,8 @@ describe('popups escape data values', () => {
 
   it('user KML popup strips embedded markup and escapes the rest', () => {
     const layer = {
-      id: '1', name: 'capa', displayName: XSS, color: '#ff0000', visible: true, featureCount: 1,
+      id: '1', name: 'capa', displayName: XSS, color: '#ff0000', colorMode: 'unico', colorSeed: 0,
+      subidaEn: 0, visible: true, featureCount: 1,
       geojson: { type: 'FeatureCollection', features: [] },
     } satisfies KmlLayer;
     const html = buildKmlPopup(
@@ -129,6 +130,10 @@ describe('popups escape data values', () => {
     expect(html).not.toContain('<script');
     expect(html).not.toContain('<img');
     expect(html).not.toContain('<b>');
+    // Un color que no sea #rrggbb no entra al atributo style.
+    const evil = buildKmlPopup({ name: 'x' }, layer, 'red;background:url(x)');
+    expect(evil).not.toContain('url(x)');
+    expect(buildKmlPopup({ name: 'x' }, layer, '#00aa11')).toContain('background:#00aa11');
   });
 });
 
