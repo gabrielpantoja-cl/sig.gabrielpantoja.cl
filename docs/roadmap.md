@@ -74,7 +74,9 @@ Además:
 - **Serie mensual de NDVI** (`/api/ndvi/serie`): 36 meses de mediana, P25/P75 y
   fracción descartada para un punto o un polígono de hasta 3 km de lado.
 - **Capas KML/KMZ del usuario**, procesadas en el navegador; nunca salen del
-  dispositivo (`src/lib/kml.ts`; KMZ desde 2026-10-06).
+  dispositivo (`src/lib/kml.ts`; KMZ desde 2026-10-06). Desde v0.4.0
+  (2026-11-15) un color por polígono, botón «aleatorio», color elegible por
+  capa y guardado en el navegador (IndexedDB, `src/lib/kml-store.ts`).
 - **Coordenadas del cursor** al pie del mapa (decimal, GMS y UTM 18S/19S,
   2026-10-06) y **Neutro** como mapa base por defecto.
 - **Panel de capas** `LayerSidebar` (dock en escritorio, drawer en mobile, con
@@ -771,6 +773,32 @@ que amplían el uso diario del perito:
 > Detalle, causa raíz y prioridades en
 > [`auditoria-ux-2026-08.md`](./auditoria-ux-2026-08.md). Los ítems que
 > siguen incorporan sus conclusiones.
+
+### Capas del usuario (KML/KMZ) — tras v0.4.0 *(2026-11-15)*
+
+Hoy: color por polígono o único elegido, guardado en el navegador del equipo
+(sin cuenta, nada sale del dispositivo). Siguientes pasos, en orden:
+
+- [ ] **Categorizar por atributo**: elegir un campo del `ExtendedData` o el
+      nombre del Placemark y colorear por valor, con leyenda en el panel y en
+      el cajetín del PNG. Es lo que más pide un plano de loteo.
+- [ ] **Estilo del archivo**: tercer modo que respete los colores de Google
+      Earth. togeojson ya los entrega normalizados (`fill`, `stroke`,
+      `fill-opacity`), así que la objeción histórica al `#AABBGGRR` no
+      aplica; validar `#rrggbb` igual que al restaurar.
+- [ ] **Color por entidad individual**: cambiar el color de un polígono desde
+      su popup (se guardaría como mapa `índice → color` en la capa).
+- [ ] **Respaldo manual**: «Descargar mis capas» (GeoJSON o KML con sus
+      colores) e importarlo en otro equipo. Cubre el cambio de equipo sin
+      cuentas ni almacenamiento en servidor.
+- [ ] **Aviso de espacio**: mostrar cuánto ocupa lo guardado
+      (`navigator.storage.estimate()`) y pedir `navigator.storage.persist()`
+      para que el navegador no lo desaloje bajo presión de disco.
+- [ ] **Web Worker para el parseo** solo si un KML real tarda más de 1 s (ver
+      la skill `spatial-data-parsing`).
+- [ ] *(No planificado)* **Sincronizar entre equipos**: requiere cuentas y
+      guardar archivos de usuarios en un servidor; cambia la promesa de
+      privacidad del sitio. Pospuesto: primero el respaldo manual.
 
 ### Export PNG (auditoría 2026-08-28)
 
