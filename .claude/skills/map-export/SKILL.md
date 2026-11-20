@@ -23,7 +23,7 @@ captureBaseCanvas
   └─ drawOverlayPaneToCanvas  every <canvas> AND <img> in overlayPane, in DOM order
 drawCbrMarkers                cluster bubbles + singleton pin sprite (cbrPinSvg)
 drawFrame                     compass, scale bar, measurements, metadata card,
-                              NDVI card, attribution strip
+                              attribution strip
 exportFilename / downloadCanvas
 ```
 

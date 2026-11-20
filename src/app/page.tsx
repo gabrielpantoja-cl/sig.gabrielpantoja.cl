@@ -30,7 +30,6 @@ import {
 import { SearchFields, FilterFields, StatsFields } from '@/components/FieldGroups';
 import { GeocoderSearch } from '@/components/GeocoderSearch';
 import { InfoPanel } from '@/components/InfoPanel';
-import { NdviPanel } from '@/components/NdviPanel';
 import { FichaPredioPanel } from '@/components/FichaPredioPanel';
 import { VerticesUtmForm } from '@/components/VerticesUtmForm';
 import {
@@ -49,7 +48,6 @@ import { withDataset } from '@/lib/dataset';
 import { useCbrData } from '@/hooks/useCbrData';
 import { useCloseOnBack } from '@/hooks/useCloseOnBack';
 import { useKmlLayers } from '@/hooks/useKmlLayers';
-import { useNdviQuery } from '@/hooks/useNdviQuery';
 import { useRuralRolSearch } from '@/hooks/useRuralRolSearch';
 import { PERMALINK_DEFAULTS, usePermalinkSync } from '@/hooks/usePermalink';
 import { montoParams, parsePermalink, type MontoUnidad, type PermalinkLayer, type PermalinkState } from '@/lib/permalink';
@@ -358,8 +356,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
   }, [clearRuralSearch]);
 
   // Ficha del predio: el polígono que «Medir» entregó y la respuesta vigente
-  // (sus comparables se dibujan en el mapa). Comparte el lugar flotante con la
-  // serie NDVI: abrir una cierra la otra.
+  // (sus comparables se dibujan en el mapa).
   const [predioAnalizado, setPredioAnalizado] = useState<{ geometry: PoligonoGeoJson; origen: string } | null>(null);
   const predioGeometry = predioAnalizado?.geometry ?? null;
   const [fichaPredio, setFichaPredio] = useState<FichaPredio | null>(null);
@@ -368,31 +365,14 @@ function SigApp({ initial }: { initial: PermalinkState }) {
     setFichaPredio(null);
   }, []);
 
-  const handleNdviOpened = useCallback(() => {
-    setActivePanel(null);
-    setDrawerOpen(false);
-    cerrarFicha();
-  }, [cerrarFicha]);
-  const {
-    ndviMode,
-    setNdviMode,
-    ndviConsulta,
-    ndviExport,
-    handleNdviPoint,
-    handleNdviSerie,
-    handleNdviResaltado,
-    cerrarNdvi,
-  } = useNdviQuery({ onPoint: handleNdviOpened });
-
   // Toda entrada de la ficha del predio pasa por aquí: polígono dibujado con
   // «Medir», vértices UTM pegados, una capa KML o el predio CIREN por ROL.
   const analizarPredio = useCallback((geometry: PoligonoGeoJson, origen: string) => {
-    cerrarNdvi();
     setActivePanel(null);
     setDrawerOpen(false);
     setFichaPredio(null);
     setPredioAnalizado({ geometry, origen });
-  }, [cerrarNdvi]);
+  }, []);
   const handleAnalizarPredio = useCallback(
     (vertices: Punto[]) => analizarPredio(poligonoDesdeVertices(vertices), 'Polígono dibujado'),
     [analizarPredio],
@@ -914,8 +894,6 @@ function SigApp({ initial }: { initial: PermalinkState }) {
           onUseFileKmlColors={applyFileKmlColors}
           onExport={handleExportClick}
           exporting={exporting}
-          ndviMode={ndviMode}
-          onToggleNdviMode={() => setNdviMode((m) => !m)}
         />
 
         {/* Mapa a pantalla completa con paneles flotantes */}
@@ -980,10 +958,6 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               onRenderProgress={handleRenderProgress}
               onRenderComplete={handleRenderComplete}
               mapExportRef={mapExportRef}
-              ndviMode={ndviMode}
-              ndviConsulta={ndviConsulta}
-              onNdviPoint={handleNdviPoint}
-              ndvi={ndviExport}
               onAnalizarPredio={handleAnalizarPredio}
               predioGeometry={predioGeometry}
               fichaPredio={fichaPredio}
@@ -1129,7 +1103,7 @@ function SigApp({ initial }: { initial: PermalinkState }) {
 
           </div>
 
-          {/* Serie NDVI: panel flotante arriba a la derecha. z-[700] = igual
+          {/* Ficha del predio: panel flotante arriba a la derecha. z-[700] = igual
               que los dropdowns; la pestaña de capas (850) y el drawer móvil
               (1100) siguen por sobre él y siguen siendo clicables. */}
           {predioGeometry && (
@@ -1142,18 +1116,6 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               />
             </div>
           )}
-          {ndviConsulta && !predioGeometry && (
-            <div className="absolute right-3 top-24 z-[700] max-h-[calc(100vh-7rem)] w-[min(30rem,calc(100%-1.5rem))] overflow-y-auto md:top-14">
-              <NdviPanel
-                consulta={ndviConsulta}
-                mostrarConaf={showVegetacional}
-                onSerie={handleNdviSerie}
-                onResaltado={handleNdviResaltado}
-                onCerrar={cerrarNdvi}
-              />
-            </div>
-          )}
-
           {/* Datos nuevos en el servidor. Se OFRECE, nunca se aplica solo:
               recargar el conjunto en medio de una lectura cambiaría los
               puntos bajo el cursor. Al aceptar se vuelve a pedir en sitio —
@@ -1182,17 +1144,6 @@ function SigApp({ initial }: { initial: PermalinkState }) {
               >
                 Actualizar
               </button>
-            </div>
-          )}
-
-          {/* Aviso del modo armado: visible en todas las pantallas, sobre el
-              FAB móvil y la barra de escala, hasta que se arma el clic o Esc. */}
-          {ndviMode && (
-            <div
-              role="status"
-              className="absolute bottom-28 left-1/2 z-[650] -translate-x-1/2 rounded-full border border-black/15 bg-[var(--background)]/95 px-3 py-1.5 text-xs shadow-lg backdrop-blur dark:border-white/20"
-            >
-              Haz clic en el punto a consultar · Esc para cancelar
             </div>
           )}
 

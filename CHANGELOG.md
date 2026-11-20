@@ -21,6 +21,13 @@ versionado.
 
 ## No publicado
 
+### Eliminado
+
+- **Consulta NDVI por punto** (botón «Consultar NDVI en el mapa», panel con la
+  serie mensual de 36 meses, ruta `/api/ndvi/serie` y la tarjeta NDVI del PNG
+  exportado). La capa **NDVI Visual** del catálogo la reemplazó en la práctica.
+  La búsqueda de escenas que comparte esa capa pasó a `src/lib/sentinel-stac.ts`.
+
 ## [0.5.0] — 2026-11-15
 
 ### Añadido

@@ -20,8 +20,7 @@ import {
   type BasemapId,
 } from '@/lib/basemap';
 import type { Feature, Geometry } from 'geojson';
-import { downloadCanvas, exportFilename, exportMapToPng, type LayerMetadataEntry, type NdviExport } from '@/lib/map-export';
-import { NdviConsulta } from '@/lib/ndvi';
+import { downloadCanvas, exportFilename, exportMapToPng, type LayerMetadataEntry } from '@/lib/map-export';
 import { type NdviVisualEstado } from '@/lib/ndvi-visual';
 import { categoryColor, type ProtectedAreaProps } from '@/lib/protected-areas';
 import {
@@ -177,10 +176,6 @@ export default function MapView({
   selectedRuralFeature = null,
   onHexbinStatus,
   mapExportRef,
-  ndviMode = false,
-  ndviConsulta = null,
-  onNdviPoint,
-  ndvi = null,
   onAnalizarPredio,
   predioGeometry = null,
   fichaPredio = null,
@@ -272,15 +267,6 @@ export default function MapView({
   mapExportRef?: MutableRefObject<
     ((args?: { metadata?: LayerMetadataEntry[] }) => Promise<void>) | null
   >;
-  /** Herramienta NDVI armada: el siguiente clic en el mapa consulta ese punto
-   *  (cursor de cruceta, los identify de otras capas se suspenden). */
-  ndviMode?: boolean;
-  /** Consulta NDVI vigente; MapView dibuja el punto consultado en el mapa. */
-  ndviConsulta?: NdviConsulta | null;
-  /** Punto elegido por el usuario con la herramienta armada. */
-  onNdviPoint?: (lat: number, lng: number) => void;
-  /** Serie NDVI actual: entra al cajetín del PNG exportado. */
-  ndvi?: NdviExport | null;
   /** «Analizar predio» de la herramienta Medir: vértices de la superficie elegida. */
   onAnalizarPredio?: (vertices: Punto[]) => void;
   /** Polígono de la ficha del predio abierta; MapView lo dibuja y lo encuadra. */
@@ -309,9 +295,6 @@ export default function MapView({
   const siiPrediosRef = useRef<L.ImageOverlay | null>(null);
   const propiedadRuralHighlightRef = useRef<L.GeoJSON | null>(null);
   const hexbinsRef = useRef<L.ImageOverlay | null>(null);
-  // Punto consultado por la herramienta NDVI: marcador de cruceta en el
-  // markerPane, separado del cluster CBR para no reconstruir 85k pines.
-  const ndviMarkerRef = useRef<L.Marker | null>(null);
   const opacityRef = useRef(layerOpacity);
   // Estilo separado de la carga: ningún slider reinicia fetch/identify ni capas.
   // La ref también cubre las capas cuyo fetch termina después del ajuste.
@@ -374,11 +357,6 @@ export default function MapView({
   const onVegetacionalStatusRef = useRef(onVegetacionalStatus);
   const onHexbinStatusRef = useRef(onHexbinStatus);
   const onConservadoresStatusRef = useRef(onConservadoresStatus);
-  // Modo NDVI en ref: los handlers de clic de otras capas (declarados en
-  // effects con deps estables) deben poder consultar el estado vigente del
-  // modo sin re-registrarse en cada toggle.
-  const ndviModeRef = useRef(ndviMode);
-  const onNdviPointRef = useRef(onNdviPoint);
   const onAnalizarPredioRef = useRef(onAnalizarPredio);
   useEffect(() => {
     onRenderProgressRef.current = onRenderProgress;
@@ -393,10 +371,8 @@ export default function MapView({
     onVegetacionalStatusRef.current = onVegetacionalStatus;
     onHexbinStatusRef.current = onHexbinStatus;
     onConservadoresStatusRef.current = onConservadoresStatus;
-    ndviModeRef.current = ndviMode;
-    onNdviPointRef.current = onNdviPoint;
     onAnalizarPredioRef.current = onAnalizarPredio;
-  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onViewChange, onHumedalesStatus, onPropiedadesRuralesStatus, onSiiPrediosStatus, onNdviVisualStatus, onRelieveStatus, onVegetacionalStatus, onHexbinStatus, onConservadoresStatus, ndviMode, onNdviPoint, onAnalizarPredio]);
+  }, [onRenderProgress, onRenderComplete, onSuelosStatus, onViewChange, onHumedalesStatus, onPropiedadesRuralesStatus, onSiiPrediosStatus, onNdviVisualStatus, onRelieveStatus, onVegetacionalStatus, onHexbinStatus, onConservadoresStatus, onAnalizarPredio]);
 
   // Publica el método de export en el ref entregado por la página. La closure
   // se re-bindea en cada cambio de flags para que la captura refleje siempre
@@ -434,7 +410,6 @@ export default function MapView({
         basemap,
         cluster: clusterRef.current,
         metadata: args?.metadata,
-        ndvi,
         mediciones: measureFixedRef.current,
       });
       downloadCanvas(canvas, exportFilename());
@@ -461,64 +436,7 @@ export default function MapView({
     showRelieve,
     showHexbins,
     basemap,
-    ndvi,
   ]);
-
-  // Herramienta NDVI: con el modo armado el clic en el mapa captura la
-  // coordenada en lugar de disparar identify/popups, el cursor es cruceta y
-  // cualquier popup de capa que se abra en el mismo evento se cierra en el
-  // microtask siguiente — la herramienta "pasa por encima" de la selección
-  // normal y al desarmarse el mapa queda exactamente como estaba.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ndviMode) return;
-    const container = map.getContainer();
-    const cursorPrevio = container.style.cursor;
-    container.style.cursor = 'crosshair';
-    const onClick = (event: L.LeafletMouseEvent) => {
-      onNdviPointRef.current?.(event.latlng.lat, event.latlng.lng);
-    };
-    const onPopupOpen = () => {
-      queueMicrotask(() => {
-        if (ndviModeRef.current) map.closePopup();
-      });
-    };
-    map.on('click', onClick);
-    map.on('popupopen', onPopupOpen);
-    return () => {
-      map.off('click', onClick);
-      map.off('popupopen', onPopupOpen);
-      container.style.cursor = cursorPrevio;
-    };
-  }, [ndviMode]);
-
-  // Punto consultado vigente: cruceta en el markerPane mientras el panel
-  // muestre esa consulta. La limpieza simétrica cubre el doble montaje de
-  // StrictMode y el cambio a otra consulta.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    if (ndviMarkerRef.current) {
-      map.removeLayer(ndviMarkerRef.current);
-      ndviMarkerRef.current = null;
-    }
-    if (!ndviConsulta || ndviConsulta.tipo !== 'punto') return;
-    const marker = L.marker([ndviConsulta.lat, ndviConsulta.lng], {
-      interactive: false,
-      keyboard: false,
-      icon: L.divIcon({
-        className: 'ndvi-punto-icono',
-        html: '<span style="display:block;width:14px;height:14px;border:2px solid #16a34a;border-radius:50%;background:rgba(255,255,255,.7);box-shadow:0 0 0 1px rgba(0,0,0,.4)"></span>',
-        iconSize: [14, 14],
-        iconAnchor: [7, 7],
-      }),
-    }).addTo(map);
-    ndviMarkerRef.current = marker;
-    return () => {
-      if (map.hasLayer(marker)) map.removeLayer(marker);
-      if (ndviMarkerRef.current === marker) ndviMarkerRef.current = null;
-    };
-  }, [ndviConsulta]);
 
   // Con varias capas asíncronas compartiendo el overlayPane (preferCanvas), el
   // orden de apilado debe re-imponerse tras cada mutación de capa, sin
@@ -1196,7 +1114,6 @@ export default function MapView({
   usePointQuery({
     mapRef,
     flagsRef: pointQueryFlagsRef,
-    ndviModeRef,
     measureActiveRef,
     layers: { protectedRef, urbanLimitRef, comunasRef, catastroFruticolaRef, hexbinSamplesRef },
   });

@@ -3,8 +3,7 @@
 import { useEffect, type RefObject } from 'react';
 import L from 'leaflet';
 import { retryAfterSeconds } from '@/lib/remote-raster';
-import { redondearCoordenada } from '@/lib/ndvi';
-import { NDVI_VISUAL_EXPORT_URL, NDVI_VISUAL_MIN_ZOOM, type NdviVisualEstado } from '@/lib/ndvi-visual';
+import { NDVI_VISUAL_EXPORT_URL, NDVI_VISUAL_MIN_ZOOM, redondearCoordenada, type NdviVisualEstado } from '@/lib/ndvi-visual';
 import type { LayerOpacity } from '@/lib/layer-opacity';
 import { TRANSPARENT_PIXEL } from '@/lib/suelos';
 import { waitForImage } from '@/components/map/raster-overlay';

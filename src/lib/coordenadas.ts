@@ -2,7 +2,7 @@
  * Coordenadas: proyección UTM y formato para el lector de cursor del mapa.
  *
  * Sin dependencias ni `server-only`: la usan el servidor (lectura de COG de
- * Sentinel-2 en `ndvi-serie.ts` y `ndvi-raster.ts`) y el navegador (barra de
+ * Sentinel-2 en `ndvi-raster.ts`) y el navegador (barra de
  * coordenadas del cursor en `MapView`).
  */
 

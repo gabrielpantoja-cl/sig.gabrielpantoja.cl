@@ -7,7 +7,7 @@ import {
   buscarEscenasPorCaja,
   type StacAsset,
   type StacItem,
-} from './ndvi-serie';
+} from './sentinel-stac';
 import { lonLatToUtm } from './coordenadas';
 import { ndviRampRgb } from './ndvi-visual';
 
@@ -16,7 +16,7 @@ import { ndviRampRgb } from './ndvi-visual';
  *
  * Para un bbox + tamaño devuelve UN PNG con el NDVI de la escena reciente de
  * cada cuadrícula MGRS que toca la vista, enmascarando nubes/sombras con SCL
- * (las mismas reglas medidas de `ndvi-serie.ts`). El cliente lo cuelga como
+ * (las reglas medidas de `sentinel-stac.ts`). El cliente lo cuelga como
  * `L.ImageOverlay` en `moveend`, al igual que suelos/vegetacional — nunca se
  * habla WMS teselado contra el servidor de nadie.
  *
@@ -57,7 +57,8 @@ const MAX_ESCENAS = 8;
 const MARGEN_PX = 3;
 /** Techo de muestras nativas leídas por escena (~80 MB en Uint16). */
 const MUESTRAS_MAX = 40_000_000;
-/** geotiff parte cada baldosa en bloques de 256 KB (misma cifra que la serie). */
+/** geotiff parte cada baldosa de ~1 MB en bloques de 64 KB por defecto (8
+ *  requests por banda); con 256 KB son 2 y el tiempo baja a la mitad. */
 const BLOQUE_BYTES = 1 << 18;
 
 /** Validaciones de la ruta: tamaño de imagen y extensión geográfica. */
@@ -189,7 +190,7 @@ async function leerBanda(
   const [px0, , x0, , py0, y0] = asset['proj:transform'];
   const [h0, w0] = asset['proj:shape'];
   // `blockSize` lo acepta la fuente remota en runtime, pero la firma pública de
-  // `fromUrl` solo tipa las opciones HTTP (mismo cast documentado en la serie).
+  // `fromUrl` solo tipa las opciones HTTP.
   const opciones = { blockSize: BLOQUE_BYTES } as Parameters<typeof fromUrl>[1];
   const tiff = await fromUrl(asset.href, opciones, signal);
   const piramide = await niveles(tiff, signal);

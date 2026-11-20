@@ -17,8 +17,8 @@
  *   URL es entrada de usuario (puede venir editada a mano o de un tercero).
  * - Lo que define la vista por defecto NO se escribe: el SIG recién abierto
  *   sigue en `/` sin parámetros.
- * - Quedan fuera, a propósito: opacidades, paneles abiertos, la consulta
- *   NDVI y las capas KML del usuario (son archivos locales que nunca salen
+ * - Quedan fuera, a propósito: opacidades, paneles abiertos y las capas KML
+ *   del usuario (son archivos locales que nunca salen
  *   del navegador).
  * - La analítica registra solo la ruta y los `utm_*`, nunca esta query, así
  *   que un ROL o un monto puesto en un filtro no llega a la base.

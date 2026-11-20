@@ -71,8 +71,6 @@ rango temporal para series).
 
 Además:
 
-- **Serie mensual de NDVI** (`/api/ndvi/serie`): 36 meses de mediana, P25/P75 y
-  fracción descartada para un punto o un polígono de hasta 3 km de lado.
 - **Capas KML/KMZ del usuario**, procesadas en el navegador; nunca salen del
   dispositivo (`src/lib/kml.ts`; KMZ desde 2026-10-06). Desde v0.4.0
   (2026-11-15) un color por polígono, botón «aleatorio», color elegible por
@@ -525,8 +523,9 @@ Dos entregas:
 
 - **Serie mensual** (`/api/ndvi/serie`, 2026-09-17): 36 meses de mediana,
   P25/P75 y fracción descartada para un punto o un polígono de hasta 3 km.
-  Máscara SCL + filtro de neblina (azul > 0,10) + compuesto de máximo valor
-  mensual; meses sin dato quedan como hueco, nunca interpolados.
+  **Retirada el 2026-11-19**: la capa NDVI Visual del catálogo la reemplazó
+  en el uso real. El código queda en el historial de git (último commit con
+  ella: `830a83e`).
 - **NDVI Visual** (`/api/ndvi/export`, 2026-09-27): PNG por viewport desde
   zoom 10, escena más despejada por grilla MGRS, rampa compartida con la
   leyenda (`src/lib/ndvi-ramp.json`).
@@ -753,8 +752,8 @@ respuesta calculada, no solo un mapa. Diseño y decisiones en
       eléctrica. Las líneas son ejes referenciales: distancia sí, servidumbre
       nunca.
 - [ ] Humedales MMA en la ficha (CC0, se puede cargar; ver la duda de espacio).
-- [ ] NDVI histórico del polígono: reutilizar `/api/ndvi/serie` (hoy topa en
-      3 km de lado).
+- [ ] NDVI histórico del polígono (la serie `/api/ndvi/serie` se retiró el
+      2026-11-19; recuperarla del historial de git si vuelve a hacer falta).
 - [ ] Anexo **PDF** de la ficha (mapa + tablas + fuentes + avisos de
       licencia) y export **GeoPackage**.
 - [~] Comparables: *hecho* «solo superficie similar» (½× a 2× del predio,

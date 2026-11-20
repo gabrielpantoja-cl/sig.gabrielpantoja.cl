@@ -8,17 +8,12 @@
  * gradiente de la leyenda derivan del mismo JSON, igual que Bioclima con
  * `bioclima-ramp.json`.
  *
- * Esta capa es distinta de la herramienta de consulta NDVI (`ndvi.ts`): esa
- * devuelve la serie mensual de UN punto; esta pinta el NDVI continuo de todo
- * el viewport. Conviven en la app pero no comparten estado ni namespace de
- * componentes (`ndviVisual*` frente a `ndvi*`).
- *
- * El descargo de `ndvi.ts` sigue en pie y es obligatorio en la leyenda: una
- * sola fecha de NDVI no separa bosque nativo de plantación.
+ * El descargo es obligatorio en la leyenda: una sola fecha de NDVI no separa
+ * bosque nativo de plantación (~70 % de exactitud balanceada en la costa
+ * valdiviana).
  */
 
 import RAMP from './ndvi-ramp.json';
-import { NDVI_DESCARGO, NDVI_FUENTE_URL } from './ndvi';
 
 /** Ruta same-origin del proxy que renderiza el PNG del viewport. */
 export const NDVI_VISUAL_EXPORT_URL = '/api/ndvi/export';
@@ -38,14 +33,22 @@ export const NDVI_VISUAL_OPACITY = 0.8;
 export const NDVI_VISUAL_SERVICE_NAME =
   'Copernicus Sentinel-2 (Element 84 Earth Search / AWS Open Data)';
 
-export const NDVI_VISUAL_SOURCE_URL = NDVI_FUENTE_URL;
+export const NDVI_VISUAL_SOURCE_URL = 'https://registry.opendata.aws/sentinel-2-l2a-cogs/';
 
 /** Atribución exigida por la licencia Copernicus (panel + PNG exportado). */
 export const NDVI_VISUAL_ATTRIBUTION =
   'Contiene datos modificados de Copernicus Sentinel, vía Element 84 Earth Search / AWS Open Data';
 
-/** Mismo descargo de la herramienta de serie: la leyenda jamás lo omite. */
-export const NDVI_VISUAL_DESCARGO = NDVI_DESCARGO;
+/** La leyenda jamás lo omite. */
+export const NDVI_VISUAL_DESCARGO =
+  'El NDVI mide verdor, no especie ni origen. No usar para identificar bosque nativo; para eso, capa de Recursos vegetacionales (CONAF).';
+
+/**
+ * Redondea la coordenada a 4 decimales (~11 m) antes de pedir el raster: es la
+ * misma precisión en cliente y servidor, así dos vistas casi iguales reutilizan
+ * la respuesta cacheada en la CDN.
+ */
+export const redondearCoordenada = (v: number): number => Math.round(v * 1e4) / 1e4;
 
 export type NdviVisualEstado =
   | { kind: 'idle' }

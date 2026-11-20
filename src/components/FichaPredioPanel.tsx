@@ -71,10 +71,9 @@ function Bloque({ titulo, children }: { titulo: string; children: React.ReactNod
 
 /**
  * Ficha del predio: el resultado del geoproceso `/api/analisis/predio` sobre
- * el polígono que el usuario cerró con «Medir». Panel flotante como el de la
- * serie NDVI. Las cifras son referenciales (lo dice el pie): la superficie
- * legal es la del plano o el título, y los comparables son inscripciones, no
- * una tasación.
+ * el polígono que el usuario cerró con «Medir». Panel flotante. Las cifras
+ * son referenciales (lo dice el pie): la superficie legal es la del plano o
+ * el título, y los comparables son inscripciones, no una tasación.
  */
 export function FichaPredioPanel({
   geometry,
