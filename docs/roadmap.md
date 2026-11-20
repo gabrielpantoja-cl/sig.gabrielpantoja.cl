@@ -1,6 +1,6 @@
 # Roadmap del SIG de suelo — `sig.gabrielpantoja.cl`
 
-> Documento vivo. Última actualización: 2026-11-13.
+> Documento vivo. Última actualización: 2026-11-20.
 > Próxima revisión sugerida: trimestral o cuando se cierre una fase.
 >
 > **¿Retomas el proyecto?** Lee primero [«Por dónde retomar»](#por-dónde-retomar):
@@ -1729,6 +1729,45 @@ la forma. Las fuentes de datos marcadas «por verificar» van a
 No se copian: diseños de edificios y viabilidad solar (fuera del público
 del SIG), desmonte y terraplén, y las capas solo para EE. UU. (zonificación,
 accesos vehiculares, ingresos, puntos de carga).
+
+### Ideas de catálogo y herramientas por comuna *(revisión 2026-11-20)*
+
+Revisión de visores territoriales pensados para municipios y servicios
+públicos. Varias herramientas ya existen aquí o están anotadas (búsqueda
+por coordenadas, metadatos FAIR, comparador deslizante, modo imprimir); se
+anotan las que faltan y cómo hacerlas sin cuentas (ADR de solo lectura) y
+sin informes estáticos que envejezcan.
+
+| Idea | Qué resuelve | Cómo encaja aquí | Horizonte |
+|---|---|---|---|
+| **Ficha de metadatos por capa** | Saber de dónde viene una capa, de cuándo es y si se puede reutilizar, sin salir del mapa | Botón «i» en el panel de capas que lea el `meta.json`: organismo, vintage, licencia, CRS, escala y enlace al servicio original. Mismos campos mínimos que el ítem «Metadatos FAIR por capa», así el export DCAT/ISO 19115 sale del mismo archivo | H1 |
+| **«Acercar a la capa»** | Encontrar una capa que no cubre la vista actual | Acción en «Capas activas»: encuadrar el bbox de la capa (las estáticas lo traen; las remotas, del `extent` del servicio) | H1 |
+| **Ir a coordenada** | El perito recibe coordenadas de un plano o de una escritura | Entrada inversa del renglón de coordenadas: decimal, GMS y UTM 18S/19S, con el datum del ítem «Conversión de datum». Concreta el ítem «Búsqueda por coordenadas» | H1 |
+| **Descargar capa** | Llevar la capa a QGIS o CAD | Solo capas con licencia abierta (áreas protegidas, límites comunales, red caminera, drenaje): el GeoJSON ya está publicado. Nunca capas cuya fuente no autoriza republicar | H1 |
+| **Vista por comuna** | Entrar al mapa «por mi comuna» en vez de por capa | Elegir comuna → encuadre + filtro de transacciones + resumen. Reusa el selector de comuna del filtro y los límites DPA | H3 |
+| **Ficha comunal dinámica** | Un informe comunal que no envejece | Generada desde los datos, no subida a mano: $/m² mediano y cuartiles por destino y año (`/api/stats`, mapa de calor), superficie protegida, % bajo límite urbano, suelos clases I–IV, superficie frutícola y enlace al reporte comunal de la BCN. Exportable a PDF con el cajetín del export PNG. Es la versión por comuna de la ficha del predio | H3 |
+| **Agregar servicio de mapa del usuario** (WMS / ArcGIS REST) | Ver cualquier capa de una IDE oficial sin que el SIG la mantenga | Mismo modelo que las capas KML: la URL se guarda en el navegador (IndexedDB) y la petición sale del dispositivo, no del servidor. Si el servicio no permite CORS, avisar en vez de proxearlo por defecto (costo y responsabilidad) | H2 |
+| **Manual corto de uso** | Personas no técnicas que llegan al visor | «Cómo se usa» de una página, enlazado desde la barra superior, con tres recorridos: buscar un predio, comparar precios, exportar una lámina | H1 |
+| **Taller de uso** (60 min, en línea) | Encontrar usuarios reales y recoger qué les falta | Módulo teórico (qué datos hay y sus límites) + práctico (buscar, filtrar, exportar). Público: peritos, municipios rurales y estudiantes | Banco de ideas |
+
+Capas que estos visores tratan como básicas y que aquí faltan; antes de
+actuar, confirmar fuente primaria, licencia y endpoint en
+[Por verificar antes de actuar](#por-verificar-antes-de-actuar):
+
+- **Sitios prioritarios para la conservación** (MMA): muy alineada con el
+  eje de conservación.
+- **Planes reguladores intercomunales y metropolitanos** (PRI/PRM): hoy solo
+  está el límite urbano; es una restricción clave en tasación periurbana.
+- **Período libre de heladas / agroclima**: buscar la capa oficial antes de
+  derivarla de bioclima + relieve (ver «Banco de ideas»).
+- **Riesgos de desastre** (remoción en masa, tsunami, volcánico): refuerzan
+  § 2.3 y § 3.3.
+- **Derechos de agua**: confirma la prioridad del ítem 5 de «Por dónde
+  retomar».
+
+No se copian: cuentas de usuario para guardar vistas (el permalink y el
+almacenamiento del navegador lo cubren), árboles de capas por comuna con
+nombres de tabla crudos, e informes comunales en PDF estáticos.
 
 ## Riesgos transversales (revisar al cerrar cada fase)
 
