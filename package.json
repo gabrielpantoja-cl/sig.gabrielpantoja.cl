@@ -72,7 +72,7 @@
     "leaflet.markercluster": "^1.5.3",
     "next": "16.4.6",
     "pngjs": "^7.0.0",
-    "postgres": "^3.4.7",
+    "postgres": "^4.1.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
