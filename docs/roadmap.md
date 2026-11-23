@@ -1,6 +1,6 @@
 # Roadmap del SIG de suelo — `sig.gabrielpantoja.cl`
 
-> Documento vivo. Última actualización: 2026-11-20.
+> Documento vivo. Última actualización: 2026-11-22.
 > Próxima revisión sugerida: trimestral o cuando se cierre una fase.
 >
 > **¿Retomas el proyecto?** Lee primero [«Por dónde retomar»](#por-dónde-retomar):
@@ -109,7 +109,7 @@ capa nueva; con la 🟡 se intercala (una deuda por cada capa o función).
 |---|---|---|---|
 | 0 | 🔴 Cargar las capas oficiales en PostGIS (`db/capas.sql` + `npm run data:load:postgis`) | La ficha del predio ya está en producción, pero comuna, límite urbano y áreas protegidas responden «capa aún no cargada» hasta que se carguen. Requiere el rol owner de Neon | [Geoprocesos](#geoprocesos-ficha-del-predio-2026-10-26) |
 | 1 | ~~🟡 Etiquetar `v0.3.0`~~ — hecho el 2026-11-13 (hoy en `v0.3.7`) | | [Deuda › Plataforma](#plataforma-y-release) |
-| 1a | 🔴 Etapa B de los puntos: filtros y estadísticas en el navegador desde el archivo estático | La carga sin filtros ya no toca la base, pero cada filtro sigue pidiendo `/api/points` y `/api/stats`. Hay que replicar el cálculo de `/api/stats` en el cliente (ver [`estadisticas.md`](./estadisticas.md)) y verificarlo contra la API | [Rendimiento](#rendimiento-nuevo-2026-10-10) |
+| 1a | 🔴 Etapa B de los puntos: filtros y estadísticas en el navegador desde el archivo estático | La carga sin filtros ya no toca la base, pero cada filtro sigue pidiendo `/api/points` y `/api/stats`. Hay que replicar el cálculo de `/api/stats` en el cliente (ver [`estadisticas.md`](./estadisticas.md)) y verificarlo contra la API. Primer paso más barato: agregados precalculados por región y comuna publicados junto al archivo de puntos (ver [Ideas desde exploradores de transacciones](#ideas-desde-exploradores-de-transacciones-y-coberturas-revisión-2026-11-22)) | [Rendimiento](#rendimiento-nuevo-2026-10-10) |
 | 1b | 🟡 Monitor externo de `/api/health` | Que avise si `datos.nivel` deja de ser `al-dia` o si `servicio` pasa a `respaldo`; hoy una caída se nota tarde | [Deuda › Seguridad](#seguridad-y-operación) |
 | 1c | 🟡 Inventario del contrato público de `/api/*` (camino a `1.0.0`) | Requisito de `1.0.0`: decidir qué rutas son públicas y cuáles internas, documentarlas (OpenAPI) y fijar una política de cambios | [Deuda › Seguridad](#seguridad-y-operación) |
 | 2 | ~~🟡 Filtro de transacciones: UF, destino, rango de años, encuadre~~ — hecho el 2026-10-26 | Quedan en la sección los 🟢 menores (caché desfasada, conteo con/sin monto, descarga por subconjunto) | [Filtro de transacciones](#filtro-de-transacciones-diagnóstico-2026-10-23) |
@@ -1564,7 +1564,11 @@ economía del suelo, conservación). Se reparten luego en los horizontes H1–H5
 - [ ] Licencia de redistribución de suelos CIREN y del catastro CONAF (¿se
       pueden empaquetar en PMTiles?).
 - [ ] MapBiomas Chile: colección vigente y años que cubre (la licencia CC BY
-      4.0 está confirmada).
+      4.0 está confirmada). La plataforma muestra cobertura 1999–2024
+      (revisión 2026-11-22), no desde 1985; su API interna no es pública, así
+      que la vía de datos sigue siendo GeoTIFF o Earth Engine.
+- [ ] Condiciones de uso de DVF (Francia) sobre reidentificación e indexación
+      por buscadores: referencia para la política de descargas de este SIG.
 - [ ] Licencia de CR2met y si permite redistribuir un derivado en COG.
 - [ ] Si la DGA publica en otro servicio los derechos de agua constituidos
       después de 2021 (§ 2.2).
@@ -1683,6 +1687,11 @@ dirección del producto. Al retomar, el horizonte activo es el primero con
   Python/R; datasets derivados con DOI (Zenodo) y `CITATION.cff` al día.
 - Notebook o paquete de reproducción para investigadores (el mismo cálculo
   que el visor, fuera del navegador).
+- **Más clientes de la misma API**: el visor es un cliente entre varios. Una vez
+  estable `1.0.0`, abrir canales en este orden y sin abrir el siguiente sin
+  métricas del anterior: plugin para un GIS web o de escritorio (QGIS), paquete
+  Python/R para notebooks. Toda la lógica y la frontera de PII quedan en la API;
+  los clientes solo traducen respuestas a capas.
 - Internacionalización (inglés) del visor y de la documentación.
 - Comunidad: issues `good first issue`, guía paso a paso de «cómo agregar
   una capa» y un proceso para que terceros propongan fuentes.
@@ -1702,7 +1711,8 @@ analítica o un usuario las justifique.
 - Riesgo de helada a partir de bioclima + relieve.
 - Integración con QGIS: publicar las capas derivadas como servicio OGC
   (WMS/WFS/OGC API Features) de solo lectura.
-- Alertas: «avísame si aparece una transacción nueva en esta comuna».
+- Alertas: «avísame si aparece una transacción nueva en esta comuna». Sin
+  cuentas: un feed Atom por comuna generado junto al archivo estático de puntos.
 
 ### Ideas desde Google Earth Web *(revisión 2026-11-06)*
 
@@ -1768,6 +1778,35 @@ actuar, confirmar fuente primaria, licencia y endpoint en
 No se copian: cuentas de usuario para guardar vistas (el permalink y el
 almacenamiento del navegador lo cubren), árboles de capas por comuna con
 nombres de tabla crudos, e informes comunales en PDF estáticos.
+
+### Ideas desde exploradores de transacciones y coberturas *(revisión 2026-11-22)*
+
+Recorrido del explorador oficial de compraventas de Francia (DVF,
+`explore.data.gouv.fr/fr/immobilier`), de la plataforma de MapBiomas Chile y
+de los tableros por país de Global Nature Watch (ex Global Forest Watch). DVF es
+el análogo público más cercano a este SIG: transacciones abiertas con mapa,
+estadísticas por territorio y FAQ sobre el dato. Ya existen aquí la medición, el
+permalink, la ficha del predio y las capas KML; se anota lo que falta.
+
+| Idea | Qué hace la referencia | Cómo encaja aquí | Horizonte |
+|---|---|---|---|
+| **Agregados precalculados por territorio** | DVF sirve JSON chicos por nivel (país, departamento, comuna): serie mensual de conteo y mediana de €/m² por tipo, e histograma de 10 tramos | Publicar `stats/` por región y comuna (conteo, mediana, P25/P75 de UF/m² por destino y año, histograma) junto al archivo diario de puntos, con el mismo token. El panel sin filtros finos deja de consultar la base; es el primer paso de la etapa B (fila 1a de «Por dónde retomar») | H1 |
+| **Panel por nivel territorial** | El panel cambia al bajar de país a comuna, con migas de pan | País → región → comuna, reusando el selector de comuna del filtro. Base de la vista por comuna y de la ficha comunal dinámica | H3 |
+| **Frase-titular de la ficha** | Global Nature Watch abre cada tablero con una frase generada («En 2020, Chile tenía…») | «En Valdivia se inscribieron N compraventas agrícolas desde 2015; la mediana es X UF/ha». Sale de los agregados; reutilizable en el export PNG | H3 |
+| **Ficha comunal por pestañas** | Pestañas Resumen / Cobertura / Cambio / Uso / Fuego / Clima, y cada gráfico se comparte y descarga por separado | Mercado / Suelo / Coberturas / Agua / Riesgos; descarga CSV del gráfico visible, con la atribución dentro del archivo | H3 |
+| **Pestaña «Tabla»** | DVF muestra las ventas del encuadre como tabla | Tabla paginada y ordenable de las transacciones del encuadre, exportable. Para elegir comparables una tabla rinde más que el mapa | H3 |
+| **Estadísticas de mi polígono** | MapBiomas calcula superficie por clase y su serie para una geometría propia | Sobre la capa KML del usuario, en el navegador: transacciones dentro (n, mediana UF/ha) y % por clase de suelo, cobertura CONAF y humedal | H3 |
+| **Ranking de comunas** | MapBiomas ordena los territorios por la clase elegida | Ranking por mediana UF/m², por `n` o por variación anual para el destino elegido; sale de los agregados | H3 |
+| **Búsqueda de ROL paso a paso** | DVF compone el identificador de parcela por partes (departamento → comuna → sección → número) | Región → comuna → manzana → predio, en vez de un solo campo: menos errores de formato | H1 |
+| **«¿Por qué falta o está mal mi transacción?»** | FAQ de DVF: qué incluye el precio, por qué faltan datos y dónde reportar un error | Página corta con la cobertura real por Conservador y año (ya calculada para `/estado`), qué significa cada campo y un canal para reportar errores. Complementa a `/privacidad` | H1 |
+| **Fecha de los datos siempre visible** | DVF muestra «última actualización» en el encabezado | La fecha del último ingreso, al pie del mapa o en el panel CBR, no solo en `/estado` | H1 |
+| **Micro-encuesta de intención** | Global Nature Watch pregunta «¿qué viniste a hacer hoy?» con opciones cerradas | Un evento más de la analítica interna: una pregunta, cinco opciones fijas, sin texto libre (no recibe datos personales) y sin cuentas | H1 |
+| **Mapa base vectorial abierto** | MapBiomas usa VersaTiles (teselas vectoriales abiertas, sin clave ni cuota) | Candidato de fondo si se migra a MapLibre (H2) | H2 |
+
+No se copian: transacciones pegadas a la parcela catastral (requiere una capa de
+predios redistribuible, que no existe en Chile), y la ventana fija de cinco años
+de DVF (la serie larga es valor científico; queda como opción solo para descargas
+masivas).
 
 ## Riesgos transversales (revisar al cerrar cada fase)
 
