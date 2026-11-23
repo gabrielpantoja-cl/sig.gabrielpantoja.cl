@@ -83,3 +83,7 @@ research/
 .wrangler
 .dev.vars*
 !.dev.vars.example
+
+# Corte publico generado: artefacto de build.
+# Se distribuye por canales propios (ver docs/preservacion-datos.md), nunca por git.
+espejo/
