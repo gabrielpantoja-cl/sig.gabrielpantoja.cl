@@ -26,7 +26,15 @@ const HINT: Record<ModoMedicion, string> = {
  * «Medir»: distancias y superficies sobre el mapa, en la esquina inferior
  * derecha sobre «Ir a mi ubicación». Mientras está activa, los clics del mapa
  * marcan vértices: `activeRef` le avisa a la consulta integrada que no
- * dispare, y un popup de capa que se abra en el mismo clic se cierra. El
+ * dispare, y un popup de capa que se abra en el mismo clic se cierra.
+ *
+ * Los vértices se toman en `preclick`, no en `click`: un feature con popup
+ * (KML del usuario, marcadores CBR) hace `DomEvent.stop` en su `click` y el
+ * mapa nunca lo recibía, así que no se podía medir encima de un polígono.
+ * `preclick` lo dispara Leaflet antes, para todo el árbol de destinos, y
+ * respeta el filtro de arrastre. El cursor usa la clase `leaflet-crosshair`,
+ * que Leaflet ya impone también sobre `.leaflet-interactive` (sin ella, al
+ * pasar sobre un polígono del canvas el cursor volvía a ser la mano). El
  * doble clic deja de hacer zoom (su segundo clic cae sobre el último vértice y
  * termina la medición).
  *
@@ -68,7 +76,6 @@ export function useMeasureControl({
     let ultimaSuperficie: Punto[] | null = null;
     const publicadas = fixedRef.current;
     let doubleClickZoomPrevio = map.doubleClickZoom.enabled();
-    let cursorPrevio = '';
 
     let boton: HTMLButtonElement | null = null;
     let panel: HTMLDivElement | null = null;
@@ -109,7 +116,14 @@ export function useMeasureControl({
     const actualizarPanel = () => {
       if (!resultado || !ayuda) return;
       const vista = cursor && puntos.length > 0 ? [...puntos, cursor] : puntos;
-      resultado.textContent = vista.length >= 2 ? resumenMedicion(modo, vista) : 'Sin puntos todavía';
+      // Una sola línea siempre (alto fijo del panel): en superficie el
+      // perímetro va en letra menor junto al área.
+      const [principal, ...resto] = (vista.length >= 2 ? resumenMedicion(modo, vista) : 'Sin puntos todavía').split(' · ');
+      resultado.textContent = principal;
+      if (resto.length > 0) {
+        const extra = L.DomUtil.create('span', 'sig-medir-extra', resultado);
+        extra.textContent = ` · ${resto.join(' · ')}`;
+      }
       ayuda.textContent = HINT[modo];
       for (const [m, b] of Object.entries(botonesModo) as [ModoMedicion, HTMLButtonElement][]) {
         b.setAttribute('aria-pressed', m === modo ? 'true' : 'false');
@@ -119,8 +133,11 @@ export function useMeasureControl({
       if (botonDeshacer) botonDeshacer.disabled = puntos.length === 0;
       if (botonBorrar) botonBorrar.disabled = puntos.length === 0 && etiquetas.length === 0;
       if (botonAnalizar) {
-        botonAnalizar.hidden = modo !== 'superficie' || !onAnalizarRef;
-        botonAnalizar.disabled = puntos.length < 3 && ultimaSuperficie === null;
+        // En distancia se oculta sin soltar su espacio: el panel no cambia
+        // de alto al alternar entre modos.
+        botonAnalizar.hidden = !onAnalizarRef;
+        botonAnalizar.classList.toggle('sig-medir-reservado', modo !== 'superficie');
+        botonAnalizar.disabled = modo !== 'superficie' || (puntos.length < 3 && ultimaSuperficie === null);
       }
     };
 
@@ -249,10 +266,8 @@ export function useMeasureControl({
       map.closePopup();
       doubleClickZoomPrevio = map.doubleClickZoom.enabled();
       map.doubleClickZoom.disable();
-      const contenedor = map.getContainer();
-      cursorPrevio = contenedor.style.cursor;
-      contenedor.style.cursor = 'crosshair';
-      map.on('click', onClick);
+      L.DomUtil.addClass(map.getContainer(), 'leaflet-crosshair');
+      map.on('preclick', onClick);
       map.on('mousemove', onMouseMove);
       map.on('mouseout', onMouseOut);
       map.on('popupopen', onPopupOpen);
@@ -268,8 +283,8 @@ export function useMeasureControl({
       activeRef.current = false;
       descartar();
       if (doubleClickZoomPrevio) map.doubleClickZoom.enable();
-      map.getContainer().style.cursor = cursorPrevio;
-      map.off('click', onClick);
+      L.DomUtil.removeClass(map.getContainer(), 'leaflet-crosshair');
+      map.off('preclick', onClick);
       map.off('mousemove', onMouseMove);
       map.off('mouseout', onMouseOut);
       map.off('popupopen', onPopupOpen);

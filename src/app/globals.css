@@ -310,6 +310,9 @@ body {
 .sig-medir-analizar[hidden] {
   display: none;
 }
+.sig-medir-analizar.sig-medir-reservado {
+  visibility: hidden;
+}
 .sig-medir-analizar:not(:disabled) {
   border-color: hsl(153 28% 35%);
   background: hsl(153 28% 35%);
@@ -324,15 +327,26 @@ body {
 }
 .sig-medir-resultado {
   margin: 7px 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 15px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: #9a3412;
 }
+.sig-medir-extra {
+  font-size: 12px;
+  font-weight: 600;
+}
 .sig-medir-ayuda,
 .sig-medir-nota {
   margin: 0 0 6px;
   color: #4b5563;
+}
+/* Dos líneas reservadas: los textos de cada modo no miden lo mismo. */
+.sig-medir-ayuda {
+  min-height: 2.7em;
 }
 .sig-medir-nota {
   margin: 6px 0 0;
