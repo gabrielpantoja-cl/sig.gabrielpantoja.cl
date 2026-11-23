@@ -49,6 +49,7 @@ import 'leaflet.markercluster';
 import { NDVI_VISUAL_ATTRIBUTION } from '@/lib/ndvi-visual';
 import { cbrPinSvg } from '@/lib/cbr-points';
 import { formatoEscala } from '@/lib/medicion';
+import { FallbackTileLayer, type TileSource } from '@/lib/tile-fallback';
 import {
   BASEMAP_FILTER,
   basemapFilterKey,
@@ -168,6 +169,16 @@ async function drawTileLayersToCanvas(
           original.y * tileSize - pMin.y,
         );
 
+        // Ortoimagen con respaldo: las mismas fuentes que en pantalla (el
+        // tile y luego sus padres ampliados), para que el PNG no salga con
+        // huecos donde el mapa muestra la imagen del nivel anterior.
+        if (layer instanceof FallbackTileLayer) {
+          const fuentes = layer
+            .sourcesFor({ x: adjusted.x, y: adjusted.y, z: zoom } as L.Coords)
+            .map((f) => ({ ...f, url: addCacheString(layer.sourceUrl(f)) }));
+          tileTasks.push(loadAndDrawTileFallback(fuentes, tilePos, tileSize, ctx, size));
+          continue;
+        }
         tileTasks.push(loadAndDrawTile(url, tilePos, tileSize, ctx, size));
       }
     }
@@ -219,6 +230,38 @@ function loadAndDrawTile(
     if (canvasSize.x === 0 || canvasSize.y === 0) resolve();
     img.src = url;
   });
+}
+
+/** Como `loadAndDrawTile`, pero prueba cada fuente en orden y dibuja solo
+ *  el cuadrante del padre que corresponde, ampliado al tamaño del tile. */
+async function loadAndDrawTileFallback(
+  fuentes: (TileSource & { url: string })[],
+  tilePos: L.Point,
+  tileSize: number,
+  ctx: CanvasRenderingContext2D,
+  canvasSize: L.Point,
+): Promise<void> {
+  if (canvasSize.x === 0 || canvasSize.y === 0) return;
+  for (const f of fuentes) {
+    const img = await new Promise<HTMLImageElement | null>((resolve) => {
+      const i = new Image();
+      i.crossOrigin = 'anonymous';
+      i.onload = () => resolve(i);
+      i.onerror = () => resolve(null);
+      i.src = f.url;
+    });
+    if (!img) continue;
+    try {
+      ctx.drawImage(
+        img,
+        f.cropX, f.cropY, f.cropSize, f.cropSize,
+        Math.floor(tilePos.x), Math.floor(tilePos.y), tileSize, tileSize,
+      );
+    } catch {
+      // canvas tainted: descartar este tile.
+    }
+    return;
+  }
 }
 
 /**

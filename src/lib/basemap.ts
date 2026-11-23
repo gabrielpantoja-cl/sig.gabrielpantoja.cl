@@ -20,7 +20,9 @@
  * |---|---|
  * | `tile.openstreetmap.org` | 200, `access-control-allow-origin: *`. **En uso.** |
  * | `{a,b,c}.tile.opentopomap.org` | 200, CORS `*`, PNG. **En uso** (curvas de nivel + sombreado SRTM, útil para predios rurales). |
- * | `server.arcgisonline.com` World_Imagery | 200, CORS `*`, JPEG. **En uso** (ortoimagen). |
+ * | `server.arcgisonline.com` World_Imagery | 200, CORS `*`, JPEG. **En uso** (ortoimagen). Donde no hay imagen a ese zoom (Chile rural: suele acabar en z18) responde un tile gris «Map data not yet available»; con `?blankTile=false` responde 404 y `FallbackTileLayer` amplía el padre (verificado 2026-11-23). |
+ * | `clarity.maptiles.arcgis.com` (Clarity) | Mismo acervo que World_Imagery: sin z19 en Panguipulli. No mejora. |
+ * | Google / Bing / Mapbox satélite | Requieren API key o sus términos prohíben usar los tiles fuera de su SDK. Descartados. |
  * | `server.arcgisonline.com` World_Boundaries_and_Places | 200, CORS `*`, PNG transparente. **En uso** (etiquetas sobre la ortoimagen). |
  * | CARTO Positron / Dark Matter (`basemaps.cartocdn.com`) | Devuelve 200 pero **estampa «API KEY REQUIRED» sobre cada tile**. Descartado. |
  * | Stadia Maps / Stamen (`tiles.stadiamaps.com`) | **401** sin API key. Descartado. |
@@ -58,6 +60,9 @@ export type BasemapDef = {
   /** Último zoom con tiles reales; más allá Leaflet reescala el último nivel
    *  en vez de dejar el mapa en blanco. */
   maxNativeZoom: number;
+  /** El proveedor responde error (no un tile de relleno) donde no hay datos:
+   *  se usa `FallbackTileLayer`, que amplía el tile padre en su lugar. */
+  fallback?: boolean;
   /** `'theme'` = se desatura/invierte según `prefers-color-scheme`.
    *  `'none'` = se muestra con sus colores reales. */
   filter: 'theme' | 'none';
@@ -103,8 +108,9 @@ const THUMB_Z = 11;
 const THUMB_X = 622;
 const THUMB_Y = 1225;
 
+/** `blankTile=false`: 404 en vez del tile «Map data not yet available». */
 const ESRI_IMAGERY =
-  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false';
 const ESRI_PLACES =
   'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
 
@@ -146,6 +152,7 @@ export const BASEMAPS: BasemapDef[] = [
       'Imagen: Esri, Maxar, Earthstar Geographics y la comunidad de usuarios SIG',
     attributionText: 'Esri · Maxar · Earthstar Geographics · GIS User Community',
     maxNativeZoom: 19,
+    fallback: true,
     filter: 'none',
     thumb: `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${THUMB_Z}/${THUMB_Y}/${THUMB_X}`,
   },

@@ -34,6 +34,7 @@ import {
   type ComunaProps,
 } from '@/lib/comunas';
 import { cbrPinSvg } from '@/lib/cbr-points';
+import { FallbackTileLayer } from '@/lib/tile-fallback';
 import { useStaticGeoJsonLayer } from '@/components/map/useStaticGeoJsonLayer';
 import { useHexbinLayer, type HexbinSamples } from '@/components/map/useHexbinLayer';
 import { useNdviVisualLayer } from '@/components/map/useNdviVisualLayer';
@@ -657,13 +658,18 @@ export default function MapView({
     }
 
     if (def.url) {
-      basemapRef.current = L.tileLayer(def.url, {
+      const opciones: L.TileLayerOptions = {
         attribution: def.attribution,
         subdomains: def.subdomains ?? 'abc',
         maxZoom: MAP_MAX_ZOOM,
         maxNativeZoom: def.maxNativeZoom,
         crossOrigin: 'anonymous',
-      }).addTo(map);
+      };
+      // Ortoimagen: donde no hay tile a este zoom, amplía el padre en vez de
+      // mostrar «Map data not yet available» (ver lib/tile-fallback.ts).
+      basemapRef.current = (
+        def.fallback ? new FallbackTileLayer(def.url, opciones) : L.tileLayer(def.url, opciones)
+      ).addTo(map);
     }
     if (def.overlayUrl) {
       basemapLabelsRef.current = L.tileLayer(def.overlayUrl, {
