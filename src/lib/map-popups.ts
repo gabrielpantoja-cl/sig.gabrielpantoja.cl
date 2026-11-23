@@ -704,6 +704,23 @@ export function buildRemoteFailurePopup(title: string, service: string, operatio
 }
 
 /**
+ * Color de texto legible sobre un fondo `#rrggbb`: negro o blanco, el que
+ * tenga mayor contraste WCAG. El color de una capa KML lo elige el usuario (o
+ * viene del archivo), así que puede ser claro (amarillo, cian) y el blanco
+ * fijo quedaba ilegible.
+ */
+export function badgeTextColor(hex: string): '#111111' | '#ffffff' {
+  if (!isHexColor(hex)) return '#ffffff';
+  const channel = (i: number): number => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const l = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+  // Contraste con negro (#111 ≈ L 0.0056) vs con blanco (L 1).
+  return (l + 0.05) / (0.0056 + 0.05) > 1.05 / (l + 0.05) ? '#111111' : '#ffffff';
+}
+
+/**
  * Popup de un feature dentro de una capa KML del usuario. Muestra el nombre
  * del Placemark y su descripción como texto plano: cualquier HTML embebido en
  * el KML (habitual en exportes de Google Earth) se descarta antes de escapar,
@@ -716,6 +733,7 @@ export function buildKmlPopup(
   color: string = layer.color,
 ): string {
   const badge = isHexColor(color) ? color : '#555555';
+  const badgeText = badgeTextColor(badge);
   const stripTags = (s: string): string => s.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   const name = kmlPropText(props.name).trim();
   const description = stripTags(kmlPropText(props.description));
@@ -728,7 +746,7 @@ export function buildKmlPopup(
     `<div style="font-size:0.8rem;line-height:1.45;min-width:180px;max-width:260px">` +
     `<div style="font-weight:600;font-size:0.92rem">${esc(name || layerLabel)}</div>` +
     `<div style="display:inline-block;margin:.2rem 0 .45rem;padding:1px 7px;border-radius:9px;` +
-    `font-size:0.68rem;font-weight:600;color:#fff;background:${badge}">Capa KML · ${esc(layerLabel)}</div>` +
+    `font-size:0.68rem;font-weight:600;color:${badgeText};background:${badge}">Capa KML · ${esc(layerLabel)}</div>` +
     (description ? `<div style="opacity:.75">${esc(description)}</div>` : '') +
     `<div style="margin-top:.35rem;font-size:0.62rem;opacity:.5">Archivo local del usuario · no publicado</div>` +
     `</div>`

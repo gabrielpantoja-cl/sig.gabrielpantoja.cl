@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  badgeTextColor,
   buildKmlPopup,
   buildPopup,
   formatMontoInformado,
@@ -134,6 +135,14 @@ describe('popups escape data values', () => {
     const evil = buildKmlPopup({ name: 'x' }, layer, 'red;background:url(x)');
     expect(evil).not.toContain('url(x)');
     expect(buildKmlPopup({ name: 'x' }, layer, '#00aa11')).toContain('background:#00aa11');
+  });
+
+  it('KML badge text stays readable on light and dark layer colors', () => {
+    expect(badgeTextColor('#ffff00')).toBe('#111111');
+    expect(badgeTextColor('#00ffff')).toBe('#111111');
+    expect(badgeTextColor('#1d4ed8')).toBe('#ffffff');
+    expect(badgeTextColor('#555555')).toBe('#ffffff');
+    expect(badgeTextColor('nope')).toBe('#ffffff');
   });
 });
 
