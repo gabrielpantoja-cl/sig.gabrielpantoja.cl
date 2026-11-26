@@ -107,6 +107,7 @@ import {
 import type { RemoteRasterStatus } from '@/lib/remote-raster';
 import { type PanelId } from '@/components/MapPanel';
 import { LayerSidebar, type LayerSidebarView } from '@/components/LayerSidebar';
+import { KmlRemoveConfirm } from '@/components/KmlRemoveConfirm';
 import {
   LAYER_CATALOG,
   countLayerMatches,
@@ -842,6 +843,9 @@ export function LayersControl({
   // breakpoint, so the tabs replace the old `md:grid-cols-[16rem_1fr]`.
   const [view, setView] = useState<LayerSidebarView>('catalogue');
   const [query, setQuery] = useState('');
+  // Una sola capa puede estar a la espera de confirmación a la vez; abrir
+  // otra cierra la anterior automáticamente.
+  const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null);
   // Deferred so typing stays responsive: the value used for FILTERING and for
   // COUNTING is the same one, so rows and the empty state cannot disagree.
   const deferredQuery = useDeferredValue(query);
@@ -1713,15 +1717,28 @@ export function LayersControl({
                       Analizar
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => onRemoveKml(layer.id)}
-                    aria-label={`Quitar capa ${label}`}
-                    className="shrink-0 rounded px-1 leading-none opacity-40 hover:opacity-100"
-                    title={layer.name !== label ? `Original: ${layer.name}` : 'Quitar capa'}
-                  >
-                    ✕
-                  </button>
+                  {confirmingRemove === layer.id ? (
+                    <KmlRemoveConfirm
+                      id={`kml-remove-confirm-${layer.id}`}
+                      label={label}
+                      onConfirm={() => {
+                        onRemoveKml(layer.id);
+                        setConfirmingRemove(null);
+                      }}
+                      onCancel={() => setConfirmingRemove(null)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingRemove(layer.id)}
+                      aria-label={`Quitar capa ${label}`}
+                      aria-controls={`kml-remove-confirm-${layer.id}`}
+                      className="shrink-0 rounded px-1 leading-none opacity-40 hover:opacity-100"
+                      title={layer.name !== label ? `Original: ${layer.name}` : 'Quitar capa'}
+                    >
+                      ✕
+                    </button>
+                  )}
                 </li>
               );
             })}
