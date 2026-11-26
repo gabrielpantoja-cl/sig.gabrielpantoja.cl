@@ -1718,15 +1718,17 @@ export function LayersControl({
                     </button>
                   )}
                   {confirmingRemove === layer.id ? (
-                    <KmlRemoveConfirm
-                      id={`kml-remove-confirm-${layer.id}`}
-                      label={label}
-                      onConfirm={() => {
-                        onRemoveKml(layer.id);
-                        setConfirmingRemove(null);
-                      }}
-                      onCancel={() => setConfirmingRemove(null)}
-                    />
+                    <div className="w-full min-w-0">
+                      <KmlRemoveConfirm
+                        id={`kml-remove-confirm-${layer.id}`}
+                        label={label}
+                        onConfirm={() => {
+                          onRemoveKml(layer.id);
+                          setConfirmingRemove(null);
+                        }}
+                        onCancel={() => setConfirmingRemove(null)}
+                      />
+                    </div>
                   ) : (
                     <button
                       type="button"
