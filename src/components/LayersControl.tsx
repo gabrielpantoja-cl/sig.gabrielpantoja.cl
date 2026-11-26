@@ -1638,108 +1638,109 @@ export function LayersControl({
               // si está vacío o es solo espacios, cae al nombre del archivo.
               // El original del archivo queda como tooltip para diagnóstico.
               const label = kmlDisplayName(layer);
+              const confirming = confirmingRemove === layer.id;
               return (
-                <li key={layer.id} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={layer.visible}
-                    onChange={() => onToggleKml(layer.id)}
-                    className="accent-[hsl(153_28%_35%)]"
-                    aria-label={`Mostrar capa ${label}`}
-                  />
-                  {/* La muestra ES el selector: un <input type="color">
-                      invisible encima. Elegir un color pasa la capa a
-                      color único; el dado vuelve a uno por entidad. */}
-                  <label
-                    className="relative inline-block h-3.5 w-3.5 shrink-0 cursor-pointer overflow-hidden rounded-sm ring-1 ring-black/20 dark:ring-white/30"
-                    style={{
-                      background:
-                        layer.colorMode === 'por-entidad'
-                          ? KML_MULTI_SWATCH
-                          : layer.colorMode === 'archivo'
-                            ? kmlFeatureStyle(layer, layer.geojson.features[0]?.properties, 0).fillColor
-                            : layer.color,
-                    }}
-                    title="Elegir un color para toda la capa"
-                  >
+                <li key={layer.id} className="flex w-full min-w-0 flex-col">
+                  <div className="flex w-full min-w-0 items-center gap-2">
                     <input
-                      type="color"
-                      value={layer.color}
-                      onChange={(e) => onSetKmlColor(layer.id, e.target.value)}
-                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                      aria-label={`Color de la capa ${label}`}
+                      type="checkbox"
+                      checked={layer.visible}
+                      onChange={() => onToggleKml(layer.id)}
+                      className="accent-[hsl(153_28%_35%)]"
+                      aria-label={`Mostrar capa ${label}`}
                     />
-                  </label>
-                  <InlineEditableKmlName
-                    value={label}
-                    onSave={(v) => onRenameKml(layer.id, v)}
-                  />
-                  <span className="opacity-50 no-shrink-0">({layer.featureCount})</span>
-                  {layer.tieneEstilo && layer.colorMode !== 'archivo' && (
-                    <button
-                      type="button"
-                      onClick={() => onUseFileKmlColors(layer.id)}
-                      aria-label={`Usar los colores del archivo en ${label}`}
-                      title="Volver a los colores del archivo (Google Earth)"
-                      className="shrink-0 rounded border border-current px-1 text-[0.6rem] leading-tight opacity-50 hover:opacity-100"
+                    {/* La muestra ES el selector: un <input type="color">
+                        invisible encima. Elegir un color pasa la capa a
+                        color único; el dado vuelve a uno por entidad. */}
+                    <label
+                      className="relative inline-block h-3.5 w-3.5 shrink-0 cursor-pointer overflow-hidden rounded-sm ring-1 ring-black/20 dark:ring-white/30"
+                      style={{
+                        background:
+                          layer.colorMode === 'por-entidad'
+                            ? KML_MULTI_SWATCH
+                            : layer.colorMode === 'archivo'
+                              ? kmlFeatureStyle(layer, layer.geojson.features[0]?.properties, 0).fillColor
+                              : layer.color,
+                      }}
+                      title="Elegir un color para toda la capa"
                     >
-                      Original
-                    </button>
-                  )}
-                  {layer.featureCount > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => onShuffleKmlColors(layer.id)}
-                      aria-label={`Colorear cada entidad de ${label} con un color distinto`}
-                      title={
-                        layer.colorMode === 'por-entidad'
-                          ? 'Otra combinación de colores'
-                          : 'Un color distinto por polígono'
-                      }
-                      className="shrink-0 rounded p-0.5 leading-none opacity-50 hover:opacity-100"
-                    >
-                      <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
-                        <rect x="1.5" y="1.5" width="13" height="13" rx="3" fill="none" stroke="currentColor" strokeWidth="1.4" />
-                        <circle cx="5" cy="5" r="1.2" fill="currentColor" />
-                        <circle cx="8" cy="8" r="1.2" fill="currentColor" />
-                        <circle cx="11" cy="11" r="1.2" fill="currentColor" />
-                      </svg>
-                    </button>
-                  )}
-                  {onAnalizarKml && poligonoDeFeatures(layer.geojson) && (
-                    <button
-                      type="button"
-                      onClick={() => onAnalizarKml(layer.id)}
-                      aria-label={`Analizar el predio de la capa ${label}`}
-                      title="Ficha del predio: comuna, límite urbano, áreas protegidas y comparables CBR"
-                      className="shrink-0 rounded border border-[hsl(153_28%_35%)] px-1 leading-tight text-[hsl(153_28%_28%)] hover:bg-[hsl(153_28%_35%)]/10 dark:text-[hsl(153_35%_70%)]"
-                    >
-                      Analizar
-                    </button>
-                  )}
-                  {confirmingRemove === layer.id ? (
-                    <div className="w-full min-w-0">
-                      <KmlRemoveConfirm
-                        id={`kml-remove-confirm-${layer.id}`}
-                        label={label}
-                        onConfirm={() => {
-                          onRemoveKml(layer.id);
-                          setConfirmingRemove(null);
-                        }}
-                        onCancel={() => setConfirmingRemove(null)}
+                      <input
+                        type="color"
+                        value={layer.color}
+                        onChange={(e) => onSetKmlColor(layer.id, e.target.value)}
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                        aria-label={`Color de la capa ${label}`}
                       />
-                    </div>
-                  ) : (
+                    </label>
+                    <InlineEditableKmlName
+                      value={label}
+                      onSave={(v) => onRenameKml(layer.id, v)}
+                    />
+                    <span className="opacity-50 no-shrink-0">({layer.featureCount})</span>
+                    {layer.tieneEstilo && layer.colorMode !== 'archivo' && (
+                      <button
+                        type="button"
+                        onClick={() => onUseFileKmlColors(layer.id)}
+                        aria-label={`Usar los colores del archivo en ${label}`}
+                        title="Volver a los colores del archivo (Google Earth)"
+                        className="shrink-0 rounded border border-current px-1 text-[0.6rem] leading-tight opacity-50 hover:opacity-100"
+                      >
+                        Original
+                      </button>
+                    )}
+                    {layer.featureCount > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => onShuffleKmlColors(layer.id)}
+                        aria-label={`Colorear cada entidad de ${label} con un color distinto`}
+                        title={
+                          layer.colorMode === 'por-entidad'
+                            ? 'Otra combinación de colores'
+                            : 'Un color distinto por polígono'
+                        }
+                        className="shrink-0 rounded p-0.5 leading-none opacity-50 hover:opacity-100"
+                      >
+                        <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+                          <rect x="1.5" y="1.5" width="13" height="13" rx="3" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                          <circle cx="5" cy="5" r="1.2" fill="currentColor" />
+                          <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+                          <circle cx="11" cy="11" r="1.2" fill="currentColor" />
+                        </svg>
+                      </button>
+                    )}
+                    {onAnalizarKml && poligonoDeFeatures(layer.geojson) && (
+                      <button
+                        type="button"
+                        onClick={() => onAnalizarKml(layer.id)}
+                        aria-label={`Analizar el predio de la capa ${label}`}
+                        title="Ficha del predio: comuna, límite urbano, áreas protegidas y comparables CBR"
+                        className="shrink-0 rounded border border-[hsl(153_28%_35%)] px-1 leading-tight text-[hsl(153_28%_28%)] hover:bg-[hsl(153_28%_35%)]/10 dark:text-[hsl(153_35%_70%)]"
+                      >
+                        Analizar
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => setConfirmingRemove(layer.id)}
+                      onClick={() => setConfirmingRemove(confirming ? null : layer.id)}
                       aria-label={`Quitar capa ${label}`}
-                      aria-controls={`kml-remove-confirm-${layer.id}`}
-                      className="shrink-0 rounded px-1 leading-none opacity-40 hover:opacity-100"
+                      aria-expanded={confirming}
+                      aria-controls={confirming ? `kml-remove-confirm-${layer.id}` : undefined}
+                      className={`shrink-0 rounded px-1 leading-none hover:opacity-100 ${confirming ? 'opacity-100' : 'opacity-40'}`}
                       title={layer.name !== label ? `Original: ${layer.name}` : 'Quitar capa'}
                     >
                       ✕
                     </button>
+                  </div>
+                  {confirming && (
+                    <KmlRemoveConfirm
+                      id={`kml-remove-confirm-${layer.id}`}
+                      label={label}
+                      onConfirm={() => {
+                        onRemoveKml(layer.id);
+                        setConfirmingRemove(null);
+                      }}
+                      onCancel={() => setConfirmingRemove(null)}
+                    />
                   )}
                 </li>
               );
