@@ -931,7 +931,8 @@ export function LayersControl({
                   width: size,
                   height: size,
                   borderColor: CBR_POINT_COLOR,
-                  background: `${CBR_POINT_COLOR}1a`,
+                  // 0x1f = 12 % de alfa, el mismo velo interior del anillo.
+                  background: `${CBR_POINT_COLOR}1f`,
                 }}
               />
             ))}

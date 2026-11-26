@@ -15,29 +15,33 @@ export const CBR_POINT_COLOR = '#e11d48';
 /**
  * Anillos de agrupación (`leaflet.markercluster`).
  *
- * El radio crece con una escala logarítmica acotada entre `2` y `25.000`
- * transacciones: el rango real va de clústeres de 2 a más de 50.000 puntos, y
- * una escala lineal dejaría casi todos los anillos del mismo tamaño. Estos
- * valores los comparten el `iconCreateFunction` del mapa en vivo
+ * El radio crece con una escala logarítmica acotada entre `2` y `5.000`
+ * transacciones. No hay halo blanco: sobre el mapa base oscuro `Neutro` el
+ * halo generaba un doble borde blanco interior y exterior que ensuciaba el
+ * anillo. El trazo carmesí y el velo interior bastan para leerlo sobre
+ * cualquier fondo.
+ *
+ * Estos valores los comparten el `iconCreateFunction` del mapa en vivo
  * (`MapView.tsx`) y el compositor del PNG (`map-export.ts`): nunca duplicar
  * números en ninguno de los dos.
  */
-export const CBR_CLUSTER_MIN_RADIUS = 9;
-export const CBR_CLUSTER_MAX_RADIUS = 26;
+export const CBR_CLUSTER_MIN_RADIUS = 6;
+export const CBR_CLUSTER_MAX_RADIUS = 28;
+export const CBR_CLUSTER_MAX_COUNT = 5_000;
 export const CBR_CLUSTER_STROKE_WIDTH = 2;
-export const CBR_CLUSTER_HALO_WIDTH = 1.5;
-export const CBR_CLUSTER_FILL_OPACITY = 0.1;
-/** Margen del SVG alrededor del anillo para que el halo nunca se recorte. */
-export const CBR_CLUSTER_PADDING = 4;
+export const CBR_CLUSTER_FILL_OPACITY = 0.12;
+/** Margen del SVG alrededor del anillo; el box nunca baja de 24 px. */
+export const CBR_CLUSTER_PADDING = 3;
+export const CBR_CLUSTER_MIN_BOX_SIZE = 24;
 
 const CBR_CLUSTER_MIN_COUNT = 2;
-const CBR_CLUSTER_MAX_COUNT = 25_000;
 
 /**
  * Radio del anillo para `count` transacciones agrupadas. Función pura y
  * monótona no decreciente: `count <= 2` (o un valor no finito, que solo puede
- * venir de una entrada corrupta) cae al mínimo; desde `25.000` se satura en el
- * máximo. `Math.round` evita subpíxeles y mantiene el `boxSize` par.
+ * venir de una entrada corrupta) cae al mínimo; desde `CBR_CLUSTER_MAX_COUNT`
+ * se satura en el máximo. `Math.round` evita subpíxeles y mantiene el
+ * `boxSize` par.
  */
 export function cbrClusterRadius(count: number): number {
   if (!Number.isFinite(count) || count <= CBR_CLUSTER_MIN_COUNT) {
@@ -57,13 +61,14 @@ export function cbrClusterRadius(count: number): number {
 }
 
 /**
- * Anillo SVG de un clúster: halo blanco exterior, trazo carmesí y velo interior
- * mínimo, sin ningún texto numérico visible. El conteo vive solo en el
+ * Anillo SVG de un clúster: un único círculo carmesí con velo interior, sin
+ * halo blanco, sin sombras y sin texto visible. El conteo vive solo en el
  * `title`/`aria-label` (formato `es-CL`), de modo que el mapa queda limpio pero
  * un lector de pantalla igual anuncia cuántas transacciones agrupa.
  *
- * `boxSize` es siempre par (`2 * (radio + padding)`), así el centro cae en un
- * píxel exacto y `iconAnchor` puede ser la mitad justa del contenedor.
+ * `boxSize` es par y nunca menor a `CBR_CLUSTER_MIN_BOX_SIZE`, así el anillo
+ * más chico conserva un área clickeable cómoda y `iconAnchor` puede ser la
+ * mitad justa del contenedor.
  */
 export function cbrClusterSvg(count: number): {
   html: string;
@@ -71,7 +76,10 @@ export function cbrClusterSvg(count: number): {
   radius: number;
 } {
   const radius = cbrClusterRadius(count);
-  const boxSize = (radius + CBR_CLUSTER_PADDING) * 2;
+  const boxSize = Math.max(
+    CBR_CLUSTER_MIN_BOX_SIZE,
+    (radius + CBR_CLUSTER_PADDING) * 2,
+  );
   const center = boxSize / 2;
 
   const safeCount = Number.isFinite(count) && count > 0 ? Math.round(count) : 0;
@@ -83,11 +91,6 @@ export function cbrClusterSvg(count: number): {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${boxSize}" height="${boxSize}" ` +
     `viewBox="0 0 ${boxSize} ${boxSize}" role="img" aria-label="${label}">` +
     `<title>${label}</title>` +
-    // Halo de contraste: mismo centro y radio, trazo más ancho y blanco
-    // translúcido. Se pinta primero para que el anillo carmesí quede encima.
-    `<circle cx="${center}" cy="${center}" r="${radius}" fill="none" ` +
-    `stroke="rgba(255,255,255,0.85)" ` +
-    `stroke-width="${CBR_CLUSTER_STROKE_WIDTH + CBR_CLUSTER_HALO_WIDTH * 2}"/>` +
     `<circle cx="${center}" cy="${center}" r="${radius}" fill="${CBR_POINT_COLOR}" ` +
     `fill-opacity="${CBR_CLUSTER_FILL_OPACITY}" stroke="${CBR_POINT_COLOR}" ` +
     `stroke-width="${CBR_CLUSTER_STROKE_WIDTH}"/>` +

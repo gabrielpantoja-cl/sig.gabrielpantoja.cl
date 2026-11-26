@@ -25,9 +25,10 @@ versionado.
 
 - **Clústeres CBR como anillos monocromáticos sin conteo.** Se retiró
   `MarkerCluster.Default.css` (burbujas verde/amarillo/naranjo con número) y
-  cada agrupación ahora se dibuja como un anillo carmesí con halo blanco,
-  velo interior al 10 % y radio logarítmico de 9 a 26 px según la cantidad
-  agrupada. El número queda solo en `title`/`aria-label`, y el PNG exportado
+  cada agrupación ahora se dibuja como un anillo carmesí sin halo blanco, con
+  velo interior al 12 % y radio logarítmico de 6 a 28 px entre 2 y 5.000
+  transacciones. El agrupamiento usa un radio de 65 px para fragmentar menos
+  el mapa. El número queda solo en `title`/`aria-label`, y el PNG exportado
   replica el mismo anillo desde `src/lib/cbr-points.ts`.
 
 ### Eliminado

@@ -49,7 +49,6 @@ import 'leaflet.markercluster';
 import { NDVI_VISUAL_ATTRIBUTION } from '@/lib/ndvi-visual';
 import {
   CBR_CLUSTER_FILL_OPACITY,
-  CBR_CLUSTER_HALO_WIDTH,
   CBR_CLUSTER_STROKE_WIDTH,
   CBR_POINT_COLOR,
   cbrClusterRadius,
@@ -380,8 +379,10 @@ function loadCbrPinSprite(): Promise<HTMLImageElement> {
  * visible (`getVisibleParent`): si el marker se muestra suelto, ese es su
  * padre; si está agrupado, el padre es un anillo `L.MarkerCluster`. Luego
  * deduplica por identidad y dibuja lo que efectivamente el usuario ve en
- * pantalla. La bounding box se infla un 10 % para no perder nada en el borde
- * durante un paneo brusco justo antes del export.
+ * pantalla. El agrupamiento lo decide el `MarkerClusterGroup` de `MapView`
+ * (`maxClusterRadius: 65`); este compositor no agrupa por su cuenta, solo
+ * refleja el padre visible. La bounding box se infla un 10 % para no perder
+ * nada en el borde durante un paneo brusco justo antes del export.
  *
  * ## NO cambiar `getLayers()` por `getAllChildMarkers()`
  *
@@ -450,12 +451,13 @@ async function drawCbrMarkers(
 
 /**
  * Anillo de clúster, espejo exacto del SVG que pinta `MapView` en vivo:
- * velo interior carmesí, halo blanco de contraste y trazo principal. Sin
- * texto: el conteo solo existe en el `title`/`aria-label` del DOM.
+ * velo interior carmesí y trazo principal, sin halo blanco ni texto. El
+ * conteo solo existe en el `title`/`aria-label` del DOM.
  *
  * `iconAnchor` del divIcon es la mitad de su `boxSize`, así que el centro del
- * anillo cae exactamente en `pos` (el padding del SVG solo reserva espacio
- * para el halo, no desplaza la geometría).
+ * anillo cae exactamente en `pos` (el padding del SVG y el mínimo de 24 px
+ * solo reservan área clickeable, no desplazan la geometría). El canvas del
+ * export se crea 1:1 con el tamaño CSS del mapa, sin factor DPR.
  */
 function drawClusterBubble(
   ctx: CanvasRenderingContext2D,
@@ -468,19 +470,13 @@ function drawClusterBubble(
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
 
-    // 1. Halo blanco exterior, primero: el velo y el anillo principal van
-    // encima, igual que los dos <circle> del SVG en vivo.
-    ctx.lineWidth = CBR_CLUSTER_STROKE_WIDTH + CBR_CLUSTER_HALO_WIDTH * 2;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.stroke();
-
-    // 2. Velo interior: deja leer el mapa de fondo pero marca el área.
+    // 1. Velo interior: deja leer el mapa de fondo pero marca el área.
     ctx.fillStyle = CBR_POINT_COLOR;
     ctx.globalAlpha = CBR_CLUSTER_FILL_OPACITY;
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    // 3. Anillo principal carmesí.
+    // 2. Anillo principal carmesí, sin halo blanco.
     ctx.lineWidth = CBR_CLUSTER_STROKE_WIDTH;
     ctx.strokeStyle = CBR_POINT_COLOR;
     ctx.stroke();

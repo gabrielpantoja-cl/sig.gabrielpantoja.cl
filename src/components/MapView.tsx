@@ -733,9 +733,9 @@ export default function MapView({
       chunkedLoading: true,
       chunkInterval: 120,
       chunkDelay: 20,
-      maxClusterRadius: 50,
+      maxClusterRadius: 65,
       // Desde z18 cada punto se dibuja individual en su coordenada exacta. Con
-      // el default (null) el radio de 50 px agrupa en TODOS los zooms, así que
+      // el default (null) el radio de 65 px agrupa en TODOS los zooms, así que
       // dos lotes contiguos a ~8 m (36 px a z19) quedaban en un solo clúster
       // aunque el mapa estuviera al máximo. Bajo z18 el cluster sigue
       // despejando el mapa; a z18 la separación (≈18 px) ya distingue los pines.
