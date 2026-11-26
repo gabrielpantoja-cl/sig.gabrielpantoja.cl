@@ -21,6 +21,15 @@ versionado.
 
 ## No publicado
 
+### Cambiado
+
+- **Clústeres CBR como anillos monocromáticos sin conteo.** Se retiró
+  `MarkerCluster.Default.css` (burbujas verde/amarillo/naranjo con número) y
+  cada agrupación ahora se dibuja como un anillo carmesí con halo blanco,
+  velo interior al 10 % y radio logarítmico de 9 a 26 px según la cantidad
+  agrupada. El número queda solo en `title`/`aria-label`, y el PNG exportado
+  replica el mismo anillo desde `src/lib/cbr-points.ts`.
+
 ### Eliminado
 
 - **Consulta NDVI por punto** (botón «Consultar NDVI en el mapa», panel con la

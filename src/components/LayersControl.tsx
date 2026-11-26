@@ -916,7 +916,30 @@ export function LayersControl({
           swatch={
             <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CBR_POINT_COLOR }} />
           }
-        />
+        >
+          <p className="leading-snug">
+            Al alejar el zoom, las transacciones se agrupan en anillos del mismo
+            carmesí. El diámetro crece con la cantidad agrupada; el número no se
+            imprime en el mapa.
+          </p>
+          <div className="mt-2 flex items-center gap-2" aria-hidden="true">
+            {[10, 16, 22].map((size) => (
+              <span
+                key={size}
+                className="inline-block rounded-full border-2"
+                style={{
+                  width: size,
+                  height: size,
+                  borderColor: CBR_POINT_COLOR,
+                  background: `${CBR_POINT_COLOR}1a`,
+                }}
+              />
+            ))}
+          </div>
+          <p className="mt-1 text-[0.65rem] leading-snug opacity-70">
+            Agrupación (tamaño según cantidad)
+          </p>
+        </LayerRow>
 
         <LayerRow
           checked={showConservadores}

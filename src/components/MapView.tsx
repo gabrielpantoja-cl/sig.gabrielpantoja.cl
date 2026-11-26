@@ -5,7 +5,10 @@ import L from 'leaflet';
 import 'leaflet.markercluster';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+// NO reimportar MarkerCluster.Default.css: sus burbujas verde/amarillo/naranjo
+// con conteo quedaron reemplazadas por los anillos de `cbrClusterSvg()`. Sin
+// ese CSS, markercluster usa nuestras clases `.cbr-cluster-icon` y el resto de
+// MarkerCluster.css (animaciones, spiderfy) sigue funcionando.
 import type { GeocodeResult, MapPoint } from '@/lib/types';
 import { lecturaCursor } from '@/lib/coordenadas';
 import {
@@ -33,7 +36,7 @@ import {
   comunaFillColor,
   type ComunaProps,
 } from '@/lib/comunas';
-import { cbrPinSvg } from '@/lib/cbr-points';
+import { CBR_POINT_COLOR, cbrClusterSvg, cbrPinSvg } from '@/lib/cbr-points';
 import { FallbackTileLayer } from '@/lib/tile-fallback';
 import { useStaticGeoJsonLayer } from '@/components/map/useStaticGeoJsonLayer';
 import { useHexbinLayer, type HexbinSamples } from '@/components/map/useHexbinLayer';
@@ -733,11 +736,31 @@ export default function MapView({
       maxClusterRadius: 50,
       // Desde z18 cada punto se dibuja individual en su coordenada exacta. Con
       // el default (null) el radio de 50 px agrupa en TODOS los zooms, así que
-      // dos lotes contiguos a ~8 m (36 px a z19) quedaban en una sola burbuja
-      // «2» aunque el mapa estuviera al máximo. Bajo z18 el cluster sigue
+      // dos lotes contiguos a ~8 m (36 px a z19) quedaban en un solo clúster
+      // aunque el mapa estuviera al máximo. Bajo z18 el cluster sigue
       // despejando el mapa; a z18 la separación (≈18 px) ya distingue los pines.
       disableClusteringAtZoom: 18,
+      // Sin polígonos de cobertura al pasar el mouse (interferían con la
+      // lectura del mapa) y sin el azul por defecto de Leaflet en las patas
+      // de spiderfy: todo el clúster habla el mismo carmesí de los pines.
       showCoverageOnHover: false,
+      spiderLegPolylineOptions: {
+        weight: 1.5,
+        color: CBR_POINT_COLOR,
+        opacity: 0.55,
+      },
+      // Anillo monocromático sin número visible. `iconAnchor` es exactamente
+      // la mitad de `boxSize` para que el centro del anillo caiga sobre el
+      // centroide real del clúster (el SVG ya reserva el padding del halo).
+      iconCreateFunction: (cluster: L.MarkerCluster) => {
+        const { html, boxSize } = cbrClusterSvg(cluster.getChildCount());
+        return L.divIcon({
+          html,
+          className: 'cbr-cluster-icon',
+          iconSize: [boxSize, boxSize],
+          iconAnchor: [boxSize / 2, boxSize / 2],
+        });
+      },
       // animate:false evita el requestAnimFrame de transición de clusters, cuyo
       // callback diferido corría tras el desmontaje (StrictMode) sobre un mapa
       // ya destruido → «Cannot read properties of null (getMinZoom)». Además es

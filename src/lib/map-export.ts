@@ -27,10 +27,10 @@
  *  2. **Pines CBR** — `MarkerClusterGroup` con `divIcon` no se rasteriza en
  *     canvas ni en `imageOverlay`, así que se compositea encima con
  *     `getAllChildMarkers()` + `getVisibleParent()` del cluster: cada marker
- *     hijo se reduce a su burbuja visible, y se pinta con primitivas del canvas
- *     (sprite SVG para pines sueltos, círculo+texto para los clusters). La
- *     ventana visible del mapa con un 10% de buffer evita pintar lo que queda
- *     fuera.
+ *     hijo se reduce a su nodo visible, y se pinta con primitivas del canvas
+ *     (sprite SVG para pines sueltos, anillo proporcional sin texto para los
+ *     clústeres). La ventana visible del mapa con un 10% de buffer evita
+ *     pintar lo que queda fuera.
  *
  *  3. **Marco** — encima de todo: brújula estilo cartográfico en la esquina
  *     superior derecha (tick marks de 30°, aguja roja al norte tipo N, sans-
@@ -47,7 +47,14 @@
 import L from 'leaflet';
 import 'leaflet.markercluster';
 import { NDVI_VISUAL_ATTRIBUTION } from '@/lib/ndvi-visual';
-import { cbrPinSvg } from '@/lib/cbr-points';
+import {
+  CBR_CLUSTER_FILL_OPACITY,
+  CBR_CLUSTER_HALO_WIDTH,
+  CBR_CLUSTER_STROKE_WIDTH,
+  CBR_POINT_COLOR,
+  cbrClusterRadius,
+  cbrPinSvg,
+} from '@/lib/cbr-points';
 import { formatoEscala } from '@/lib/medicion';
 import { FallbackTileLayer, type TileSource } from '@/lib/tile-fallback';
 import {
@@ -371,7 +378,7 @@ function loadCbrPinSprite(): Promise<HTMLImageElement> {
 /**
  * Itera todos los markers del cluster y, para cada uno, se queda con su padre
  * visible (`getVisibleParent`): si el marker se muestra suelto, ese es su
- * padre; si está agrupado, el padre es una burbuja `L.MarkerCluster`. Luego
+ * padre; si está agrupado, el padre es un anillo `L.MarkerCluster`. Luego
  * deduplica por identidad y dibuja lo que efectivamente el usuario ve en
  * pantalla. La bounding box se infla un 10 % para no perder nada en el borde
  * durante un paneo brusco justo antes del export.
@@ -442,35 +449,44 @@ async function drawCbrMarkers(
 }
 
 /**
- * Burbuja de cluster pintada al estilo de Leaflet.markercluster (default):
- * un círculo con fill #5fb7e0, borde blanco y conteo en negrita. El radio
- * escala por las mismas dos puertas que la librería (`< 10`, `< 100`, `≥ 100`)
- * para que el export se vea igual de "orgánico" que el mapa en vivo.
+ * Anillo de clúster, espejo exacto del SVG que pinta `MapView` en vivo:
+ * velo interior carmesí, halo blanco de contraste y trazo principal. Sin
+ * texto: el conteo solo existe en el `title`/`aria-label` del DOM.
+ *
+ * `iconAnchor` del divIcon es la mitad de su `boxSize`, así que el centro del
+ * anillo cae exactamente en `pos` (el padding del SVG solo reserva espacio
+ * para el halo, no desplaza la geometría).
  */
 function drawClusterBubble(
   ctx: CanvasRenderingContext2D,
   pos: L.Point,
   count: number,
 ): void {
-  const radius = count < 10 ? 14 : count < 100 ? 18 : 22;
-  const cy = pos.y - radius / 2; // mismo offset vertical que las CSS de markercluster
+  const radius = cbrClusterRadius(count);
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(pos.x, cy, radius, 0, Math.PI * 2);
-  ctx.fillStyle = '#5fb7e0';
-  ctx.globalAlpha = 0.85;
-  ctx.fill();
-  ctx.globalAlpha = 1;
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = '#fff';
-  ctx.stroke();
+  try {
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
 
-  ctx.fillStyle = '#fff';
-  ctx.font = `bold ${Math.max(radius - 2, 10)}px sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(String(count), pos.x, cy);
-  ctx.restore();
+    // 1. Halo blanco exterior, primero: el velo y el anillo principal van
+    // encima, igual que los dos <circle> del SVG en vivo.
+    ctx.lineWidth = CBR_CLUSTER_STROKE_WIDTH + CBR_CLUSTER_HALO_WIDTH * 2;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.stroke();
+
+    // 2. Velo interior: deja leer el mapa de fondo pero marca el área.
+    ctx.fillStyle = CBR_POINT_COLOR;
+    ctx.globalAlpha = CBR_CLUSTER_FILL_OPACITY;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // 3. Anillo principal carmesí.
+    ctx.lineWidth = CBR_CLUSTER_STROKE_WIDTH;
+    ctx.strokeStyle = CBR_POINT_COLOR;
+    ctx.stroke();
+  } finally {
+    ctx.restore();
+  }
 }
 
 /* ---------- Marco: norte + escala + atribuciones ---------- */

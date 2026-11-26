@@ -417,3 +417,28 @@ body {
     display: none !important;
   }
 }
+
+/* Clústeres CBR: anillos monocromáticos sin conteo (ver lib/cbr-points.ts).
+   El SVG trae su propio tamaño y centrado; aquí solo se neutraliza el
+   contenedor que Leaflet crea para el divIcon, para que no aparezca el cuadro
+   blanco de `.leaflet-div-icon`. El hover escala el SVG hijo y NUNCA el
+   contenedor: Leaflet posiciona ese contenedor con `transform: translate3d()`
+   y cualquier transform propio lo sacaría de su coordenada. */
+.cbr-cluster-icon {
+  background: transparent !important;
+  border: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cbr-cluster-icon svg {
+  display: block;
+  overflow: visible;
+  transform-origin: center;
+  transition: transform 120ms ease-out;
+}
+
+.cbr-cluster-icon:hover svg {
+  transform: scale(1.06);
+}
