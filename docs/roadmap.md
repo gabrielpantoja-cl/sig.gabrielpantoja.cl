@@ -802,8 +802,10 @@ Hoy: color por polígono o único elegido, guardado en el navegador del equipo
 
 - [x] **El export a PNG estaba roto** — corregido el 2026-08-28 (tres fallos
       encadenados; detalle en `CHANGELOG.md`).
-- [ ] **Fidelidad del PNG**: las burbujas de clúster se exportan en azul plano
-      mientras en pantalla se colorean por conteo (verde/amarillo/naranja).
+- [x] ~~**Fidelidad del PNG**: las burbujas de clúster se exportan en azul plano
+      mientras en pantalla se colorean por conteo (verde/amarillo/naranja).~~
+      Resuelto el 2026-11-26: el PNG replica el anillo monocromático sin conteo
+      de `src/lib/cbr-points.ts` (`drawClusterBubble`).
 - [ ] **Prueba de humo del export**: tres bugs distintos convivieron en esa
       ruta sin que nada los ejercitara. Desde el 2026-10-05 el cajetín
       (`src/lib/export-metadata.ts`) tiene tests unitarios; la rasterización
